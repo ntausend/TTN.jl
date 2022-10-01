@@ -6,7 +6,6 @@ end
 
 
 function construct_random_tree_tensor_network(net::AbstractNetwork)
-    localDim = local_dim(net)
     number_of_layers = TTNKit.n_layers(net)
 
     ttn = Vector{Vector{TensorMap}}(undef, number_of_layers)
