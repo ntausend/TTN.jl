@@ -22,10 +22,17 @@ end
 
 function adjacencyMatrix(la::BinaryChain)
     n_sites = number_of_sites(la)
+    n_layer = 0
+    try
+        n_layer = Int64(log2(n_sites))
+    catch
+        error("Number of Sites $number_of_sites is not compatible with a binary network of n 
+              layers requireing number_of_sites = 2^n")
+    end
     n_first_layer = 2^(n_layer-1)
     pos_phys = collect(1:n_sites)
     I = repeat(collect(1:n_first_layer), 2)
-    J = vcat(pos_phys[1:2:end], pos_this[2:2:end])
+    J = vcat(pos_phys[1:2:end], pos_phys[2:2:end])
  
 	return sparse(I,J,repeat([1], n_sites), n_first_layer, n_sites)
 end
@@ -35,7 +42,9 @@ to_coordinate(::BinaryChain) = x -> (x,)
 
 function Base.show(io::IO, la::BinaryChain)
     for nd in la
-        print(io,"|_|")
+        print(io,"|")
+        print(io,nd)
+        print(io,"|")
         nd.s<length(la) &&  print(io," - ")
     end
     println(io,"")
@@ -43,12 +52,14 @@ function Base.show(io::IO, la::BinaryChain)
         print(io," |    ")
     end
     println(io,"")
+    #=
     for nd in la
         print(io," ")
         print(io,nd)
         print(io,"    ")
         #nd.s<length(la.lat) &&  print(io," - ")
     end
+    =#
     println(io, "")
 end
 

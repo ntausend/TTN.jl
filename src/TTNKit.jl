@@ -5,8 +5,10 @@ module TTNKit
     # lattice class
 
     export AbstractLattice, BinaryChain, CreateBinaryChain
+    export BinarySquare
     include("./Lattice/Lattice.jl")
     include("./Lattice/BinaryChain.jl")
+    include("./Lattice/BinarySquare.jl")
 
     # including the Network classes
 
