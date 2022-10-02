@@ -1,8 +1,6 @@
 struct BinarySquare <: AbstractLattice{2}
     lat::Vector{Node}
-    local_dim::Int64
-    linear_length::Int64
-    local_hilbertspace
+    dims::Tuple{Int, Int}
 
     function BinarySquare(lin_number_of_sites::Int64, local_dim::Int64; field = ComplexSpace)
         n_layer = 0
@@ -16,24 +14,17 @@ struct BinarySquare <: AbstractLattice{2}
         lat_vec = Vector{Node}(undef, lin_number_of_sites^2)
         for xx in 1:lin_number_of_sites, yy in 1:lin_number_of_sites
             linind = xx + (yy - 1)*lin_number_of_sites
-            lat_vec[linind] = Node(linind, "$xx $yy")
+            lat_vec[linind] = Node(linind,  field(local_dim),"$xx $yy")
         end
         #lat_vec = [Node(n, "$n") for n in 1:number_of_sites]
-        return new(lat_vec, local_dim, lin_number_of_sites, field(local_dim))
+        return new(lat_vec, (lin_number_of_sites, lin_number_of_sites))
     end
 end
 
-linear_length(lat::BinarySquare) = lat.linear_length
-
-function to_linear_ind(lat::BinarySquare)
-    n_lin = linear_length(lat)
-    
-    return x -> x[1] + (x[2] - 1) * n_lin
-end
-
-function to_coordinate(lat::BinarySquare)
-    n_lin = linear_length(lat)
-    return x -> (mod1(x, n_lin), div(x - 1,n_lin) + 1)
+# depreicated as soon as general function is implemented
+function to_coordinate(lat::BinarySquare, p::Int)
+    n_lin = size(lat,1)
+    return (mod1(p, n_lin), div(p - 1,n_lin) + 1)
 end
 
 # should be the same formular as the Binary chain? Since we
