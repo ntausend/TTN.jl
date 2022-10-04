@@ -3,41 +3,41 @@ abstract type AbstractNetwork{D} end
 
 struct Network{D} <: AbstractNetwork{D}
 	# tensors per layer
-	n_layer::Vector{Int64}
+	tensors_per_layer::Vector{Int}
 	# bonddimension per layer
-	bonddims::Vector{Int64}
+	bonddims::Vector{Int}
 	# adjacency matrix per layer
-    connections::Vector{SparseMatrixCSC{Int64, Int64}}
+    connections::Vector{SparseMatrixCSC{Int, Int}}
 	#physical sites -> replace this by a lattice class
 	lattice::AbstractLattice{D}
 	#lattice::Array{Int64,D}
 	#physical dimension
 end
 
-dimensionality(net::AbstractNetwork{D}) where D  = D
-n_tensors(net::AbstractNetwork, l::Int64) = net.n_layer[l]
-n_layers(net::AbstractNetwork) = length(net.n_layer)
+dimensionality(::AbstractNetwork{D}) where D  = D
+n_tensors(net::AbstractNetwork, l::Int) = net.tensors_per_layer[l]
+n_layers(net::AbstractNetwork) = length(net.tensors_per_layer)
 n_tensors(net::AbstractNetwork) = sum(map(l -> n_tensors(net, l), 1:n_layers(net)))
-adjacencyMatrix(net::AbstractNetwork, l::Int64) = net.connections[l]
-bonddim(net::AbstractNetwork, l::Int64) = net.bonddims[l]
+adjacencyMatrix(net::AbstractNetwork, l::Int) = net.connections[l]
+bonddim(net::AbstractNetwork, l::Int) = net.bonddims[l]
 lattice(net::AbstractNetwork) = net.lattice
 local_dim(net::AbstractNetwork) = local_dim(lattice(net))
 adjacencyMatrixPhysicalSites(net::AbstractNetwork) = adjacencyMatrix(lattice(net))
 
-function check_valid_pos(net::AbstractNetwork, pos::Tuple{Int64, Int64})
+function check_valid_pos(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l, p = pos
 	return (0 < l ≤ n_layers(net)) && (0 < p ≤ n_tensors(net, l))
 end
 
 """
-	index_of_child(net::AbstractNetwork, pos_child)
+	index_of_child(net::AbstractNetwork, pos_child::Tuple{Int,Int})
 
 Returns the index of a child in the child list of its parent.
 Needed for uniquly identifying the leg associated to this child
 in the parent tensor.
 
 """
-function index_of_child(net::AbstractNetwork, pos_child)
+function index_of_child(net::AbstractNetwork, pos_child::Tuple{Int, Int})
 	pos_parent = parentNode(net,pos_child)
 	idx_child = findfirst(x -> all(x .== pos_child), childNodes(net, pos_parent))
 	return idx_child
@@ -45,7 +45,7 @@ end
 
 
 """
-	NetworkBinaryOneDim(n::Int64,bonddims::Vector{Int64})
+	NetworkBinaryOneDim(n::Int, bonddims::Vector{Int}, local_dim::Int)
 
 Defines a one dimensional binary tree tensor network structure where every
 odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
@@ -53,7 +53,7 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryNetwork(n::Int64,bonddims::Vector{Int64}, local_dim::Int64)
+function CreateBinaryNetwork(n::Int, bonddims::Vector{Int}, local_dim::Int)
 	#bnddm = correct_bonddims(bonddims, n)
 	
 	@assert length(bonddims) == n-1
@@ -83,7 +83,7 @@ end
 
 
 """
-	parentNode(net::AbstractNetwork, pos::Tuple{Int64, Int64})
+	parentNode(net::AbstractNetwork, pos::Tuple{Int, Int})
 
 Returns the (unique) parent node of the given position tuple. 
 If `pos` is the top node, `nothing` is returned.
@@ -92,7 +92,7 @@ If `pos` is the top node, `nothing` is returned.
 - `net`: Network to find the parent node
 - `pos`: Tuple consisting of the childs layer and interlayer position
 """
-function parentNode(net::AbstractNetwork, pos::Tuple{Int64, Int64})
+function parentNode(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l,p = pos
 	
 	@assert 0 < l ≤ n_layers(net)
@@ -109,14 +109,14 @@ end
 
 
 """
-	childNodes(net::AbstractNetwork, pos::Tuple{Int64, Int64})
+	childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 
 Returns an array representing all childs. In case of node beeing in the lowest
 layer, it returns a list of the form (0, p) representing the physical site.
 
-Inputs: See `parent(net::AbstractNetwork, pos::Tuple{Int64, Int64})`
+Inputs: See `parent(net::AbstractNetwork, pos::Tuple{Int, Int})`
 """
-function childNodes(net::AbstractNetwork, pos::Tuple{Int64, Int64})
+function childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l,p = pos
 	@assert 0 < l ≤ n_layers(net)
 	@assert 0 < p ≤ n_tensors(net, l)
@@ -131,13 +131,13 @@ function childNodes(net::AbstractNetwork, pos::Tuple{Int64, Int64})
 	return [(l - 1, idx) for idx in inds]
 end
 
-function n_childNodes(net::AbstractNetwork, pos::Tuple{Int64, Int64})
+function n_childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 	return length(childNodes(net, pos))
 end
 
 # function returning all nodes from `pos1` to `pos2` by assuming
 # that the layer of `pos1` is lower or equal than `pos2`
-function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int64, Int64}, pos2::Tuple{Int64, Int64})
+function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
 	l1,p1 = pos1
 	l2,p2 = pos2
 	
@@ -182,7 +182,7 @@ function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int64, Int64}, pos2::
 	return path
 end
 
-function connectingPath(net::AbstractNetwork, pos1::Tuple{Int64, Int64}, pos2::Tuple{Int64, Int64})
+function connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
 	if(pos1[1] < pos2[1])
 		path = _connectingPath(net, pos1, pos2)
 		return path[2:end]
@@ -193,7 +193,7 @@ function connectingPath(net::AbstractNetwork, pos1::Tuple{Int64, Int64}, pos2::T
 end
 
 
-function Base.iterate(net::AbstractNetwork)
+function Base.iterate(::AbstractNetwork)
 	pos = (1, 1)
 	return (pos, pos)
 end

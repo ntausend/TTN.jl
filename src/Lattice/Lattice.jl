@@ -10,23 +10,9 @@ dimensionality(::AbstractLattice{D}) where D = D
 adjacencyMatrix(la::AbstractLattice) = la.adjMat
 number_of_sites(la::AbstractLattice) = length(la.lat)
 
-function to_linear_ind(la::AbstractLattice, p::NTuple{D,Int}) where D
-    @assert dimensionality(la) == D
-    dims = size(la)
-    res = mapreduce(+,enumerate(p[2:end]), init = p[1]) do (jj, pp)
-        (pp-1)*prod(dims[1:jj])
-    end
-    return res
-end
+to_linear_ind(::AbstractLattice{D}, ::NTuple{D,Int}) where D = error("Tuple to linear Index not implemented for general lattices.")
 
-function to_coordinate(la::AbstractLattice{D}, p::Int) where {D}
-    p = Vector{Int64}(undef, D)
-    dim = size(la)
-    error("Need implementing general formular...")
-end
-
-Base.size(la::AbstractLattice) = la.dims
-Base.size(la::AbstractLattice, d::Integer) = size(la)[d]
+to_coordinate(::AbstractLattice{D}, ::Int) where {D} = error("Linear Index to Tuple not implemented for general lattices.")
 
 
 function parentNode(la::AbstractLattice, p::Int)

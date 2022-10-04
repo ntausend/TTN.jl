@@ -8,19 +8,22 @@ function inner(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
     return _inner(ttn1, net1, ttn2, net2)
 end
 
-function inner(ttn1::TreeTensorNetwork, net1::AbstractLattice, ttn2::TreeTensorNetwork, net2::AbstractLattice)
+function inner(::TreeTensorNetwork, ::AbstractLattice, ::TreeTensorNetwork, ::AbstractLattice)
     error("Overlap function for not implemented for general lattices.")
 end
 
-function _inner(ttn1::TreeTensorNetwork, net1::OneDimensionalBinaryNetwork, 
-                ttn2::TreeTensorNetwork, net2::OneDimensionalBinaryNetwork)
+function _inner(ttn1::TreeTensorNetwork, net1::BinaryNetwork, 
+                ttn2::TreeTensorNetwork, net2::BinaryNetwork)
 
     nl = n_layers(net1)
     # contruct the network starting from the first layer upwards
     ns = number_of_sites(lattice(net1))
-    res = [isomorphism(local_hilbertspace(lattice(net1)), local_hilbertspace(lattice(net2))) for _ in 1:ns]
+    
+    res = map(1:ns) do (jj)
+        isomorphism(hilbertspace(node(lattice(net1), jj)), hilbertspace(node(lattice(net2), jj)))
+    end
+
     for ll in 1:nl
-        #nt_next = n_tensors(net1,ll+1)
         nt = n_tensors(net1,ll)
         res_new = Vector{TensorMap}(undef, nt)
         for pp in 1:nt

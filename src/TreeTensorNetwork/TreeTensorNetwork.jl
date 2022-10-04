@@ -1,11 +1,11 @@
 struct TreeTensorNetwork
     data::Vector{Vector{TensorMap}}
-    ortho_center::Vector{Int64}
+    ortho_center::Vector{Int}
     net::AbstractNetwork
 end
 
 
-function construct_random_tree_tensor_network(net::AbstractNetwork)
+function construct_random_tree_tensor_network(net::AbstractNetwork; field = ComplexSpace)
     number_of_layers = TTNKit.n_layers(net)
 
     ttn = Vector{Vector{TensorMap}}(undef, number_of_layers)
@@ -20,20 +20,20 @@ function construct_random_tree_tensor_network(net::AbstractNetwork)
 
         # parent connection is defined by the domain
         # in case of top node, just a trivial outgoing leg with dimension 1 or 0?
-        domain = ComplexSpace(maxbonddim)
+        domain = field(maxbonddim)
 
         if ll == 1
             # codomain of the lowest layer is defined by the connectivity of the
             # local lattice
-            n_ch = n_childNodes(net, (ll,pp))
-            sp = local_hilbertspace(lattice(net))
-            codomain = ProductSpace(repeat([sp], n_ch)...)
+            n_ch = childNodes(net, (ll,pp))
+            sp = map(kk -> TTNKit.hilbertspace(TTNKit.node(TTNKit.lattice(net), kk[2])), n_ch)
+            codomain = ProductSpace(sp...)
             #continue
         else
             # if not, it is the product of all childs, with bond dimension given by the
             # lower layer
             maxbonddim_lower = TTNKit.bonddim(net, ll-1)
-            space_single = ComplexSpace(maxbonddim_lower)
+            space_single = field(maxbonddim_lower)
             spaces = repeat([space_single], TTNKit.n_childNodes(net, (ll, pp)))
             codomain = ProductSpace(spaces...)
         end
@@ -54,7 +54,7 @@ function TreeTensorNetwork(net::AbstractNetwork; orthogonalize = true, normalize
 end
 
 # returning the ll-th tensor network layer
-layer(ttn::TreeTensorNetwork, l::Int64) = ttn.data[l]
+layer(ttn::TreeTensorNetwork, l::Int) = ttn.data[l]
 n_layers(ttn::TreeTensorNetwork) = length(ttn.data)
 # returning the network
 network(ttn::TreeTensorNetwork) = ttn.net
@@ -62,22 +62,22 @@ network(ttn::TreeTensorNetwork) = ttn.net
 ortho_center(ttn::TreeTensorNetwork) = Tuple(ttn.ortho_center)
 
 
-Base.getindex(ttn::TreeTensorNetwork, l::Int64, p::Int64) = ttn.data[l][p]
-Base.getindex(ttn::TreeTensorNetwork, pos::Tuple{Int64, Int64}) = getindex(ttn,pos[1],pos[2])
+Base.getindex(ttn::TreeTensorNetwork, l::Int, p::Int) = ttn.data[l][p]
+Base.getindex(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}) = getindex(ttn,pos[1],pos[2])
 
-function Base.setindex!(ttn::TreeTensorNetwork, tn::TensorMap, l::Int64, p::Int64)
+function Base.setindex!(ttn::TreeTensorNetwork, tn::TensorMap, l::Int, p::Int)
     ttn.data[l][p] = tn
     return ttn
 end
-Base.setindex!(ttn::TreeTensorNetwork, tn::TensorMap, pos::Tuple{Int64, Int64}) = setindex!(ttn, tn, pos[1], pos[2])
+Base.setindex!(ttn::TreeTensorNetwork, tn::TensorMap, pos::Tuple{Int, Int}) = setindex!(ttn, tn, pos[1], pos[2])
 
 
 # makes `pos` orthogonal by splitting between domain and codomain as T = QR and shifting
 # R into the parent node
-_orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int64, Int64}) = _orthogonalize_to_parent!(ttn, network(ttn), pos)
+_orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}) = _orthogonalize_to_parent!(ttn, network(ttn), pos)
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
-function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int64, Int64})
+function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int})
 
     pos[1] == TTNKit.n_layers(net) && (return ttn)
 
@@ -110,10 +110,10 @@ end
 
 
 # orhtogonalize towards the n-th child of this node
-_orthogonalize_to_child!(ttn::TreeTensorNetwork, pos::Tuple{Int64, Int64}, n_child::Int64) = _orthogonalize_to_child!(ttn, network(ttn), pos, n_child) 
+_orthogonalize_to_child!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}, n_child::Int) = _orthogonalize_to_child!(ttn, network(ttn), pos, n_child) 
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
-function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int64, Int64}, n_child::Int64)
+function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}, n_child::Int)
     @assert 0 < n_child ≤ n_childNodes(net, pos)
 
     pos[1] == 1 && (return ttn)
@@ -168,7 +168,7 @@ function move_up!(ttn::TreeTensorNetwork; normalize = false)
     _orthogonalize_to_parent!(ttn, oc)
 end
 
-function move_down!(ttn::TreeTensorNetwork, n_child::Int64; normalize = false)
+function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize = false)
     
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
@@ -184,7 +184,7 @@ function move_down!(ttn::TreeTensorNetwork, n_child::Int64; normalize = false)
     _orthogonalize_to_child!(ttn, oc, n_child)
 end
 
-function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int64, Int64})
+function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int})
     @assert TTNKit.check_valid_pos(network(ttn), pos)
 
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
@@ -223,7 +223,7 @@ function check_normality(ttn::TreeTensorNetwork)
     
     net = network(ttn)
 
-    !(net isa OneDimensionalBinaryNetwork) && 
+    !(net isa BinaryChainNetwork) && 
         (error("Normality check only implemented for One Dimensional Binary Trees currently..."))
 
     number_of_layers = TTNKit.n_layers(net)

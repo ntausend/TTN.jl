@@ -4,24 +4,18 @@ module TTNKit
 
     # lattice class
 
-    export AbstractLattice, BinaryChain, CreateBinaryChain
-    export BinarySquare
+    export AbstractLattice, BinaryChain, BinaryRectangle, BinarySquare
     include("./Lattice/Lattice.jl")
-    include("./Lattice/BinaryChain.jl")
-    include("./Lattice/BinarySquare.jl")
+    include("./Lattice/BinaryLattice.jl")
 
     # including the Network classes
 
-    export AbstractNetwork, Network, CreateBinaryNetwork
-    export OneDimensionalBinaryNetwork
-    #export dimensionality, n_tensors, n_layers, n_tensors
-    #export adjacencyMatrix, bonddim, NetworkBinaryOneDim
-    #export parentNode, childNodes, connectingPath
+    
+    export AbstractNetwork, BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
-    include("./Network/OneDimensionalBinaryNetwork.jl")
+    include("./Network/BinaryNetwork.jl")
 
-
+    
     export TreeTensorNetwork
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
-
 end # module
