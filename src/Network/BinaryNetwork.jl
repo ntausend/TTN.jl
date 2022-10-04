@@ -1,51 +1,63 @@
 struct BinaryNetwork{D} <: AbstractNetwork{D}
-    tensors_per_layer::Vector{Int}
-    bonddims::Vector{Int}
-    lattice::BinaryLattice{D}
-    layer_dimensions::Vector{NTuple{D,Int}}
+    lattices::Vector{BinaryLattice{D}}
 end
 
-function BinaryNetwork(dimensions::NTuple{D,Int}, bonddims::Vector{Int}, localDim::Int; field = ComplexSpace) where{D}
-    lat = BinaryLattice(dimensions, localDim; field = field)
-    n_layer = sum(Int64.(log2.(dimensions)))
+function BinaryNetwork(dimensions::NTuple{D,Int}, bonddims::Vector{Int}, local_dim::Int; kwargs...) where{D}
+    #lat1 = BinaryLattice(dimensions, localDim; kwargs...)
+
+    n_layer = 0
+    try
+        n_layer = sum(Int64.(log2.(dimensions)))
+    catch
+        n_sites = prod(dimensions)
+        s_err = "Number of Sites $(n_sites) is not compatible with a binary network of dimension $D"
+        s_err *= " with n layers requireing number_of_sites = 2^(n_$(D))"
+        error(s_err) 
+    end
+
     # we need a strategy for extending the bonddims to the correct length...
     @assert n_layer == length(bonddims) + 1
 
-    tensors_per_layer = [2^(n_layer - jj) for jj in 1:n_layer]
+    # vector holding the lattices of the different layers
+    lat_vec = Vector{BinaryLattice{D}}(undef, n_layer + 1)
 
-    layer_dimensions = Vector{NTuple{D,Int}}(undef, n_layer)
-    tp_c = vcat(size(lat)...)
+    # attach the physical and the trivial dimensions
+	bnddim_comp = vcat(local_dim, bonddims, 1)
 
-    for jj in 1:n_layer
-        pair_dir = mod(jj, D) + 1
-        red = zeros(Int64, D)
-        red[pair_dir] = 2
-        tp_c = tp_c .- red
-        tp_c[tmp .== 0] .= 1
-        layer_dimensions[jj] = Tuple(tp_c)
+    dimensionsc = vcat(dimensions...)
+    for jj in 1:n_layer+1
+        lat = BinaryLattice(Tuple(dimensionsc), bnddim_comp[jj]; kwargs...)
+        lat_vec[jj] = lat
+        # pairing direction of the next layer
+        pair_dir  = mod1(jj, D)
+        dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
+        dimensionsc[dimensionsc.==0] .= 1
     end
-
-    return BinaryNetwork(tensors_per_layer, bonddims, lat, layer_dimensions)
+    
+    return BinaryNetwork(lat_vec)
 end
 
 # number of child nodes of position. For binary networks this is a constant of 2
 n_childNodes(::BinaryNetwork, ::Tuple{Int,Int}) = 2
 
 const BinaryChainNetwork = BinaryNetwork{1}
-const BinaryRectangularNetwork = BinaryNetwork{2}
 
 function BinaryChainNetwork(number_of_layers::Int, bonddims::Vector{Int}, local_dim::Int; kwargs...)
     @assert number_of_layers == length(bonddims) + 1
-    tensors_per_layer = [2^(number_of_layers - jj) for jj in 1:number_of_layers]
-    lat = BinaryChain(2^number_of_layers, local_dim; kwargs...)
+    tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
 
-    return BinaryChainNetwork(tensors_per_layer, bonddims, lat, Tuple.(tensors_per_layer)) 
+	bnddim_comp = vcat(local_dim, bonddims, 1)
+
+    lat_vec = map(zip(tensors_per_layer, bnddim_comp)) do (nn, bb)
+        BinaryChain(nn, bb; kwargs...)
+    end
+        
+    return BinaryChainNetwork(lat_vec)
 end
 
 function BinaryRectangularNetwork(number_of_layers::Int, bonddims::Vector{Int}, local_dim::Int; kwargs...)
-    @assert number_of_layers == length(bonddims) + 1
-    tensors_per_layer = [2^(number_of_layers - jj) for jj in 1:number_of_layers]
-   
+    
+    # calculate the physical dimensions and use the fall back function
     # number of layers is always representitive as n_l = 2*n + r
     # the number of sites in x direction is 2^((2n + r + 1) / 2) since
     # we start with a pairing in x direction. In case r == 1 this gives
@@ -54,25 +66,11 @@ function BinaryRectangularNetwork(number_of_layers::Int, bonddims::Vector{Int}, 
 
     n_x = 2^(div(number_of_layers + 1, 2))
     n_y = 2^(div(number_of_layers, 2))
-    lat = BinaryRectangle(n_x, n_y, local_dim; kwargs...)
-
-    layer_dimensions = Vector{Tuple{Int, Int}}(undef, number_of_layers)
-    layer_dimensions[end] = (1,1)
-    tp_c = vcat(size(lat)...)
-    for jj in 1:number_of_layers-1
-        red = iseven(jj) ? (0,2) : (2,0)
-        tp_c = tp_c .- red
-        tp_c[tp_c .== 0] .= 1
-        layer_dimensions[jj] = Tuple(tp_c)
-    end
-    return BinaryRectangularNetwork(tensors_per_layer, bonddims, lat, layer_dimensions)
+    return BinaryNetwork((n_x, n_y), bonddims, local_dim; kwargs...)
 end
 
 # exact formular for this kind of network
 n_tensors(net::BinaryNetwork) = 2^(n_layers(net)) - 1
-
-# dimensions of the lattice on the n-th layer
-dimensions(net::BinaryNetwork, l::Int64) = net.layer_dimensions[l]
 
 
 function parentNode(net::BinaryNetwork, pos::Tuple{Int, Int})
@@ -104,6 +102,8 @@ end
 function childNodes(net::BinaryNetwork, pos::Tuple{Int, Int})
     @assert check_valid_pos(net, pos)
     
+    pos[1] == 0 && (return nothing)
+
     # do the revert operation as for the parent nodes
     # pairing of this layer, given by the pairing direction of
     # the previous layer
@@ -113,7 +113,8 @@ function childNodes(net::BinaryNetwork, pos::Tuple{Int, Int})
     pos_vec = vcat(_to_coordinate(pos[2], dimensions(net, pos[1]))...)
 
     # getting the dimensions of the lower layer.
-    dims_ll = pos[1] == 1 ? size(lattice(net)) : dimensions(net, pos[1] - 1)
+    #dims_ll = pos[1] == 1 ? size(lattice(net)) : dimensions(net, pos[1] - 1)
+    dims_ll = dimensions(net, pos[1] - 1)
 
     p1 = copy(pos_vec)
     p2 = copy(pos_vec)
@@ -125,6 +126,8 @@ end
 
 function childNodes(net::BinaryChainNetwork, pos::Tuple{Int, Int})
     @assert check_valid_pos(net, pos)
+    pos[1] == 0 && (return nothing)
+
     return [(pos[1] - 1, 2*pos[2] - 1), (pos[1] - 1, 2*pos[2])]
 end
 

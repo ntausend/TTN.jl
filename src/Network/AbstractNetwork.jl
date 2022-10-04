@@ -2,31 +2,31 @@
 abstract type AbstractNetwork{D} end
 
 struct Network{D} <: AbstractNetwork{D}
-	# tensors per layer
-	tensors_per_layer::Vector{Int}
-	# bonddimension per layer
-	bonddims::Vector{Int}
-	# adjacency matrix per layer
+	# adjacency matrix per layer, first is physical connectivity 
+	# to first TTN Layer
     connections::Vector{SparseMatrixCSC{Int, Int}}
-	#physical sites -> replace this by a lattice class
-	lattice::AbstractLattice{D}
-	#lattice::Array{Int64,D}
-	#physical dimension
+	#lattices per layer, first is physical layer
+	lattices::Vector{AbstractLattice{D}}
 end
 
 dimensionality(::AbstractNetwork{D}) where D  = D
-n_tensors(net::AbstractNetwork, l::Int) = net.tensors_per_layer[l]
-n_layers(net::AbstractNetwork) = length(net.tensors_per_layer)
+
+lattices(net::AbstractNetwork) = net.lattices
+lattice( net::AbstractNetwork, l::Int) = lattices(net)[l + 1]
+physicalLattice(net::AbstractNetwork) = lattice(net, 0)
+
+n_layers(net::AbstractNetwork) = length(lattices(net)) - 1
+n_tensors(net::AbstractNetwork, l::Int) = length(lattice(net,l))
 n_tensors(net::AbstractNetwork) = sum(map(l -> n_tensors(net, l), 1:n_layers(net)))
-adjacencyMatrix(net::AbstractNetwork, l::Int) = net.connections[l]
-bonddim(net::AbstractNetwork, l::Int) = net.bonddims[l]
-lattice(net::AbstractNetwork) = net.lattice
-local_dim(net::AbstractNetwork) = local_dim(lattice(net))
-adjacencyMatrixPhysicalSites(net::AbstractNetwork) = adjacencyMatrix(lattice(net))
+adjacencyMatrix(net::AbstractNetwork, l::Int) = net.connections[l + 1]
+
+hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}) = hilbertspace(node(lattice(net, p[1]), p[2]))
+
+dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
 
 function check_valid_pos(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l, p = pos
-	return (0 < l ≤ n_layers(net)) && (0 < p ≤ n_tensors(net, l))
+	return (0 ≤ l ≤ n_layers(net)) && (0 < p ≤ n_tensors(net, l))
 end
 
 """
@@ -53,32 +53,32 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryNetwork(n::Int, bonddims::Vector{Int}, local_dim::Int)
+function CreateBinaryNetwork(n_layers::Int, bonddims::Vector{Int}, local_dim::Int)
 	#bnddm = correct_bonddims(bonddims, n)
 	
-	@assert length(bonddims) == n-1
-	adjmats = Vector{SparseMatrixCSC{Int64, Int64}}(undef, n - 1)
-	n_layer = Vector{Int64}(undef, n)
-	for jj in n:-1:2
-		n_this = 2^(jj-1)
-		n_next = 2^(jj-2)
+	@assert length(bonddims) == n_layers-1
+	adjmats = Vector{SparseMatrixCSC{Int64, Int64}}(undef, n_layers)
+
+	lat_vec = Vector{BinaryChain}(undef, n_layers+1)
+	
+	bnddim_comp = vcat(local_dim, bonddims)
+
+	for jj in n_layers:-1:1
+		n_this = 2^(jj)
+		n_next = 2^(jj-1)
 
 		adjMat = spzeros(n_next, n_this)
-		#bnddim_layer = bnddm[n - jj + 1]
 		for ll in 1:2:n_this
 			idx_next = div(ll+1,2)
 			adjMat[idx_next, ll]   = 1#bnddim_layer
 			adjMat[idx_next, ll+1] = 1#bnddim_layer
 		end
-		adjmats[n - jj + 1] = adjMat
-		n_layer[n - jj + 1] = n_this
+		adjmats[n_layers - jj + 1] = adjMat
+		lat_vec[n_layers - jj + 1] = BinaryChain(n_this, bnddim_comp[n_layers - jj + 1])
 	end
-	n_layer[end] = 1
-
-	lattice = CreateBinaryChain(2^n, local_dim)
-	#local_inds = collect(1:n_layer[1])
-		
-	return Network{1}(n_layer, bonddims, adjmats, lattice)
+	lat_vec[end] = BinaryChain(1, 1)
+	
+	return Network{1}(adjmats, lat_vec)
 end
 
 
@@ -93,18 +93,14 @@ If `pos` is the top node, `nothing` is returned.
 - `pos`: Tuple consisting of the childs layer and interlayer position
 """
 function parentNode(net::AbstractNetwork, pos::Tuple{Int, Int})
-	l,p = pos
+	@assert check_valid_pos(net, pos)
 	
-	@assert 0 < l ≤ n_layers(net)
-	@assert 0 < p ≤ n_tensors(net, l)
-
-	
-	l == n_layers(net) && (return nothing)
+	pos[1] == n_layers(net) && (return nothing)
 		
-	adjMat = adjacencyMatrix(net, l)
-	idx_parent = findall(!iszero, adjMat[:,p])
+	adjMat = adjacencyMatrix(net, pos[1])
+	idx_parent = findall(!iszero, adjMat[:,pos[2]])
 	length(idx_parent) > 1 && error("Number of parents not exactly 1. Illdefined Tree Tensor Network")
-	return (l + 1, idx_parent[1])
+	return (pos[1] + 1, idx_parent[1])
 end
 
 
@@ -117,18 +113,12 @@ layer, it returns a list of the form (0, p) representing the physical site.
 Inputs: See `parent(net::AbstractNetwork, pos::Tuple{Int, Int})`
 """
 function childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
-	l,p = pos
-	@assert 0 < l ≤ n_layers(net)
-	@assert 0 < p ≤ n_tensors(net, l)
+	@assert check_valid_pos(net, pos)
+	pos[1] == 0 && (return nothing)
 
-	if (l == 1)
-		adjMat = adjacencyMatrixPhysicalSites(net)
-	else
-		adjMat = adjacencyMatrix(net, l - 1)
-	end
-	#l == 1 && (return nothing)
-	inds = findall(!iszero, adjMat[p,:])
-	return [(l - 1, idx) for idx in inds]
+	adjMat = adjacencyMatrix(net, pos[1]-1)
+	inds = findall(!iszero, adjMat[pos[2],:])
+	return [(pos[1] - 1, idx) for idx in inds]
 end
 
 function n_childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
@@ -138,14 +128,9 @@ end
 # function returning all nodes from `pos1` to `pos2` by assuming
 # that the layer of `pos1` is lower or equal than `pos2`
 function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
-	l1,p1 = pos1
-	l2,p2 = pos2
+	@assert check_valid_pos(net, pos1)
+	@assert check_valid_pos(net, pos1)
 	
-	@assert 0 < l1 ≤ l2
-	@assert 0 < p1 ≤ n_tensors(net, l1)
-	@assert 0 < l2 ≤ n_layers(net)
-	@assert 0 < p2 ≤ n_tensors(net, l2)
-
 	# first assume l1 ≤ l2, p1 < p2 for simplicity
 	# later to the general thing
 	# fast excit in case both are equal
@@ -153,8 +138,8 @@ function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 
 	pos_cur = pos1 
 	# first bring l1 and l2 to the same layer
-	path_delta = Vector{Tuple{Int64, Int64}}(undef, l2 - l1)
-	for jj in 1:(l2-l1)
+	path_delta = Vector{Tuple{Int64, Int64}}(undef, pos2[1] - pos1[1])
+	for jj in 1:(pos2[1]-pos1[1])
 		pos_cur = parentNode(net, pos_cur)
 		path_delta[jj] = pos_cur
 	end

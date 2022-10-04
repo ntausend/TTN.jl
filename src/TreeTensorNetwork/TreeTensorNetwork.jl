@@ -5,7 +5,8 @@ struct TreeTensorNetwork
 end
 
 
-function construct_random_tree_tensor_network(net::AbstractNetwork; field = ComplexSpace)
+function construct_random_tree_tensor_network(net::AbstractNetwork)
+    # we dont need tensors for the physical layer... only for the virutal Tree Layers
     number_of_layers = TTNKit.n_layers(net)
 
     ttn = Vector{Vector{TensorMap}}(undef, number_of_layers)
@@ -14,31 +15,17 @@ function construct_random_tree_tensor_network(net::AbstractNetwork; field = Comp
     end
 
     # iterate through the network to build the tensor tree
-    for (ll, pp) in net
+    for pp in net
+        domain = TTNKit.hilbertspace(net, pp)
 
-        maxbonddim = ll == number_of_layers ? 1 : TTNKit.bonddim(net, ll)
-
-        # parent connection is defined by the domain
-        # in case of top node, just a trivial outgoing leg with dimension 1 or 0?
-        domain = field(maxbonddim)
-
-        if ll == 1
-            # codomain of the lowest layer is defined by the connectivity of the
-            # local lattice
-            n_ch = childNodes(net, (ll,pp))
-            sp = map(kk -> TTNKit.hilbertspace(TTNKit.node(TTNKit.lattice(net), kk[2])), n_ch)
-            codomain = ProductSpace(sp...)
-            #continue
-        else
-            # if not, it is the product of all childs, with bond dimension given by the
-            # lower layer
-            maxbonddim_lower = TTNKit.bonddim(net, ll-1)
-            space_single = field(maxbonddim_lower)
-            spaces = repeat([space_single], TTNKit.n_childNodes(net, (ll, pp)))
-            codomain = ProductSpace(spaces...)
+        n_ch = childNodes(net, pp)
+        sp   = map(n_ch) do(ch)
+            TTNKit.hilbertspace(net, ch)
         end
 
-        ttn[ll][pp] = TensorMap(randn, codomain ← domain)
+        codomain = ProductSpace(sp...)
+
+        ttn[pp[1]][pp[2]] = TensorMap(randn, codomain ← domain)
     end
 
     return ttn

@@ -3,7 +3,7 @@ function inner(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
     net2 = network(ttn2)
 
     dimensionality(net1) == dimensionality(net2) || return ComplexF64(0)
-    lattice(net1) == lattice(net2) || return ComplexF64(0)
+    physicalLattice(net1) == physicalLattice(net2) || return ComplexF64(0)
 
     return _inner(ttn1, net1, ttn2, net2)
 end
@@ -17,10 +17,10 @@ function _inner(ttn1::TreeTensorNetwork, net1::BinaryNetwork,
 
     nl = n_layers(net1)
     # contruct the network starting from the first layer upwards
-    ns = number_of_sites(lattice(net1))
+    ns = number_of_sites(physicalLattice(net1))
     
     res = map(1:ns) do (jj)
-        isomorphism(hilbertspace(node(lattice(net1), jj)), hilbertspace(node(lattice(net2), jj)))
+        isomorphism(hilbertspace(net1, (0, jj)), hilbertspace(net2, (0,jj)))
     end
 
     for ll in 1:nl
