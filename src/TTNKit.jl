@@ -2,20 +2,25 @@ module TTNKit
     using SparseArrays
     using TensorKit
 
-    # lattice class
+    # nodes
+    export TrivialNode, HardCoreBosonNode, Node
+    include("./Node/AbstractNode.jl")
+    include("./Node/Node.jl")
+    include("./Node/HardCoreBosonNode.jl")
 
+    # lattice class
     export AbstractLattice, BinaryChain, BinaryRectangle, BinarySquare
-    include("./Lattice/Lattice.jl")
+    include("./Lattice/AbstractLattice.jl")
     include("./Lattice/BinaryLattice.jl")
 
     # including the Network classes
 
     
-    export AbstractNetwork, BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
+    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
 
     
-    export TreeTensorNetwork
+    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
 end # module

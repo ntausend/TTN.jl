@@ -1,61 +1,54 @@
-struct BinaryNetwork{D} <: AbstractNetwork{D}
-    lattices::Vector{BinaryLattice{D}}
+struct BinaryNetwork{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D, S, I}
+    lattices::Vector{BinaryLattice{D, S, I}}
 end
 
-function BinaryNetwork(dimensions::NTuple{D,Int}, bonddims::Vector{Int}, local_dim::Int; kwargs...) where{D}
-    #lat1 = BinaryLattice(dimensions, localDim; kwargs...)
-
-    n_layer = 0
-    try
-        n_layer = sum(Int64.(log2.(dimensions)))
-    catch
-        n_sites = prod(dimensions)
-        s_err = "Number of Sites $(n_sites) is not compatible with a binary network of dimension $D"
-        s_err *= " with n layers requireing number_of_sites = 2^(n_$(D))"
-        error(s_err) 
-    end
-
-    # we need a strategy for extending the bonddims to the correct length...
-    @assert n_layer == length(bonddims) + 1
-
-    # vector holding the lattices of the different layers
+function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwargs...) where{D}
+    n_layer = _dims_to_n_layer(dimensions)
     lat_vec = Vector{BinaryLattice{D}}(undef, n_layer + 1)
 
-    # attach the physical and the trivial dimensions
-	bnddim_comp = vcat(local_dim, bonddims, 1)
-
     dimensionsc = vcat(dimensions...)
-    for jj in 1:n_layer+1
-        lat = BinaryLattice(Tuple(dimensionsc), bnddim_comp[jj]; kwargs...)
-        lat_vec[jj] = lat
-        # pairing direction of the next layer
-        pair_dir  = mod1(jj, D)
+    lat_vec[1] = BinaryLattice(dimensions, nd; kwargs...)
+
+    vnd_type = VirtualNode(lat_vec[1])
+
+    for jj in 2:n_layer+1
+        pair_dir  = mod1(jj-1, D)
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
         dimensionsc[dimensionsc.==0] .= 1
+
+        lat = BinaryLattice(Tuple(dimensionsc), vnd_type)
+        lat_vec[jj] = lat
+        # pairing direction of the next layer
     end
     
-    return BinaryNetwork(lat_vec)
+    return BinaryNetwork{D, space(vnd_type), sectortype(vnd_type)}(lat_vec)
 end
+function BinaryNetwork(dimensions::NTuple; kwargs...) 
+    return BinaryNetwork(dimensions, TrivialNode; kwargs...)
+end
+
 
 # number of child nodes of position. For binary networks this is a constant of 2
 n_childNodes(::BinaryNetwork, ::Tuple{Int,Int}) = 2
+# exact formular for this kind of network
+n_tensors(net::BinaryNetwork) = 2^(n_layers(net)) - 1
 
-const BinaryChainNetwork = BinaryNetwork{1}
 
-function BinaryChainNetwork(number_of_layers::Int, bonddims::Vector{Int}, local_dim::Int; kwargs...)
-    @assert number_of_layers == length(bonddims) + 1
+const BinaryChainNetwork{S<:IndexSpace, I<:Sector} = BinaryNetwork{1, S, I}
+function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwargs...)
     tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
-
-	bnddim_comp = vcat(local_dim, bonddims, 1)
-
-    lat_vec = map(zip(tensors_per_layer, bnddim_comp)) do (nn, bb)
-        BinaryChain(nn, bb; kwargs...)
+    phys_lat = BinaryChain(tensors_per_layer[1], nd; kwargs...)
+    nvd_type = VirtualNode(phys_lat)
+    lat_vec = map(tensors_per_layer) do (nn)
+        BinaryChain(nn, nvd_type)
     end
-        
-    return BinaryChainNetwork(lat_vec)
+    lat_vec[1] = phys_lat
+    return BinaryChainNetwork{space(nvd_type), sectortype(nvd_type)}(lat_vec)
 end
+BinaryChainNetwork(number_of_layers::Int; kwargs...) = BinaryChainNetwork(number_of_layers, TrivialNode; kwargs...)
 
-function BinaryRectangularNetwork(number_of_layers::Int, bonddims::Vector{Int}, local_dim::Int; kwargs...)
+
+function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwargs...)
     
     # calculate the physical dimensions and use the fall back function
     # number of layers is always representitive as n_l = 2*n + r
@@ -66,11 +59,9 @@ function BinaryRectangularNetwork(number_of_layers::Int, bonddims::Vector{Int}, 
 
     n_x = 2^(div(number_of_layers + 1, 2))
     n_y = 2^(div(number_of_layers, 2))
-    return BinaryNetwork((n_x, n_y), bonddims, local_dim; kwargs...)
+    return BinaryNetwork((n_x, n_y), nd; kwargs...)
 end
-
-# exact formular for this kind of network
-n_tensors(net::BinaryNetwork) = 2^(n_layers(net)) - 1
+BinaryRectangularNetwork(number_of_layers::Int; kwargs...) = BinaryRectangularNetwork(number_of_layers, TrivialNode; kwargs...)
 
 
 function parentNode(net::BinaryNetwork, pos::Tuple{Int, Int})
@@ -163,3 +154,77 @@ function adjacencyMatrix(net::BinaryChainNetwork, l::Int64)
 	J = vcat(pos_this[1:2:end], pos_this[2:2:end])
 	return sparse(I,J,repeat([1], n_this), n_next, n_this)
 end
+
+
+#=
+function BinaryNetwork(dimensions::NTuple{D,Int}, maxdim::Int, nodetype::Function; kwargs...) where{D}
+    n_layer = _dims_to_n_layer(dimensions)
+
+    # test the sectortype of nodetype
+    tmp_nd = nodetype(1,""; kwargs...)
+    sec_type = sectortype(tmp_nd)
+
+    if !(sec_type == Trivial)
+        error("Symmetrical network needs a state vector or a target QN sector..")
+    end
+
+    bonddims_comp = Vector{Int}(undef, n_layer-1)
+    bnd_pre = dim(hilbertspace(tmp_nd))
+    for ll in 1:n_layer-1
+        bonddims_comp[ll] = min(bnd_pre^2, maxdim)
+        bnd_pre = bonddims_comp[ll]
+    end
+    return BinaryNetwork(dimensions, bonddims_comp, nodetype; kwargs...)
+end
+
+function BinaryNetwork(dimensions::NTuple{D,Int}, bonddims::Vector{Int}, nodetype::Function; kwargs...) where{D}
+    n_layer = _dims_to_n_layer(dimensions)
+
+    # test the sectortype of nodetype
+    tmp_nd = nodetype(1,""; kwargs...)
+    sec_type = sectortype(tmp_nd)
+
+    if !(sec_type == Trivial)
+        error("Symmetrical network needs a state vector or a target QN sector..")
+    end
+    
+    # we need a strategy for extending the bonddims to the correct length...
+    @assert n_layer == length(bonddims) + 1
+    
+    # vector holding the lattices of the different layers
+    lat_vec = Vector{BinaryLattice{D}}(undef, n_layer + 1)
+
+    # attach the physical and the trivial dimensions
+	bnddim_comp = vcat(dim(hilbertspace(tmp_nd)), bonddims, 1)
+
+    dimensionsc = vcat(dimensions...)
+
+    for jj in 1:n_layer+1
+        if jj == 1
+            lat = BinaryLattice(Tuple(dimensionsc), nodetype; kwargs...)
+        else
+            field = get(kwargs, :field, ComplexSpace)
+            lat = BinaryLattice(Tuple(dimensionsc), bnddim_comp[jj], field = field)
+        end
+        lat_vec[jj] = lat
+        # pairing direction of the next layer
+        pair_dir  = mod1(jj, D)
+        dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
+        dimensionsc[dimensionsc.==0] .= 1
+    end
+    
+    return BinaryNetwork(lat_vec)
+end
+function BinaryChainNetwork(number_of_layers::Int, bonddims::Vector{Int}, local_dim::Int; kwargs...)
+    @assert number_of_layers == length(bonddims) + 1
+    tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
+
+	bnddim_comp = vcat(local_dim, bonddims, 1)
+
+    lat_vec = map(zip(tensors_per_layer, bnddim_comp)) do (nn, bb)
+        BinaryChain(nn, bb; kwargs...)
+    end
+        
+    return BinaryChainNetwork(lat_vec)
+end
+=#

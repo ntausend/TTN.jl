@@ -17,43 +17,74 @@ function _to_coordinate(p::Int, dims::NTuple{D,Int}) where {D}
     return Tuple(p_vec)
 end
 
-struct BinaryLattice{D} <: AbstractLattice{D}
-    lat::Vector{Node}
+struct BinaryLattice{D, S<:IndexSpace, I<:Sector} <: AbstractLattice{D,S,I}
+    lat::Vector{AbstractNode{S, I}}
     dims::NTuple{D,Int}
-    function BinaryLattice(dims::NTuple{D, Int}, local_dim::Int; field = ComplexSpace) where D
-        n_layer = 0
-        try
-            n_layer = sum(Int64.(log2.(dims)))
-        catch
-            n_sites = prod(dims)
-            s_err = "Number of Sites $(n_sites) is not compatible with a binary network of dimension $D"
-            s_err *= " with n layers requireing number_of_sites = 2^(n_$(D))"
-            error(s_err) 
-        end
-
-        #lat_vec = map()
-        prod_it = Iterators.product(UnitRange.(1, dims)...)
-        
-        nd_names = map(prod_it) do p_ind
-            mapreduce(p -> " $p", *, p_ind[2:end], init=string(p_ind[1]))
-        end
-        nd_names = nd_names
-        lin_inds = map(p -> _to_linear_ind(p, dims), prod_it)
-        lat_vec = map(zip(lin_inds, nd_names)) do (l, n)
-            Node(l, field(local_dim), n)
-        end
-        lat_vec = vec(lat_vec)
-        return new{length(dims)}(lat_vec, dims)
-    end
 end
 
-const BinaryChain = BinaryLattice{1}
-BinaryChain(n_sites::Int, local_dim::Int; field = ComplexSpace) = BinaryLattice((n_sites,), local_dim; field = ComplexSpace)
+function _dims_to_n_layer(dims::NTuple{D, Int}) where D
+    n_layer = 0
+    try
+        n_layer = sum(Int64.(log2.(dims)))
+    catch
+        n_sites = prod(dims)
+        s_err = "Number of Sites $(n_sites) is not compatible with a binary network of dimension $D"
+        s_err *= " with n layers requireing number_of_sites = 2^(n_$(D))"
+        error(s_err) 
+    end
+    return n_layer
+end
 
-const BinaryRectangle = BinaryLattice{2}
-BinaryRectangle(n_x::Int, n_y::Int, local_dim::Int; field = ComplexSpace) = BinaryLattice((n_x, n_y), local_dim; field = ComplexSpace)
-BinaryRectangle(dims::Tuple{Int, Int}, local_dim::Int; field = ComplexSpace) = BinaryLattice(dims, local_dim; field = ComplexSpace)
-BinarySquare(n_lin::Int, local_dim::Int; field = ComplexSpace) = BinaryRectangle(n_lin, n_lin, local_dim; field = field)
+"""
+    BinaryLattice(dims::NTuple{D, Int}, nodetype::Function; kwargs...) where D
+
+Construction of a general Binary Lattice of dimension `D`. This Lattice serves as a basis for
+the Binary networks, where every layer is represented as a binary lattice.
+Every dimension should be multiple of 2 in order to be compatible with a Binary Network
+(and thus the name `BinaryLattice`).
+
+## Arguments:
+- `dims::NTuple{D,Int}`: A `D` dimensional Tuple defining the dimensions of the lattice.
+   every entry should be a multiple of 2, i.e. `dims[j] = 2^(n_j)` should be fulfilled for
+   every 0≤ j≤ D.
+- `nd`: Valid Node type, will be used for factory as `nd(l, n)` where `l` is the linear position
+   and `n` is a description string
+"""
+function BinaryLattice(dims::NTuple{D, Int}, nd::Type{<:AbstractNode}; kwargs...) where {D}
+    # checking if dims are in the correct layout
+    n_layer = _dims_to_n_layer(dims)
+
+    prod_it = Iterators.product(UnitRange.(1, dims)...)
+    
+    nd_names = map(prod_it) do p_ind
+        mapreduce(p -> " $p", *, p_ind[2:end], init=string(p_ind[1]))
+    end
+    lin_inds = map(p -> _to_linear_ind(p, dims), prod_it)
+    lat_vec = map(zip(lin_inds, nd_names)) do (l, n)
+        nd(l, n; kwargs...)
+    end
+    lat_vec = vec(lat_vec)
+    return BinaryLattice{length(dims), space(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, dims)
+end
+
+# Fast factory of a lattice with trivial nodes with hilbertspace dimension local_dim
+function BinaryLattice(dims::NTuple{D, Int}, dim::Int; field = ComplexSpace) where D
+    return BinaryLattice(dims, TrivialNode; dim = dim, field = field)
+end
+
+#const BinaryChain = BinaryLattice{1}
+BinaryChain(n_sites::Int, dim::Int; field = ComplexSpace) = BinaryLattice((n_sites,), dim; field = field)
+BinaryChain(n_sites::Int, nd::Type{<:AbstractNode}; kwargs...) = BinaryLattice((n_sites,), nd; kwargs...)
+
+
+#const BinaryRectangle = BinaryLattice{2}
+BinaryRectangle(n_x::Int, n_y::Int, dim::Int; field = ComplexSpace) = BinaryLattice((n_x, n_y), dim; field = field)
+BinaryRectangle(dims::Tuple{Int, Int}, dim::Int; field = ComplexSpace) = BinaryLattice(dims, dim; field = field)
+BinarySquare(n_lin::Int, dim::Int; field = ComplexSpace) = BinaryRectangle(n_lin, n_lin, dim; field = field)
+BinaryRectangle(n_x::Int, n_y::Int, nd::Type{<:AbstractNode}; kwargs...) = BinaryLattice((n_x, n_y), nd; kwargs...)
+BinaryRectangle(dims::Tuple{Int, Int}, nd::Type{<:AbstractNode}; kwargs...) = BinaryLattice(dims, nd; kwargs...)
+BinarySquare(n_lin::Int, nd::Type{<:AbstractNode}; kwargs...) = BinaryRectangle(n_lin, n_lin, nd; kwargs...)
+
 
 Base.size(lat::BinaryLattice) = lat.dims
 Base.size(lat::BinaryLattice, d::Integer) = size(lat)[d]
@@ -67,6 +98,7 @@ function to_coordinate(lat::BinaryLattice{D}, p::Int) where {D}
 end
 
 
+#=
 # for the BinaryLattice types we assume paring of the sites along the x axis for
 # the first layer. With this one has (x is the fast changing index):
 #       (2x - 1, y) ∧ (2x, y) -> (l=1, x,y)
@@ -80,7 +112,9 @@ end
 #       xx, yy = to_coordinate(lat, p_lin)
 #       px = (xx + 1) ÷ 2 # or equivalent for odd numbered sites... has to be deceided
 #       pos_new = to_linear_ind(lat)((px + (yy-1) * dim_x÷2))
+
 function parentNode(lat::BinaryLattice, p::Int)
+    @warn "This function is depricated and might not work..."
     @assert 0 < p ≤ number_of_sites(lat)
     return (1, div((p+1),2))
 end
@@ -89,15 +123,9 @@ end
 
 # again simple through the choice of paring along the x direction
 function adjacencyMatrix(lat::BinaryLattice{D}) where {D}
+    @warn "This function is depricated and might not work..."
     n_sites = number_of_sites(lat)
-    n_layer = 0
-    try
-        n_layer = Int64(log2(n_sites))
-    catch
-        s_err = "Number of Sites $(n_sites) is not compatible with a binary network of dimension $D"
-        s_err *= " with n layers requireing number_of_sites = 2^(n_$(D))"
-        error(s_err) 
-    end
+    n_layer = _dims_to_n_layer(dims)
 
     n_first_layer = 2^(n_layer-1)
 
@@ -107,21 +135,25 @@ function adjacencyMatrix(lat::BinaryLattice{D}) where {D}
  
 	return sparse(I,J,repeat([1], n_sites), n_first_layer, n_sites)
 end
-
+=#
 
 import Base: ==
 function ==(lat1::BinaryLattice{D1}, lat2::BinaryLattice{D2}) where{D1, D2}
     D1 == D2 || return false    
     all(size(lat1) .== size(lat2)) || return false
-    
+    is_physical(lat1) == is_physical(lat2) || return false
+
+    isph = is_physical(lat1)
+
     are_equal = mapreduce(*, zip(lat1, lat2), init = true) do (nd1, nd2)
-        hilbertspace(nd1) == hilbertspace(nd2)
+        if(isph)
+            return hilbertspace(nd1) == hilbertspace(nd2)
+        else
+            return sectortype(nd1) == sectortype(nd2) && space(nd1) == space(nd2)
+        end
     end
     return are_equal
 end
-
-
-
 
 
 import Base: show
@@ -132,7 +164,11 @@ function show(io::IO, lat::BinaryLattice{D}) where{D}
         lengths = Vector{Int64}(undef, length(lat))
         for (jj,nd) in enumerate(lat)
             #desc = description(nd)
-            desc = string(hilbertspace(nd))
+            if nd isa PhysicalNode
+                desc = string(hilbertspace(nd))
+            else
+                desc = string(sectortype(nd))
+            end
             if (jj == 1)
                 s_coord = "|$(desc)|"
             else
@@ -159,7 +195,12 @@ function show(io::IO, lat::BinaryLattice{D}) where{D}
             s = "\t"
             for xx in 1:size(lat,1)
                 #desc = description(node(lat, to_linear_ind(lat, (xx,yy))))
-                desc = hilbertspace(node(lat, to_linear_ind(lat, (xx,yy))))
+                nd = node(lat, to_linear_ind(lat, (xx,yy)))
+                if nd isa PhysicalNode
+                    desc = string(hilbertspace(nd))
+                else
+                    desc = string(sectortype(nd))
+                end
                 if xx == 1
                     s_coord = "|$(desc)|"
                 else

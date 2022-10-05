@@ -1,15 +1,17 @@
 
-abstract type AbstractNetwork{D} end
+abstract type AbstractNetwork{D, S<:IndexSpace, I<:Sector} end
 
-struct Network{D} <: AbstractNetwork{D}
+struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
 	# adjacency matrix per layer, first is physical connectivity 
 	# to first TTN Layer
     connections::Vector{SparseMatrixCSC{Int, Int}}
 	#lattices per layer, first is physical layer
-	lattices::Vector{AbstractLattice{D}}
+	lattices::Vector{AbstractLattice{D,S,I}}
 end
 
 dimensionality(::AbstractNetwork{D}) where D  = D
+space(::AbstractNetwork{D,S}) where{D,S} = S
+TensorKit.sectortype(::AbstractNetwork{D,S,I}) where{D,S,I} = I
 
 lattices(net::AbstractNetwork) = net.lattices
 lattice( net::AbstractNetwork, l::Int) = lattices(net)[l + 1]
@@ -20,9 +22,19 @@ n_tensors(net::AbstractNetwork, l::Int) = length(lattice(net,l))
 n_tensors(net::AbstractNetwork) = sum(map(l -> n_tensors(net, l), 1:n_layers(net)))
 adjacencyMatrix(net::AbstractNetwork, l::Int) = net.connections[l + 1]
 
-hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}) = hilbertspace(node(lattice(net, p[1]), p[2]))
+node(net::AbstractNetwork, p::Tuple{Int,Int}) = node(lattice(net,p[1]), p[2])
+
+#hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}) = hilbertspace(node(lattice(net, p[1]), p[2]))
+hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}, sectors) = hilbertspace(node(lattice(net,p[1]),p[2]), sectors)
+hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}, sectors, maxdim::Int) = 
+						hilbertspace(node(lattice(net,p[1]),p[2]), sectors, maxdim)
 
 dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
+
+number_of_sites(net::AbstractNetwork) = number_of_sites(physicalLattice(net))
+
+physical_coordinates(net::AbstractNetwork) = coordinates(physicalLattice(net))
+
 
 function check_valid_pos(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l, p = pos
@@ -53,15 +65,17 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryNetwork(n_layers::Int, bonddims::Vector{Int}, local_dim::Int)
+function CreateBinaryNetwork(n_layers::Int; dim::Int = 2)
 	#bnddm = correct_bonddims(bonddims, n)
 	
-	@assert length(bonddims) == n_layers-1
+	#@assert length(bonddims) == n_layers-1
 	adjmats = Vector{SparseMatrixCSC{Int64, Int64}}(undef, n_layers)
 
-	lat_vec = Vector{BinaryChain}(undef, n_layers+1)
-	
-	bnddim_comp = vcat(local_dim, bonddims)
+	lat_vec = Vector{BinaryLattice{1}}(undef, n_layers+1)
+	#bnddim_comp = vcat(local_dim, bonddims)
+
+	lat_vec[1] = BinaryChain(2^(n_layers), TrivialNode; dim = dim)
+	vnd_type = VirtualNode(lat_vec[1])
 
 	for jj in n_layers:-1:1
 		n_this = 2^(jj)
@@ -74,11 +88,14 @@ function CreateBinaryNetwork(n_layers::Int, bonddims::Vector{Int}, local_dim::In
 			adjMat[idx_next, ll+1] = 1#bnddim_layer
 		end
 		adjmats[n_layers - jj + 1] = adjMat
-		lat_vec[n_layers - jj + 1] = BinaryChain(n_this, bnddim_comp[n_layers - jj + 1])
+		
+		if(jj<n_layers)
+			lat_vec[n_layers - jj + 1] = BinaryChain(n_this, vnd_type)
+		end
 	end
-	lat_vec[end] = BinaryChain(1, 1)
+	lat_vec[end] = BinaryChain(1,vnd_type)
 	
-	return Network{1}(adjmats, lat_vec)
+	return Network{1, space(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
 end
 
 
@@ -213,3 +230,6 @@ function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork}, state)
 
 	return (pos, pos)
 end
+
+eachlayer(net::AbstractNetwork) = 1:n_layers(net)
+eachsite(net::AbstractNetwork,l::Int) = eachsite(lattice(net,l))

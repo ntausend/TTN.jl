@@ -1,40 +1,39 @@
-include("./Node.jl")
 
-abstract type AbstractLattice{D} end
+abstract type AbstractLattice{D, S<:IndexSpace, I<:Sector} end
 
-node(la::AbstractLattice, p::Int) = la.lat[p]
-local_dim(la::AbstractLattice, p::Int) = dim(hilbertspace(node(la,p)))
-local_dims(la::AbstractLattice)   = [local_dim(la, jj) for jj in 1:number_of_sites(la)]
+nodes(la::AbstractLattice) = la.lat
+node(la::AbstractLattice, p::Int) = nodes(la)[p]
+#local_dim(la::AbstractLattice, p::Int) = dim(hilbertspace(node(la,p)))
+#local_dims(la::AbstractLattice)   = [local_dim(la, jj) for jj in 1:number_of_sites(la)]
+TensorKit.sectortype(::AbstractLattice{D,S,I}) where{D,S,I} = I
+space(::AbstractLattice{D,S}) where{D,S} = S
 dimensionality(::AbstractLattice{D}) where D = D
 
-adjacencyMatrix(la::AbstractLattice) = la.adjMat
 number_of_sites(la::AbstractLattice) = length(la.lat)
 
 to_linear_ind(::AbstractLattice{D}, ::NTuple{D,Int}) where D = error("Tuple to linear Index not implemented for general lattices.")
 
 to_coordinate(::AbstractLattice{D}, ::Int) where {D} = error("Linear Index to Tuple not implemented for general lattices.")
 
-
-function parentNode(la::AbstractLattice, p::Int)
-    adjMat = adjacencyMatrix(la)
-
-	idx_parent = findall(!iszero, adjMat[:,p])
-	length(idx_parent) > 1 && error("Number of parents not exactly 1. Ill-defined Tree Tensor Network")
-	return (1, idx_parent[1])
-end
+is_physical(lat::AbstractLattice) = all(map(x-> x isa PhysicalNode, lat))
 
 parentNode(la::AbstractLattice, p::NTuple{D,Int}) where D = parentNode(la, to_linear_ind(la,p))
 
+VirtualNode(la::AbstractLattice) = VirtualNode(node(la,1))
+
+function coordinates(lat::AbstractLattice)
+    map(x-> to_coordinate(lat, x), eachsite(lat))
+end
+
 # general lattice
-struct Lattice{D} <: AbstractLattice{D}
-    lat::Vector{Node}
-    adjMat::SparseMatrixCSC{Int,Int}
+struct Lattice{D, S<:IndexSpace, I<:Sector} <: AbstractLattice{D, S, I}
+    lat::Vector{Node{S,I}}
     dims::NTuple{D, Int}
 end
 
 # only for homogenous hilberstapces with trivial sectors currently
-function CreateBinaryChain(number_of_sites::Int, local_dim::Int; field = ComplexSpace)
-    lat_vec = [Node(n, field(local_dim), "$n") for n in 1:number_of_sites]
+function CreateBinaryChain(number_of_sites::Int; field::Type{<:EuclideanSpace} = ComplexSpace)
+    lat_vec = [Node(n, "$n"; field = field) for n in 1:number_of_sites]
     n_layer = 0
     try
         n_layer = Int64(log2(number_of_sites))
@@ -47,9 +46,7 @@ function CreateBinaryChain(number_of_sites::Int, local_dim::Int; field = Complex
     I = repeat(collect(1:n_first_layer), 2)
     J = vcat(pos_phys[1:2:end], pos_phys[2:2:end])
  
-	adj_mat = sparse(I,J,repeat([1], number_of_sites), n_first_layer, number_of_sites)
-
-    return Lattice{1}(lat_vec, adj_mat, (number_of_sites,))
+    return Lattice{1, space(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, (number_of_sites,))
 end
 
 
@@ -62,3 +59,5 @@ function ==(::AbstractLattice, ::AbstractLattice)
     # not implemented so far for general lattices
     return false
 end
+
+eachsite(la::AbstractLattice) = 1:number_of_sites(la)

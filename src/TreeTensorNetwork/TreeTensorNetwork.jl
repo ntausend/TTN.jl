@@ -1,38 +1,24 @@
-struct TreeTensorNetwork
+struct TreeTensorNetwork{D, S<:IndexSpace, I<:Sector}
     data::Vector{Vector{TensorMap}}
     ortho_center::Vector{Int}
-    net::AbstractNetwork
+    net::AbstractNetwork{D, S, I}
 end
 
+include("./ttn_factory.jl")
 
-function construct_random_tree_tensor_network(net::AbstractNetwork)
-    # we dont need tensors for the physical layer... only for the virutal Tree Layers
-    number_of_layers = TTNKit.n_layers(net)
-
-    ttn = Vector{Vector{TensorMap}}(undef, number_of_layers)
-    foreach(1:number_of_layers) do ll
-        ttn[ll] = Vector{TensorMap}(undef, TTNKit.n_tensors(net, ll))
+function RandomTreeTensorNetwork(net::AbstractNetwork{D, S, Trivial}; maxdim::Int = 1,
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize) where{D, S}
+    ttn_vec = _construct_random_tree_tensor_network(net, maxdim)
+    ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    if orthogonalize
+        ttn = _reorthogonalize!(ttn, normalize = normalize)
     end
-
-    # iterate through the network to build the tensor tree
-    for pp in net
-        domain = TTNKit.hilbertspace(net, pp)
-
-        n_ch = childNodes(net, pp)
-        sp   = map(n_ch) do(ch)
-            TTNKit.hilbertspace(net, ch)
-        end
-
-        codomain = ProductSpace(sp...)
-
-        ttn[pp[1]][pp[2]] = TensorMap(randn, codomain ← domain)
-    end
-
     return ttn
 end
 
-function TreeTensorNetwork(net::AbstractNetwork; orthogonalize = true, normalize = orthogonalize)
-    ttn_vec = construct_random_tree_tensor_network(net)
+function ProductTreeTensorNetwork(net::AbstractNetwork, states::Vector{<:AbstractString};
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize)
+    ttn_vec = _construct_product_tree_tensor_network(net, states)
     ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
     if orthogonalize
         ttn = _reorthogonalize!(ttn, normalize = normalize)
@@ -260,3 +246,4 @@ function Base.copy(ttn::TreeTensorNetwork)
 end
 
 include("./inner.jl")
+include("./expect.jl")
