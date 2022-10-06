@@ -1,6 +1,6 @@
 function expect(ttn::TreeTensorNetwork{D}, op::TensorMap) where{D}
-    physlat = physicalLattice(network(ttn))
-    res = map(eachsite(physlat)) do (pos)
+    physlat = physical_lattice(network(ttn))
+    res = map(eachindex(physlat)) do (pos)
         expect(ttn, op, pos)
     end
     dims = size(physlat)
@@ -15,7 +15,7 @@ function expect(ttn::TreeTensorNetwork{D}, op::TensorMap, pos::Union{NTuple{D,In
 end
 
 function _expect(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op::TensorMap, pos::NTuple{D,Int}) where{D}
-    return _expect(ttn,net, op, to_linear_ind(physicalLattice(net),pos))
+    return _expect(ttn,net, op, linear_ind(physical_lattice(net),pos))
 end
 
 function _expect(::TreeTensorNetwork, ::AbstractNetwork,::TensorMap,::Int)
@@ -26,7 +26,7 @@ end
 function _expect(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op::TensorMap, pos::Int) where{D}
 
     ttnc = copy(ttn)
-    physlat = physicalLattice(net)
+    physlat = physical_attice(net)
     hilbttn = hilbertspace(node(physlat,1))
 
     doo1  = domain(op)
@@ -39,7 +39,7 @@ function _expect(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op::TensorMap
     ch_pos = (0,pos)
     # finding parent node position
 
-    parent_pos = parentNode(net, ch_pos)
+    parent_pos = parent_node(net, ch_pos)
 
     # move ortho_center to parent pos
     move_ortho!(ttnc, parent_pos)

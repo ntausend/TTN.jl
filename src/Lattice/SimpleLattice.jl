@@ -66,18 +66,18 @@ end
 
 # Fast factory of a lattice with trivial nodes with hilbertspace dimension local_dim
 function SimpleLattice(dims::NTuple{D, Int}, local_dim::Int; field = ComplexSpace) where D
-    return SimpleLattice(dims, TrivialNode; dim = local_dim, field = field)
+    return SimpleLattice(dims, TrivialNode; local_dim = local_dim, field = field)
 end
 
 #const BinaryChain = BinaryLattice{1}
-Chain(n_sites::Int, dim::Int; field = ComplexSpace) = SimpleLattice((n_sites,), dim; field = field)
+Chain(n_sites::Int, local_dim::Int; field = ComplexSpace) = SimpleLattice((n_sites,), local_dim; field = field)
 Chain(n_sites::Int, nd::Type{<:AbstractNode}; kwargs...) = SimpleLattice((n_sites,), nd; kwargs...)
 
 
 #const BinaryRectangle = BinaryLattice{2}
-Rectangle(n_x::Int, n_y::Int, dim::Int; field = ComplexSpace) = SimpleLattice((n_x, n_y), dim; field = field)
-Rectangle(dims::Tuple{Int, Int}, dim::Int; field = ComplexSpace) = SimpleLattice(dims, dim; field = field)
-Square(n_lin::Int, dim::Int; field = ComplexSpace) = Rectangle(n_lin, n_lin, dim; field = field)
+Rectangle(n_x::Int, n_y::Int, local_dim::Int; field = ComplexSpace) = SimpleLattice((n_x, n_y), local_dim; field = field)
+Rectangle(dims::Tuple{Int, Int}, local_dim::Int; field = ComplexSpace) = SimpleLattice(dims, local_dim; field = field)
+Square(n_lin::Int, local_dim::Int; field = ComplexSpace) = Rectangle(n_lin, n_lin, local_dim; field = field)
 
 Rectangle(n_x::Int, n_y::Int, nd::Type{<:AbstractNode}; kwargs...) = SimpleLattice((n_x, n_y), nd; kwargs...)
 Rectangle(dims::Tuple{Int, Int}, nd::Type{<:AbstractNode}; kwargs...) = SimpleLattice(dims, nd; kwargs...)

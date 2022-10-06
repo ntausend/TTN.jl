@@ -28,7 +28,7 @@ end
 
 # returning the ll-th tensor network layer
 layer(ttn::TreeTensorNetwork, l::Int) = ttn.data[l]
-n_layers(ttn::TreeTensorNetwork) = length(ttn.data)
+number_of_layers(ttn::TreeTensorNetwork) = length(ttn.data)
 # returning the network
 network(ttn::TreeTensorNetwork) = ttn.net
 # returning the current orthogonality center
@@ -52,15 +52,15 @@ _orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}) = _ortho
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
 function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int})
 
-    pos[1] == TTNKit.n_layers(net) && (return ttn)
+    pos[1] == number_of_layers(net) && (return ttn)
 
     # getting the position of the child in the parent nodes codomain
-    idx = TTNKit.index_of_child(net, pos)
+    idx = index_of_child(net, pos)
 
     # getting the child tensor
     tn_child = ttn[pos]
     # getting the parent node
-    pos_parent = parentNode(net, pos)
+    pos_parent = parent_node(net, pos)
     tn_parent = ttn[pos_parent]
 
     # now split the child tensor. Luckly it is already in the correct domain/codomain splitting
@@ -87,12 +87,13 @@ _orthogonalize_to_child!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}, n_child::
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
 function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}, n_child::Int)
-    @assert 0 < n_child ≤ n_childNodes(net, pos)
+    # change to goot Exception type
+    @assert 0 < n_child ≤ number_of_child_nodes(net, pos)
 
     pos[1] == 1 && (return ttn)
     
     # getting child position
-    pos_child = TTNKit.childNodes(net, pos)[n_child]
+    pos_child = child_nodes(net, pos)[n_child]
     
     # getting tensors
     tn_parent = ttn[pos] 
@@ -117,7 +118,7 @@ function _reorthogonalize!(ttn::TreeTensorNetwork; normalize = true)
     for pos in network(ttn)
         ttn = _orthogonalize_to_parent!(ttn, pos)
     end
-    ttn.ortho_center .= [n_layers(ttn), 1]
+    ttn.ortho_center .= [number_of_layers(ttn), 1]
     if(normalize)
         tn = ttn[ortho_center(ttn)]
         ttn[ortho_center(ttn)] = tn/norm(tn)
@@ -132,10 +133,10 @@ function move_up!(ttn::TreeTensorNetwork; normalize = false)
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
     
     oc = ortho_center(ttn)
-    parent_node = TTNKit.parentNode(network(ttn), oc)
-    if(!isnothing(parent_node))
-        ttn.ortho_center[1] = parent_node[1]
-        ttn.ortho_center[2] = parent_node[2]
+    pnd = parent_node(network(ttn), oc)
+    if(!isnothing(pnd))
+        ttn.ortho_center[1] = pnd[1]
+        ttn.ortho_center[2] = pnd[2]
     end
 
     _orthogonalize_to_parent!(ttn, oc)
@@ -147,9 +148,9 @@ function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize = false)
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
     
     oc = ortho_center(ttn)
-    child_nodes = TTNKit.childNodes(network(ttn), oc)
-    if(!isnothing(child_nodes))
-        child_node = child_nodes[n_child]
+    chnds = child_nodes(network(ttn), oc)
+    if(!isnothing(chnds))
+        child_node = chnds[n_child]
         ttn.ortho_center[1] = child_node[1]
         ttn.ortho_center[2] = child_node[2]
     end
@@ -158,24 +159,26 @@ function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize = false)
 end
 
 function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int})
-    @assert TTNKit.check_valid_pos(network(ttn), pos)
+    check_valid_position(network(ttn), pos)
 
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
     
     oc = ortho_center(ttn)
 
-    path = TTNKit.connectingPath(network(ttn), oc, pos)
+    path = connecting_path(network(ttn), oc, pos)
 
     for pos in path
         Δoc = pos .- oc
         if(Δoc[1] == 1)
-            @assert pos == TTNKit.parentNode(network(ttn), oc)
+            # valid exception
+            @assert pos == parent_node(network(ttn), oc)
             ttn = move_up!(ttn)
         elseif(Δoc[1] == -1)
-            n_child = TTNKit.index_of_child(network(ttn), pos)
+            n_child = index_of_child(network(ttn), pos)
             ttn = move_down!(ttn, n_child)
         else
+            # valid exception
             error("Invalid path connecting old orthogonality center with new one.. ", path)
         end
         oc = pos
@@ -186,7 +189,7 @@ function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int})
 end
 
 
-
+# rework
 function check_normality(ttn::TreeTensorNetwork)
     oc = ortho_center(ttn)
     all(oc .== -1) && return false, nothing
@@ -199,15 +202,15 @@ function check_normality(ttn::TreeTensorNetwork)
     !(net isa BinaryChainNetwork) && 
         (error("Normality check only implemented for One Dimensional Binary Trees currently..."))
 
-    number_of_layers = TTNKit.n_layers(net)
+    n_layers = number_of_layers(net)
     
     
     are_id = Bool[]
     
     # check identities in layers below the orthogonal center
     for ll in 1:lc-1
-        number_of_tensors = TTNKit.n_tensors(net, ll)
-        for pp in 1:number_of_tensors
+        n_tensors = number_of_tensors(net, ll)
+        for pp in 1:n_tensors
             tn = ttn[ll,pp]
             #@tensor res[-1; -2] := conj(tn[1, 2; -1]) * tn[1, 2; -2]
             res = adjoint(tn)*tn
@@ -216,8 +219,8 @@ function check_normality(ttn::TreeTensorNetwork)
     end
     
     # check identities inside the layer of the orthogonal center
-    number_of_tensors = TTNKit.n_tensors(net,lc)
-    for pp in vcat(collect(1:pc-1), collect(pc+1:number_of_tensors))
+    n_tensors = number_of_tensors(net,lc)
+    for pp in vcat(collect(1:pc-1), collect(pc+1:n_tensors))
         tn = ttn[lc,pp]
         #@tensor res[-1; -2] := conj(tn[1, 2; -1]) * tn[1, 2; -2]
         res = adjoint(tn)*tn
@@ -226,9 +229,9 @@ function check_normality(ttn::TreeTensorNetwork)
     
     # check identities for tensors above the orthogonality center, luckly 
     # this is always not the first layer... so no extra condition there:D
-    for ll in lc+1:number_of_layers
-        number_of_tensors = TTNKit.n_tensors(net, ll)
-        for pp in 1:number_of_tensors
+    for ll in lc+1:n_layers
+        n_tensors = number_of_tensors(net, ll)
+        for pp in 1:n_tensors
             tn = ttn[ll,pp]
             #TODO            
         end        

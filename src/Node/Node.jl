@@ -30,9 +30,9 @@ struct TrivialNode{S<:IndexSpace} <: PhysicalNode{S,Trivial}
     hilbertspace::S
     desc::AbstractString
     function TrivialNode(pos::Int, desc::AbstractString="";
-                        dim::Int = 2,
+                        local_dim::Int = 2,
                         field::Union{Field, Type{<:EuclideanSpace}} = ComplexSpace)
-        hilb = field isa Field ? field^dim : field(dim)
+        hilb = field isa Field ? field^local_dim : field(local_dim)
         return new{typeof(hilb)}(pos, hilb, desc)
     end
 end

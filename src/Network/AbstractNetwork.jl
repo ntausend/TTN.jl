@@ -12,13 +12,13 @@ struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
 end
 
 # dimensionality of network
-dimensionality(::Type{AbstractNetwork{D}}) where D  = D
+dimensionality(::Type{<:AbstractNetwork{D}}) where D  = D
 dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
 
 # returning the lattices of the network, 1 is physical, and 2:n_layers are the virtuals
 lattices(net::AbstractNetwork) = net.lattices
 # returning the l-th layer. l is here defined with respect to the first **virtual** layer
-lattice( net::AbstractNetwork, l::Int) = lattices(net)[l + 1]
+lattice(net::AbstractNetwork, l::Int) = lattices(net)[l + 1]
 
 # returns the physical lattice
 physical_lattice(net::AbstractNetwork) = lattice(net, 0)
@@ -49,15 +49,17 @@ number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 
 physical_coordinates(net::AbstractNetwork) = coordinates(physical_lattice(net))
 
-TensorKit.spacetype( ::Type{AbstractNetwork{D,S}}) where{D,S} = S
-TensorKit.sectortype(::Type{AbstractNetwork{D,S,I}}) where{D,S,I} = I
+TensorKit.spacetype( ::Type{<:AbstractNetwork{D,S}}) where{D,S} = S
+TensorKit.sectortype(::Type{<:AbstractNetwork{D,S,I}}) where{D,S,I} = I
 TensorKit.spacetype(net::AbstractNetwork)  = spacetype(typeof(net))
 TensorKit.sectortype(net::AbstractNetwork) = sectortype(typeof(net))
 
 # checking if position is valid
-function check_valid_pos(net::AbstractNetwork, pos::Tuple{Int, Int})
+function check_valid_position(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l, p = pos
-	return (0 ≤ l ≤ number_of_layers(net)) && (0 < p ≤ number_of_tensors(net, l))
+	if !(0 ≤ l ≤ number_of_layers(net)) && (0 < p ≤ number_of_tensors(net, l))
+		throw(BoundsError(net,pos))
+	end
 end
 
 """
@@ -75,48 +77,6 @@ function index_of_child(net::AbstractNetwork, pos_child::Tuple{Int, Int})
 end
 
 
-"""
-	NetworkBinaryOneDim(n::Int, bonddims::Vector{Int}, local_dim::Int)
-
-Defines a one dimensional binary tree tensor network structure where every
-odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
-
-- `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
-- `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
-"""
-function CreateBinaryChainNetwork(n_layers::Int; dim::Int = 2)
-	#bnddm = correct_bonddims(bonddims, n)
-	
-	#@assert length(bonddims) == n_layers-1
-	adjmats = Vector{SparseMatrixCSC{Int64, Int64}}(undef, n_layers)
-
-	lat_vec = Vector{SimpleLattice{1}}(undef, n_layers+1)
-	#bnddim_comp = vcat(local_dim, bonddims)
-
-	lat_vec[1] = Chain(2^(n_layers), TrivialNode; dim = dim)
-	vnd_type = VirtualNode(lat_vec[1])
-
-	for jj in n_layers:-1:1
-		n_this = 2^(jj)
-		n_next = 2^(jj-1)
-
-		adjMat = spzeros(n_next, n_this)
-		for ll in 1:2:n_this
-			idx_next = div(ll+1,2)
-			adjMat[idx_next, ll]   = 1#bnddim_layer
-			adjMat[idx_next, ll+1] = 1#bnddim_layer
-		end
-		adjmats[n_layers - jj + 1] = adjMat
-		
-		if(jj<n_layers)
-			lat_vec[n_layers - jj + 1] = Chain(n_this, vnd_type)
-		end
-	end
-	lat_vec[end] = Chain(1,vnd_type)
-	
-	return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
-end
-
 
 """
 	parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})
@@ -129,9 +89,9 @@ If `pos` is the top node, `nothing` is returned.
 - `pos`: Tuple consisting of the childs layer and interlayer position
 """
 function parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})
-	@assert check_valid_pos(net, pos)
+	check_valid_position(net, pos)
 	
-	pos[1] == n_layers(net) && (return nothing)
+	pos[1] == number_of_layers(net) && (return nothing)
 		
 	adjMat = adjacency_matrix(net, pos[1])
 	idx_parent = findall(!iszero, adjMat[:,pos[2]])
@@ -149,7 +109,7 @@ layer, it returns a list of the form (0, p) representing the physical site.
 Inputs: See `parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})`
 """
 function child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
-	@assert check_valid_pos(net, pos)
+	check_valid_position(net, pos)
 	pos[1] == 0 && (return nothing)
 
 	adjMat = adjacency_matrix(net, pos[1]-1)
@@ -158,15 +118,15 @@ function child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 end
 
 # returns the number of child nodes
-function n_childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
+function number_of_child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 	return length(child_nodes(net, pos))
 end
 
 # function returning all nodes from `pos1` to `pos2` by assuming
 # that the layer of `pos1` is lower or equal than `pos2`
 function _connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
-	@assert check_valid_pos(net, pos1)
-	@assert check_valid_pos(net, pos1)
+	check_valid_position(net, pos1)
+	check_valid_position(net, pos1)
 	
 	# first assume l1 ≤ l2, p1 < p2 for simplicity
 	# later to the general thing
@@ -222,7 +182,7 @@ end
 
 function Base.iterate(net::AbstractNetwork, state)
 	#state == n_layers && return nothing
-	state[1] == number_f_layers(net) && return nothing
+	state[1] == number_of_layers(net) && return nothing
 
 	if state[2] == number_of_tensors(net, state[1])
 		pos = (state[1] + 1, 1)
@@ -252,4 +212,49 @@ function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork}, state)
 end
 
 eachlayer(net::AbstractNetwork) = 1:number_of_layers(net)
-eachsite(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))
+eachindex(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))
+
+
+
+
+"""
+	NetworkBinaryOneDim(n::Int, bonddims::Vector{Int}, local_dim::Int)
+
+Defines a one dimensional binary tree tensor network structure where every
+odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
+
+- `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
+- `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
+"""
+function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
+	#bnddm = correct_bonddims(bonddims, n)
+	
+	#@assert length(bonddims) == n_layers-1
+	adjmats = Vector{SparseMatrixCSC{Int64, Int64}}(undef, n_layers)
+
+	lat_vec = Vector{SimpleLattice{1}}(undef, n_layers+1)
+	#bnddim_comp = vcat(local_dim, bonddims)
+
+	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim)
+	vnd_type = nodetype(lat_vec[1])
+
+	for jj in n_layers:-1:1
+		n_this = 2^(jj)
+		n_next = 2^(jj-1)
+
+		adjMat = spzeros(n_next, n_this)
+		for ll in 1:2:n_this
+			idx_next = div(ll+1,2)
+			adjMat[idx_next, ll]   = 1#bnddim_layer
+			adjMat[idx_next, ll+1] = 1#bnddim_layer
+		end
+		adjmats[n_layers - jj + 1] = adjMat
+		
+		if(jj<n_layers)
+			lat_vec[n_layers - jj + 1] = Chain(n_this, vnd_type)
+		end
+	end
+	lat_vec[end] = Chain(1,vnd_type)
+	
+	return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
+end
