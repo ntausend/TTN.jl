@@ -1,58 +1,50 @@
+function _check_dimensions(dims::NTuple{D, Int}) where D
+    try
+        sum(Int64.(log2.(dims)))
+    catch
+        throw(DimensionsException(dims))
+    end
+end
 
 abstract type AbstractLattice{D, S<:IndexSpace, I<:Sector} end
 
-nodes(la::AbstractLattice) = la.lat
-node(la::AbstractLattice, p::Int) = nodes(la)[p]
-#local_dim(la::AbstractLattice, p::Int) = dim(hilbertspace(node(la,p)))
-#local_dims(la::AbstractLattice)   = [local_dim(la, jj) for jj in 1:number_of_sites(la)]
-TensorKit.sectortype(::AbstractLattice{D,S,I}) where{D,S,I} = I
-space(::AbstractLattice{D,S}) where{D,S} = S
-dimensionality(::AbstractLattice{D}) where D = D
+dimensionality(::Type{<:AbstractLattice{D}}) where D = D
+dimensionality(lat::AbstractLattice) = dimensionality(typeof(lat))
 
-number_of_sites(la::AbstractLattice) = length(la.lat)
 
-to_linear_ind(::AbstractLattice{D}, ::NTuple{D,Int}) where D = error("Tuple to linear Index not implemented for general lattices.")
+nodes(lat::AbstractLattice) = lat.lat
+node(lat::AbstractLattice, p::Int) = nodes(lat)[p]
 
-to_coordinate(::AbstractLattice{D}, ::Int) where {D} = error("Linear Index to Tuple not implemented for general lattices.")
+number_of_sites(lat::AbstractLattice) = length(lat.lat)
 
+# convertions from linear to D-dim tuple and back, not implemented in generallity, functionallity has to be
+# implemented for derived types
+linear_ind(lat::AbstractLattice{D}, ::NTuple{D,Int}) where D = throw(NotImplemented(:linear_ind, typeof(lat)))
+coordinate(lat::AbstractLattice{D}, ::Int) where {D} = throw(NotImplemented(:coordinate, typeof(lat)))
+
+# check if lattice is made of physical nodes
 is_physical(lat::AbstractLattice) = all(map(x-> x isa PhysicalNode, lat))
 
-parentNode(la::AbstractLattice, p::NTuple{D,Int}) where D = parentNode(la, to_linear_ind(la,p))
+# pass through node copy method, assumes all nodes to be the same -> may change in the future?
+nodetype(lat::AbstractLattice) = nodetype((node(lat,1)))
 
-VirtualNode(la::AbstractLattice) = VirtualNode(node(la,1))
+
+TensorKit.sectortype(::Type{<:AbstractLattice{D,S,I}}) where{D,S,I} = I
+TensorKit.sectortype(lat::AbstractLattice) = sectortype(typeof(lat))
+TensorKit.spacetype(::Type{<:AbstractLattice{D,S}}) where{D,S} = S
+TensorKit.spacetype(lat::AbstractLattice) = spacetype(typeof(lat)) 
 
 function coordinates(lat::AbstractLattice)
-    map(x-> to_coordinate(lat, x), eachsite(lat))
+    coord = map(x-> coordinate(lat, x), eachindex(lat))
+    return coord
 end
 
-# general lattice
-struct Lattice{D, S<:IndexSpace, I<:Sector} <: AbstractLattice{D, S, I}
-    lat::Vector{Node{S,I}}
-    dims::NTuple{D, Int}
-end
+# base functions overloading
+Base.iterate(lat::AbstractLattice) = iterate(lat.lat)
+Base.iterate(lat::AbstractLattice, state) = iterate(lat.lat, state)
+Base.length(lat::AbstractLattice) = number_of_sites(lat)
 
-# only for homogenous hilberstapces with trivial sectors currently
-function CreateBinaryChain(number_of_sites::Int; field::Type{<:EuclideanSpace} = ComplexSpace)
-    lat_vec = [Node(n, "$n"; field = field) for n in 1:number_of_sites]
-    n_layer = 0
-    try
-        n_layer = Int64(log2(number_of_sites))
-    catch
-        error("Number of Sites $number_of_sites is not compatible with a binary network of n 
-              layers requireing number_of_sites = 2^n")
-    end
-    n_first_layer = 2^(n_layer-1)
-    pos_phys = collect(1:number_of_sites)
-    I = repeat(collect(1:n_first_layer), 2)
-    J = vcat(pos_phys[1:2:end], pos_phys[2:2:end])
- 
-    return Lattice{1, space(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, (number_of_sites,))
-end
-
-
-Base.iterate(la::AbstractLattice) = iterate(la.lat)
-Base.iterate(la::AbstractLattice, state) = iterate(la.lat, state)
-Base.length(la::AbstractLattice) = number_of_sites(la)
+Base.getindex(lat::AbstractLattice, jj::Int) = node(lat, jj)
 
 import Base: ==
 function ==(::AbstractLattice, ::AbstractLattice)
@@ -60,4 +52,21 @@ function ==(::AbstractLattice, ::AbstractLattice)
     return false
 end
 
-eachsite(la::AbstractLattice) = 1:number_of_sites(la)
+Base.eachindex(la::AbstractLattice) = 1:number_of_sites(la)
+
+
+
+
+# general lattice -> Maybe removed in the future?
+struct Lattice{D, S<:IndexSpace, I<:Sector} <: AbstractLattice{D, S, I}
+    lat::Vector{Node{S,I}}
+    dims::NTuple{D, Int}
+end
+Base.size(lat::Lattice) = lat.dims
+
+# only for homogenous hilberstapces with trivial sectors currently
+function CreateChain(number_of_sites::Int; field::Type{<:EuclideanSpace} = ComplexSpace)
+    lat_vec = [Node(n, "$n"; field = field) for n in 1:number_of_sites]
+    _check_dimensions((number_of_sites,))
+    return Lattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, (number_of_sites,))
+end

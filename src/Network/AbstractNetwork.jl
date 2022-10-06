@@ -1,6 +1,8 @@
 
 abstract type AbstractNetwork{D, S<:IndexSpace, I<:Sector} end
 
+# generic network type, needs the connectivity matrices for connecting layers
+# only allows for connectivity between adjacent layers...
 struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
 	# adjacency matrix per layer, first is physical connectivity 
 	# to first TTN Layer
@@ -9,36 +11,53 @@ struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
 	lattices::Vector{AbstractLattice{D,S,I}}
 end
 
-dimensionality(::AbstractNetwork{D}) where D  = D
-space(::AbstractNetwork{D,S}) where{D,S} = S
-TensorKit.sectortype(::AbstractNetwork{D,S,I}) where{D,S,I} = I
+# dimensionality of network
+dimensionality(::Type{AbstractNetwork{D}}) where D  = D
+dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
 
+# returning the lattices of the network, 1 is physical, and 2:n_layers are the virtuals
 lattices(net::AbstractNetwork) = net.lattices
+# returning the l-th layer. l is here defined with respect to the first **virtual** layer
 lattice( net::AbstractNetwork, l::Int) = lattices(net)[l + 1]
-physicalLattice(net::AbstractNetwork) = lattice(net, 0)
 
-n_layers(net::AbstractNetwork) = length(lattices(net)) - 1
-n_tensors(net::AbstractNetwork, l::Int) = length(lattice(net,l))
-n_tensors(net::AbstractNetwork) = sum(map(l -> n_tensors(net, l), 1:n_layers(net)))
-adjacencyMatrix(net::AbstractNetwork, l::Int) = net.connections[l + 1]
+# returns the physical lattice
+physical_lattice(net::AbstractNetwork) = lattice(net, 0)
 
+# returning the number of **virtual** layers
+number_of_layers(net::AbstractNetwork) = length(lattices(net)) - 1
+
+# returning the number of nodes living on the `l` virtual layer
+number_of_tensors(net::AbstractNetwork, l::Int) = number_of_sites(lattice(net,l))
+# returning the total number of nodes in all virtual layers
+number_of_tensors(net::AbstractNetwork) = sum(map(l -> number_of_tensors(net, l), 1:number_of_layers(net)))
+
+# adjacency matrix associated with connecting the `l` and `l+1` virtual layer. l = 0 should
+# define the connectivitiy of the physical layer with the first virtual layer
+adjacency_matrix(net::AbstractNetwork, l::Int) = net.connections[l + 1]
+
+# returns the `p[2]` node in the `p[1]` layer
 node(net::AbstractNetwork, p::Tuple{Int,Int}) = node(lattice(net,p[1]), p[2])
 
-#hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}) = hilbertspace(node(lattice(net, p[1]), p[2]))
+# factory function for creating hilbertspaces out of the node types on the different layers, may be removed inthe future
 hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}, sectors) = hilbertspace(node(lattice(net,p[1]),p[2]), sectors)
-hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}, sectors, maxdim::Int) = 
-						hilbertspace(node(lattice(net,p[1]),p[2]), sectors, maxdim)
 
+# dimensions of the `l`-th layer
 dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
 
-number_of_sites(net::AbstractNetwork) = number_of_sites(physicalLattice(net))
+# number of physical sites
+number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 
-physical_coordinates(net::AbstractNetwork) = coordinates(physicalLattice(net))
+physical_coordinates(net::AbstractNetwork) = coordinates(physical_lattice(net))
 
+TensorKit.spacetype( ::Type{AbstractNetwork{D,S}}) where{D,S} = S
+TensorKit.sectortype(::Type{AbstractNetwork{D,S,I}}) where{D,S,I} = I
+TensorKit.spacetype(net::AbstractNetwork)  = spacetype(typeof(net))
+TensorKit.sectortype(net::AbstractNetwork) = sectortype(typeof(net))
 
+# checking if position is valid
 function check_valid_pos(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l, p = pos
-	return (0 ≤ l ≤ n_layers(net)) && (0 < p ≤ n_tensors(net, l))
+	return (0 ≤ l ≤ number_of_layers(net)) && (0 < p ≤ number_of_tensors(net, l))
 end
 
 """
@@ -50,8 +69,8 @@ in the parent tensor.
 
 """
 function index_of_child(net::AbstractNetwork, pos_child::Tuple{Int, Int})
-	pos_parent = parentNode(net,pos_child)
-	idx_child = findfirst(x -> all(x .== pos_child), childNodes(net, pos_parent))
+	pos_parent = parent_node(net,pos_child)
+	idx_child = findfirst(x -> all(x .== pos_child), child_nodes(net, pos_parent))
 	return idx_child
 end
 
@@ -65,16 +84,16 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryNetwork(n_layers::Int; dim::Int = 2)
+function CreateBinaryChainNetwork(n_layers::Int; dim::Int = 2)
 	#bnddm = correct_bonddims(bonddims, n)
 	
 	#@assert length(bonddims) == n_layers-1
 	adjmats = Vector{SparseMatrixCSC{Int64, Int64}}(undef, n_layers)
 
-	lat_vec = Vector{BinaryLattice{1}}(undef, n_layers+1)
+	lat_vec = Vector{SimpleLattice{1}}(undef, n_layers+1)
 	#bnddim_comp = vcat(local_dim, bonddims)
 
-	lat_vec[1] = BinaryChain(2^(n_layers), TrivialNode; dim = dim)
+	lat_vec[1] = Chain(2^(n_layers), TrivialNode; dim = dim)
 	vnd_type = VirtualNode(lat_vec[1])
 
 	for jj in n_layers:-1:1
@@ -90,17 +109,17 @@ function CreateBinaryNetwork(n_layers::Int; dim::Int = 2)
 		adjmats[n_layers - jj + 1] = adjMat
 		
 		if(jj<n_layers)
-			lat_vec[n_layers - jj + 1] = BinaryChain(n_this, vnd_type)
+			lat_vec[n_layers - jj + 1] = Chain(n_this, vnd_type)
 		end
 	end
-	lat_vec[end] = BinaryChain(1,vnd_type)
+	lat_vec[end] = Chain(1,vnd_type)
 	
-	return Network{1, space(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
+	return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
 end
 
 
 """
-	parentNode(net::AbstractNetwork, pos::Tuple{Int, Int})
+	parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})
 
 Returns the (unique) parent node of the given position tuple. 
 If `pos` is the top node, `nothing` is returned.
@@ -109,12 +128,12 @@ If `pos` is the top node, `nothing` is returned.
 - `net`: Network to find the parent node
 - `pos`: Tuple consisting of the childs layer and interlayer position
 """
-function parentNode(net::AbstractNetwork, pos::Tuple{Int, Int})
+function parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})
 	@assert check_valid_pos(net, pos)
 	
 	pos[1] == n_layers(net) && (return nothing)
 		
-	adjMat = adjacencyMatrix(net, pos[1])
+	adjMat = adjacency_matrix(net, pos[1])
 	idx_parent = findall(!iszero, adjMat[:,pos[2]])
 	length(idx_parent) > 1 && error("Number of parents not exactly 1. Illdefined Tree Tensor Network")
 	return (pos[1] + 1, idx_parent[1])
@@ -122,29 +141,30 @@ end
 
 
 """
-	childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
+	child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 
 Returns an array representing all childs. In case of node beeing in the lowest
 layer, it returns a list of the form (0, p) representing the physical site.
 
-Inputs: See `parent(net::AbstractNetwork, pos::Tuple{Int, Int})`
+Inputs: See `parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})`
 """
-function childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
+function child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 	@assert check_valid_pos(net, pos)
 	pos[1] == 0 && (return nothing)
 
-	adjMat = adjacencyMatrix(net, pos[1]-1)
+	adjMat = adjacency_matrix(net, pos[1]-1)
 	inds = findall(!iszero, adjMat[pos[2],:])
 	return [(pos[1] - 1, idx) for idx in inds]
 end
 
+# returns the number of child nodes
 function n_childNodes(net::AbstractNetwork, pos::Tuple{Int, Int})
-	return length(childNodes(net, pos))
+	return length(child_nodes(net, pos))
 end
 
 # function returning all nodes from `pos1` to `pos2` by assuming
 # that the layer of `pos1` is lower or equal than `pos2`
-function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
+function _connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
 	@assert check_valid_pos(net, pos1)
 	@assert check_valid_pos(net, pos1)
 	
@@ -157,7 +177,7 @@ function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 	# first bring l1 and l2 to the same layer
 	path_delta = Vector{Tuple{Int64, Int64}}(undef, pos2[1] - pos1[1])
 	for jj in 1:(pos2[1]-pos1[1])
-		pos_cur = parentNode(net, pos_cur)
+		pos_cur = parent_node(net, pos_cur)
 		path_delta[jj] = pos_cur
 	end
 	# if pos_cur == pos2, we can exit
@@ -170,8 +190,8 @@ function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 	pathr = Vector{Tuple{Int64, Int64}}()
 	posr = pos2
 	while true
-		posl = parentNode(net, posl)
-		posr = parentNode(net, posr)
+		posl = parent_node(net, posl)
+		posr = parent_node(net, posr)
 		#TODO -> smarter?
 		if(posl == posr)
 			push!(pathr, posr)
@@ -184,12 +204,12 @@ function _connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 	return path
 end
 
-function connectingPath(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
+function connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
 	if(pos1[1] < pos2[1])
-		path = _connectingPath(net, pos1, pos2)
+		path = _connecting_path(net, pos1, pos2)
 		return path[2:end]
 	else
-		path = _connectingPath(net, pos2, pos1)
+		path = _connecting_path(net, pos2, pos1)
 		return reverse(path)[2:end]
 	end	
 end
@@ -202,9 +222,9 @@ end
 
 function Base.iterate(net::AbstractNetwork, state)
 	#state == n_layers && return nothing
-	state[1] == n_layers(net) && return nothing
+	state[1] == number_f_layers(net) && return nothing
 
-	if state[2] == n_tensors(net, state[1])
+	if state[2] == number_of_tensors(net, state[1])
 		pos = (state[1] + 1, 1)
 	else
 		pos = (state[1], state[2] + 1)
@@ -213,7 +233,7 @@ function Base.iterate(net::AbstractNetwork, state)
 end
 
 function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork})
-	pos = (n_layers(itr.itr), 1)
+	pos = (number_of_layers(itr.itr), 1)
 	return (pos, pos)
 end
 
@@ -222,7 +242,7 @@ function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork}, state)
 	
 	if(state[2] == 1)
 		n_l = state[1] - 1
-		n_t = n_tensors(itr.itr, n_l)
+		n_t = number_of_tensors(itr.itr, n_l)
 		pos = (n_l, n_t)
 	else
 		pos = (state[1], state[2] - 1)
@@ -231,5 +251,5 @@ function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork}, state)
 	return (pos, pos)
 end
 
-eachlayer(net::AbstractNetwork) = 1:n_layers(net)
-eachsite(net::AbstractNetwork,l::Int) = eachsite(lattice(net,l))
+eachlayer(net::AbstractNetwork) = 1:number_of_layers(net)
+eachsite(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))

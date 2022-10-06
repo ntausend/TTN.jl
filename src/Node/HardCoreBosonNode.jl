@@ -17,45 +17,14 @@ struct HardCoreBosonNode{S<:IndexSpace,I<:Sector} <: PhysicalNode{S,I}
         return new{sp, sectortype(sp)}(pos, sp(sectors), "HCB "*desc)
     end
 end
-#=
-function _state(::Type{HardCoreBosonNode{S, Trivial}}, state_str::AbstractString) where{S}
-    if state_str == "Emp"
-        return [1, 0]
-    elseif state_str == "Occ"
-        return [0, 1]
-    else
-        error("Unkown state: $(state_str)")
-    end
+
+function state_dict(::Type{<:HardCoreBosonNode})
+    return Dict{String, Vector{Int}}("Emp" => [1, 0], "Occ" => [0, 1])
 end
 
-
-function _state(::Type{<:HardCoreBosonNode{S, <:AbstractIrrep}}, state_str::AbstractString) where{S}
-    if state_str == "Emp"
-        return 0
-    elseif state_str == "Occ"
-        return 1
-    else
-        error("Unkown state: $(state_str)")
+function charge_dict(::Type{HardCoreBosonNode{S,I}}) where{S,I}
+    if I == Trivial
+        return nothing
     end
-end
-=#
-
-function _state(::Type{<:HardCoreBosonNode{S, Trivial}}, state_str::AbstractString) where{S}
-    if state_str == "Emp"
-        return (1,1)
-    elseif state_str == "Occ"
-        return (2,1)
-    else
-        error("Unkown state: $(state_str)")
-    end
-end
-
-function _state(::Type{<:HardCoreBosonNode{S, <:AbstractIrrep}}, state_str::AbstractString) where{S}
-    if state_str == "Emp"
-        return (0,1)
-    elseif state_str == "Occ"
-        return (1,1)
-    else
-        error("Unkown state: $(state_str)")
-    end
+    return Dict{String, I}("Emp" => I(0), "Occ" => I(1))
 end
