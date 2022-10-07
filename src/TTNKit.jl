@@ -1,6 +1,7 @@
 module TTNKit
     using SparseArrays
     using TensorKit
+    using Distributions: Multinomial
 
     struct NotImplemented <: Exception
         fn::Symbol
