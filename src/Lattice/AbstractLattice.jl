@@ -46,14 +46,13 @@ Base.length(lat::AbstractLattice) = number_of_sites(lat)
 
 Base.getindex(lat::AbstractLattice, jj::Int) = node(lat, jj)
 
-import Base: ==
 function ==(::AbstractLattice, ::AbstractLattice)
     # not implemented so far for general lattices
     return false
 end
 
-Base.eachindex(la::AbstractLattice) = 1:number_of_sites(la)
 
+Base.eachindex(la::AbstractLattice) = 1:number_of_sites(la)
 
 
 

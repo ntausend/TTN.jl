@@ -96,7 +96,6 @@ function coordinate(lat::SimpleLattice, p::Int)
 end
 
 
-import Base: ==
 function ==(lat1::SimpleLattice{D1}, lat2::SimpleLattice{D2}) where{D1, D2}
     D1 == D2 || return false    
     all(size(lat1) .== size(lat2)) || return false
@@ -115,8 +114,7 @@ function ==(lat1::SimpleLattice{D1}, lat2::SimpleLattice{D2}) where{D1, D2}
 end
 
 
-import Base: show
-function show(io::IO, lat::SimpleLattice{D}) where{D}
+function Base.show(io::IO, lat::SimpleLattice{D}) where{D}
     println(io, "Simple Lattice of dimension $D, with dimensions: $(size(lat)):\n")
     if( D == 1)
         s = "\t"

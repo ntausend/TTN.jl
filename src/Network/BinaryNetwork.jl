@@ -7,6 +7,12 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
     lat_vec = Vector{SimpleLattice{D}}(undef, n_layer + 1)
 
     dimensionsc = vcat(dimensions...)
+    # first dimension must be largest, second second largest etc..
+    # this is required due to our pairing
+    if !(sort(dimensionsc) == reverse(dimensionsc))
+        msg = "Only Lattices with first dimension beeing largest, second being second largest etc are suppported for BinaryNetworks. Dimensions: $dimensions"   
+        throw(NotSupportedException(msg))
+    end
     lat_vec[1] = SimpleLattice(dimensions, nd; kwargs...)
 
     vnd_type = nodetype(lat_vec[1])
@@ -47,6 +53,12 @@ function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwa
 end
 BinaryChainNetwork(number_of_layers::Int; kwargs...) = BinaryChainNetwork(number_of_layers, TrivialNode; kwargs...)
 
+function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:AbstractNode}; kwargs...)
+    n_layers = _dims_to_n_layer(Tuple(number_of_sites))
+    return BinaryChainNetwork(n_layers, nd; kwargs...)
+end
+BinaryChainNetwork(number_of_sites::Tuple{Int}; kwargs...) = BinaryChainNetwork(number_of_sites, TrivialNode; kwargs...)
+
 
 function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwargs...)
     
@@ -59,9 +71,14 @@ function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode
 
     n_x = 2^(div(number_of_layers + 1, 2))
     n_y = 2^(div(number_of_layers, 2))
+
     return BinaryNetwork((n_x, n_y), nd; kwargs...)
 end
 BinaryRectangularNetwork(number_of_layers::Int; kwargs...) = BinaryRectangularNetwork(number_of_layers, TrivialNode; kwargs...)
+
+BinaryRectangularNetwork(dims::Tuple{Int,Int}, nd::Type{<:AbstractNode}; kwargs...) = BinaryNetwork(dims, nd; kwargs...)
+BinaryRectangularNetwork(dims::Tuple{Int,Int}; kwargs...) = BinaryNetwork(dims, TrivialNode; kwargs...)
+
 
 
 function parent_node(net::BinaryNetwork, pos::Tuple{Int, Int})

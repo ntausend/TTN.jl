@@ -26,7 +26,7 @@ end
 function _expect(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op::TensorMap, pos::Int) where{D}
 
     ttnc = copy(ttn)
-    physlat = physical_attice(net)
+    physlat = physical_lattice(net)
     hilbttn = hilbertspace(node(physlat,1))
 
     doo1  = domain(op)

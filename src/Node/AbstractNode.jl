@@ -60,7 +60,6 @@ function state(nd::PhysicalNode, state_str::AbstractString; elT::DataType = Comp
 end
 
 
-import Base.==
 function ==(nd1::AbstractNode, nd2::AbstractNode)
     spacetype(nd1)  == spacetype(nd2)    || return false
     sectortype(nd1) == sectortype(nd2)   || return false

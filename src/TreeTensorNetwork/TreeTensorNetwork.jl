@@ -4,11 +4,16 @@ struct TreeTensorNetwork{D, S<:IndexSpace, I<:Sector}
     net::AbstractNetwork{D, S, I}
 end
 
+function eltype(ttn::TreeTensorNetwork) 
+    elt_t = map(x -> eltype.(x), ttn.data)
+    promote_type(vcat(elt_t...)...)
+end
+
 include("./ttn_factory.jl")
 
 function RandomTreeTensorNetwork(net::AbstractNetwork{D, S, Trivial}; maxdim::Int = 1,
-                orthogonalize::Bool = true, normalize::Bool = orthogonalize) where{D, S}
-    ttn_vec = _construct_random_tree_tensor_network(net, maxdim)
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64) where{D, S}
+    ttn_vec = _construct_random_tree_tensor_network(net, maxdim, elT )
     ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
     if orthogonalize
         ttn = _reorthogonalize!(ttn, normalize = normalize)
@@ -17,8 +22,8 @@ function RandomTreeTensorNetwork(net::AbstractNetwork{D, S, Trivial}; maxdim::In
 end
 
 function ProductTreeTensorNetwork(net::AbstractNetwork, states::Vector{<:AbstractString};
-                orthogonalize::Bool = true, normalize::Bool = orthogonalize)
-    ttn_vec = _construct_product_tree_tensor_network(net, states)
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64)
+    ttn_vec = _construct_product_tree_tensor_network(net, states, elT)
     ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
     if orthogonalize
         ttn = _reorthogonalize!(ttn, normalize = normalize)
@@ -114,20 +119,20 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, 
 end
 
 
-function _reorthogonalize!(ttn::TreeTensorNetwork; normalize = true)
+function _reorthogonalize!(ttn::TreeTensorNetwork; normalize::Bool = true)
     for pos in network(ttn)
         ttn = _orthogonalize_to_parent!(ttn, pos)
     end
     ttn.ortho_center .= [number_of_layers(ttn), 1]
     if(normalize)
         tn = ttn[ortho_center(ttn)]
-        ttn[ortho_center(ttn)] = tn/norm(tn)
+        ttn[ortho_center(ttn)] = tn/TensorKit.norm(tn)
     end
     return ttn
 end
 
 
-function move_up!(ttn::TreeTensorNetwork; normalize = false)
+function move_up!(ttn::TreeTensorNetwork; normalize::Bool = false)
     
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
@@ -142,7 +147,7 @@ function move_up!(ttn::TreeTensorNetwork; normalize = false)
     _orthogonalize_to_parent!(ttn, oc)
 end
 
-function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize = false)
+function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize::Bool = false)
     
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
@@ -158,7 +163,7 @@ function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize = false)
     _orthogonalize_to_child!(ttn, oc, n_child)
 end
 
-function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int})
+function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}; normalize::Bool = false)
     check_valid_position(network(ttn), pos)
 
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
@@ -237,7 +242,7 @@ function check_normality(ttn::TreeTensorNetwork)
         end        
     end
     
-    res = norm(ttn[oc])
+    res = TensorKit.norm(ttn[oc])
     return all(are_id), res
 end
 

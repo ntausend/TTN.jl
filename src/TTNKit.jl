@@ -18,6 +18,15 @@ module TTNKit
         print(io, s_err)
     end
 
+    struct NotSupportedException <: Exception
+        msg::AbstractString
+    end
+    Base.showerror(io::IO, e::NotSupportedException) = print(io, "Functionality is not supported: "*e.msg)
+
+
+    # imports
+    import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
+    import TensorKit: sectortype, spacetype
 
 
     # nodes

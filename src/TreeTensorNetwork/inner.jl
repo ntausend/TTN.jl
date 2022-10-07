@@ -12,31 +12,48 @@ function _inner(::TreeTensorNetwork, ::AbstractNetwork, ::TreeTensorNetwork, ::A
     error("Overlap function for not implemented for general lattices.")
 end
 
-function _inner(ttn1::TreeTensorNetwork, net1::BinaryNetwork, 
-                ttn2::TreeTensorNetwork, ::BinaryNetwork)
+function TensorKit.norm(ttn::TreeTensorNetwork)
+    oc = ortho_center(ttn)
+    oc == (-1,-1) && return inner(ttn,ttn)
+    return TensorKit.norm(ttn[oc])
+end
 
+function TensorKit.normalize!(ttn)
+    oc = ortho_center(ttn)
+    oc == (-1,-1) && return _reorthogonalize!(ttn, normalize = true)
 
+    tn_n = ttn[oc]/TensorKit.norm(ttn[oc])
+    ttn[oc] = tn_n
+    return ttn
+end
+
+# is this function valid for every network with same structure?
+# so we can trop the <:BinaryNetwork restriction?
+function _inner(ttn1::TreeTensorNetwork, net::N, 
+                ttn2::TreeTensorNetwork, ::N) where{N<:BinaryNetwork}
+
+    elT = promote_type(eltype(ttn1), eltype(ttn2))
     # check in case if symmetric the Top node for qn correspondence
-    if !(sectortype(net1) == Trivial)
-        dom1 = domain(ttn1[number_of_layers(net1),1])
-        dom2 = domain(ttn2[number_of_layers(net1),1])
-        dom1 == dom2 || return zero(ComplexF64)
+    if !(sectortype(net) == Trivial)
+        dom1 = domain(ttn1[number_of_layers(net),1])
+        dom2 = domain(ttn2[number_of_layers(net),1])
+        dom1 == dom2 || return zero(elT)
     end
 
     # contruct the network starting from the first layer upwards
-    #ns = number_of_sites(net1)
+    #ns = number_of_sites(net)
     
-    phys_lat = physical_lattice(net1)
+    phys_lat = physical_lattice(net)
     res = map(phys_lat) do (nd)
         isomorphism(hilbertspace(nd), hilbertspace(nd))
     end
 
 
-    for ll in eachlayer(net1)
-        nt = number_of_tensors(net1,ll)
+    for ll in eachlayer(net)
+        nt = number_of_tensors(net,ll)
         res_new = Vector{TensorMap}(undef, nt)
-        for pp in eachindex(net1, ll)
-            childs_idx = getindex.(child_nodes(net1, (ll,pp)),2)
+        for pp in eachindex(net, ll)
+            childs_idx = getindex.(child_nodes(net, (ll,pp)),2)
             tn1 = ttn1[ll,pp]
             tn2 = ttn2[ll,pp]
             rpre1 = res[childs_idx[1]]
@@ -47,6 +64,7 @@ function _inner(ttn1::TreeTensorNetwork, net1::BinaryNetwork,
         end
         res = res_new
     end
+    # better exception
     length(res) == 1 || error("Tree Tensor Contraction don't leed to a single resulting tensor.")
     res = res[1]
     space_dom = domain(res)
