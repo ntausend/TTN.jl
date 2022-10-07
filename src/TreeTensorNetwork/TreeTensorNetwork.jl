@@ -67,6 +67,7 @@ _orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}) = _ortho
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
 function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int})
+    @assert 0 < pos[1] ≤ number_of_layers(net)
 
     pos[1] == number_of_layers(net) && (return ttn)
 
@@ -85,10 +86,10 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork,
     
     Q,R = leftorth(tn_child)
 
-    allinds = 1:(1 + length(codomain(tn_parent)))
-    res_inds = deleteat!(collect(allinds), idx)
-    perm = vcat(idx, res_inds)
-    res = R*TensorKit.permute(tn_parent, (idx,), Tuple(res_inds))
+    idx_dom, idx_codom = split_index(net, pos, idx)
+    
+    perm = vcat(idx_dom..., idx_codom...)
+    res = R*TensorKit.permute(tn_parent, idx_dom, idx_codom)
     res = TensorKit.permute(res, Tuple(perm[1:end-1]), (perm[end],))
 
     ttn[pos] = Q
@@ -103,8 +104,9 @@ _orthogonalize_to_child!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}, n_child::
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
 function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}, n_child::Int)
-    # change to goot Exception type
+    # change to good Exception type, also proper handle of pos[1] being the lowest layer...
     @assert 0 < n_child ≤ number_of_child_nodes(net, pos)
+    @assert 0 < pos[1] ≤ number_of_layers(net)
 
     pos[1] == 1 && (return ttn)
     
@@ -117,11 +119,12 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, 
 
     # now we need to permute the inds such that the childs index ist the left most. Since then we can use
     # rightort yielding LQ decomposition where we can push L to the childes node afterwards
-    allinds  = 1:(1 + length(codomain(tn_parent)))
-    res_inds = deleteat!(collect(allinds), n_child)
-    perm = vcat(n_child, res_inds)
+    idx_dom, idx_codom = split_index(net, pos, n_child)
 
-    L,Q = rightorth(tn_parent, (n_child,), Tuple(res_inds))
+
+    perm = vcat(idx_dom..., idx_codom...)
+
+    L,Q = rightorth(tn_parent, idx_dom, idx_codom)
 
     ttn[pos_child] = tn_child * L
 
@@ -215,44 +218,46 @@ function check_normality(ttn::TreeTensorNetwork)
     
     net = network(ttn)
 
-    !(net isa BinaryChainNetwork) && 
-        (error("Normality check only implemented for One Dimensional Binary Trees currently..."))
-
     n_layers = number_of_layers(net)
     
     
     are_id = Bool[]
     
-    # check identities in layers below the orthogonal center
-    for ll in 1:lc-1
-        n_tensors = number_of_tensors(net, ll)
-        for pp in 1:n_tensors
-            tn = ttn[ll,pp]
-            #@tensor res[-1; -2] := conj(tn[1, 2; -1]) * tn[1, 2; -2]
-            res = adjoint(tn)*tn
-            push!(are_id,res ≈ isomorphism(domain(res), codomain(res)))
+    # general strategy for checking normalization
+    for pos in net
+        # for a general node check the nearest path connecting this node to
+        # the orhtogonality centrum. The first node in this path dictates the 
+        # orhtonomality flow, i.e. if the index set is divided between child nodes (1,..,nc)
+        # and parent node (nc + 1), the tensor is written as A_{(i_1,...,i_nc), i_{nc+1}} 
+        # because of the convention of our tensors where all child nodes are in the codomain
+        # and the parent node is the domain. The orthonomality condition now dictates that contracting
+        # the tensor over all indices not connecting towards the orthogonality center leads to an
+        # identity over that index which is connecting towards the orhtogonality centrum.
+
+        c_path = connecting_path(net, pos, oc)
+        isempty(c_path) && continue # this is the orthognoality centrum, no checks here needed.
+        nd_next = c_path[1]
+
+        tn = ttn[pos]
+        # in case of orhtogonality direction is towards the parent node -> the default grouping
+        # is already the desired one for contracting
+        if(nd_next[1] == pos[1] - 1)
+            # in case of the orhtogonality direction is towards the lower layer, 
+            # we first need the index number of the child
+            idx_ch = index_of_child(net, nd_next)
+            # and then construct the possible remaing indices
+            idx_dom, idx_codom = split_index(net, pos, idx_ch)
+
+            # now we can perform the desired permutation on the tensor
+            tn = TensorKit.permute(tn, idx_codom, idx_dom)
         end
-    end
-    
-    # check identities inside the layer of the orthogonal center
-    n_tensors = number_of_tensors(net,lc)
-    for pp in vcat(collect(1:pc-1), collect(pc+1:n_tensors))
-        tn = ttn[lc,pp]
-        #@tensor res[-1; -2] := conj(tn[1, 2; -1]) * tn[1, 2; -2]
+
         res = adjoint(tn)*tn
-        push!(are_id,res ≈ isomorphism(domain(res), codomain(res)))
+        push!(are_id, res ≈ one(res))
     end
+
     
-    # check identities for tensors above the orthogonality center, luckly 
-    # this is always not the first layer... so no extra condition there:D
-    for ll in lc+1:n_layers
-        n_tensors = number_of_tensors(net, ll)
-        for pp in 1:n_tensors
-            tn = ttn[ll,pp]
-            #TODO            
-        end        
-    end
-    
+    # finally calculate the norm on the orthogonality centrum
     res = TensorKit.norm(ttn[oc])
     return all(are_id), res
 end
@@ -263,6 +268,3 @@ function Base.copy(ttn::TreeTensorNetwork)
     netc = deepcopy(ttn.net)
     return TreeTensorNetwork(datac, ortho_centerc, netc)
 end
-
-include("./inner.jl")
-include("./expect.jl")

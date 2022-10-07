@@ -9,7 +9,8 @@ println("Running Tests....")
         "Network.jl",
         "TreeTensorNetwork.jl",
         "inner.jl",
-        "expect.jl"
+        "expect.jl",
+        "correlation.jl"
     ]
         println("Running $filename")
         include(filename)

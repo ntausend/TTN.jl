@@ -52,4 +52,8 @@ module TTNKit
     
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
+
+    include("./TreeTensorNetwork/algorithms/inner.jl")
+    include("./TreeTensorNetwork/algorithms/expect.jl")
+    include("./TreeTensorNetwork/algorithms/correlation.jl")
 end # module

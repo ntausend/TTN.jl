@@ -122,6 +122,20 @@ function number_of_child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 	return length(child_nodes(net, pos))
 end
 
+"""
+	split_index(net::AbstractNetwork, pos::Tuple{Int,Int}, idx::Int)
+
+This function returns ((idx),(I\\idx)) with I being the complete index
+set of a given tensor at `pos`. This function is needed to perform perumations
+such that idx is singled out in the domain/codomain and all other indices are
+in the other space.
+"""
+function split_index(net, pos, idx)
+	allinds  = 1:(1+number_of_child_nodes(net, pos))
+	res_inds = Tuple(deleteat!(collect(allinds), idx))
+	return Tuple(idx), res_inds
+end
+
 # function returning all nodes from `pos1` to `pos2` by assuming
 # that the layer of `pos1` is lower or equal than `pos2`
 function _connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})

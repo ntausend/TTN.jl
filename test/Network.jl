@@ -83,6 +83,11 @@ using Test
         vec[jj] = pp
     end
     @test vec == [(2,1),(1,2), (1,1)]
+
+
+    @test TTNKit.split_index(net, (1,2), 1) == (Tuple(1), (2,3))
+    @test TTNKit.split_index(net, (1,2), 2) == (Tuple(2), (1,3))
+    @test TTNKit.split_index(net, (1,2), 3) == (Tuple(3), (1,2))
 end
 
 

@@ -28,6 +28,16 @@ using Test
     TTNKit.move_ortho!(ttn, (1,1))
     @test TTNKit.ortho_center(ttn) == (1,1)
     
+    net = BinaryRectangularNetwork(n_layers, TTNKit.HardCoreBosonNode)
+    ttn = RandomTreeTensorNetwork(net, orthogonalize = true)
+
+    TTNKit.move_down!(ttn,1)
+    @test TTNKit.ortho_center(ttn) == (n_layers-1,1)
+    TTNKit.move_up!(ttn)
+    @test TTNKit.ortho_center(ttn) == (n_layers,1)
+    TTNKit.move_ortho!(ttn, (1,1))
+    @test TTNKit.ortho_center(ttn) == (1,1)
+    
     is_normal, res = TTNKit.check_normality(ttn)
     @test is_normal
     @test res ≈ 1
