@@ -12,8 +12,18 @@ end
 include("./ttn_factory.jl")
 
 function RandomTreeTensorNetwork(net::AbstractNetwork; maxdim::Int = 1,
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64)
+    ttn_vec = _construct_random_tree_tensor_network(net, maxdim, elT)
+    ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    if orthogonalize
+        ttn = _reorthogonalize!(ttn, normalize = normalize)
+    end
+    return ttn
+end
+
+function RandomTreeTensorNetwork(net::AbstractNetwork, target_charge; maxdim::Int = 1,
                 orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64,
-                target_charge=nothing, tries::Int = 1000)
+                tries::Int = 1000)
     ttn_vec = _construct_random_tree_tensor_network(net, target_charge, maxdim, elT, tries)
     ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
     if orthogonalize
