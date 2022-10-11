@@ -23,11 +23,18 @@ n_op(;conserve_qns = true) = conserve_qns ? n_sym() : n_non_sym()
     dims = Tuple(n_sites)
     net = TTNKit.BinaryNetwork(dims, TTNKit.HardCoreBosonNode; conserve_qns = conserve_qns)
 
-    states = repeat(["Emp","Occ"], n_sites÷2)
+    states = repeat(["Occ","Emp"], n_sites÷2)
 
     ttn = TTNKit.ProductTreeTensorNetwork(net, states)
 
     op = n_op(;conserve_qns = conserve_qns)
 
-    corr_measured = TTNKit.correlation(ttn, op, op, 1,3)
+    expected_corr = map(states) do s
+        s == "Occ" ? 1 : 0
+    end
+
+    corr_measured = map(1:n_sites) do jj
+        TTNKit.correlation(ttn, op, op, 1,jj)
+    end
+    @test all(corr_measured .== expected_corr)
 end

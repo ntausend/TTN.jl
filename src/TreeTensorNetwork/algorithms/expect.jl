@@ -18,12 +18,7 @@ function _expect(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op::TensorM
     return _expect(ttn,net, op, linear_ind(physical_lattice(net),pos))
 end
 
-function _expect(::TreeTensorNetwork, ::AbstractNetwork,::TensorMap,::Int)
-    error("Overlap function for not implemented for general lattices.")
-end
-
-
-function _expect(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op::TensorMap, pos::Int) where{D}
+function _expect(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op::TensorMap, pos::Int) where{D}
 
     ttnc = copy(ttn)
     physlat = physical_lattice(net)
@@ -49,25 +44,12 @@ function _expect(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op::TensorMap
     
     tnc = ttnc[parent_pos]
 
-    if (idx_ch == 1)
-        @tensor res = conj(tnc[s, 1, 2]) * op[s,s′] * tnc[s′, 1, 2]
-    else
-        @tensor res = conj(tnc[1, s, 2]) * op[s,s′] * tnc[1, s′, 2]
-    end
-    
+    # splitting index to have the child index alone in the codomain
+    idx_codom, idx_dom = split_index(net, parent_pos, idx_ch)
+    # permute the indices 
+    tnc = TensorKit.permute(tnc, idx_codom, idx_dom)
+    # perform the contraction
+    res = dot(tnc, op*tnc)
+
     return real(res)
-    # This might somehow work for general geometries...
-    # now preform a permutation of the legs to have the domain being the one to calculate the
-    # expectation value
-    #=
-    allinds = 1:(1 + length(codomain(tnc)))
-    res_inds = deleteat!(collect(allinds), idx_ch)
-
-    tnc = TensorKit.permute(tnc, (idx_ch,), Tuple(res_inds))
-    res = adjoint(tnc)*(op*tnc)
-    #@tensor res = res[1,1]
-    #tnc = permute()
-    return res
-    =#
-
 end
