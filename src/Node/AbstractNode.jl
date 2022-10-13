@@ -73,10 +73,8 @@ function state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType =
             error("Try to set a state with unequal irreps: $(state_str)")
         end
         dom = S(irreps[1][1] => 1)
-        println(typeof(sp))
         st_raw = _reorder_state(st_raw, sp)
     end
-    println(dom)
 
     return TensorMap(st_raw, hilbertspace(nd) ← dom)
 end

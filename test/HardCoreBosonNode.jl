@@ -2,7 +2,7 @@ using TTNKit, TensorKit
 using Test
 
 
-
+elT = Float64
 
 @testset "Phsical Node Properties, Hard Core Boson, Trivial" begin
     # Hardcore boson node
@@ -18,11 +18,11 @@ using Test
     @test !(nd_2 == nd_hcb)
 
     for (st, st_name) in zip([[1,0], [0,1]], ["Emp", "Occ"])
-        @test TTNKit.state(nd_hcb, st_name) == st
-        st_o = TTNKit.state(nd_hcb, st_name, elT = Float64)
-        @test st_o == TensorMap(st, Float64, ℂ^2 ← ℂ^1)
+        @test TTNKit.state(nd_hcb, Val(Symbol(st_name))) == st
+        st_o = TTNKit.state(nd_hcb, st_name, elT)
+        @test st_o == TensorMap(elT.(st), ℂ^2 ← ℂ^1)
     end
-    @test TTNKit.spaces(nd) == 2
+    @test TTNKit.spaces(nd_hcb) == 2
 end
 
 @testset "Phsical Node Properties, Hard Core Boson, U1" begin
@@ -39,16 +39,16 @@ end
     @test !(nd_2 == nd_hcb)
 
     for (st, st_name) in zip([[1,0], [0,1]], ["Emp", "Occ"])
-        @test TTNKit.state(nd_hcb, st_name) == st
+        @test TTNKit.state(nd_hcb, Val(Symbol(st_name))) == st
     end
-    @test TTNKit.spaces(nd) == [0 => 1, 1 => 1]
+    @test TTNKit.spaces(nd_hcb) == [0 => 1, 1 => 1]
 
 
-    st_o = TTNKit.state(nd_hcb, "Emp", elT = Float64)
-    @test st_o == TensorMap(ones, Float64, U1Space(0=> 1, 1=>1)← U1Space(0 => 1))
+    st_o = TTNKit.state(nd_hcb, "Emp", elT)
+    @test st_o == TensorMap(ones, elT, U1Space(0=> 1, 1=>1)← U1Space(0 => 1))
 
-    st_o = TTNKit.state(nd_hcb, "Occ", elT = Float64)
-    @test st_o == TensorMap(ones, Float64, U1Space(0=> 1, 1=>1)← U1Space(1 => 1))
+    st_o = TTNKit.state(nd_hcb, "Occ", elT)
+    @test st_o == TensorMap(ones, elT, U1Space(0=> 1, 1=>1)← U1Space(1 => 1))
 end
 
 @testset "Phsical Node Properties, Hard Core Boson, Z2" begin
@@ -65,13 +65,13 @@ end
     @test !(nd_2 == nd_hcb)
 
     for (st, st_name) in zip([[1,0], [0,1]], ["Emp", "Occ"])
-        @test TTNKit.state(nd_hcb, st_name) == st
+        @test TTNKit.state(nd_hcb, Val(Symbol(st_name))) == st
     end
-    @test TTNKit.spaces(nd) == [0 => 1, 1 => 1]
+    @test TTNKit.spaces(nd_hcb) == [0 => 1, 1 => 1]
 
-    st_o = TTNKit.state(nd_hcb, "Emp", elT = Float64)
-    @test st_o == TensorMap(ones, Float64, Z2Space(0=> 1, 1=>1)← Z2Space(0 => 1))
+    st_o = TTNKit.state(nd_hcb, "Emp", elT)
+    @test st_o == TensorMap(ones, elT, Z2Space(0=> 1, 1=>1)← Z2Space(0 => 1))
 
-    st_o = TTNKit.state(nd_hcb, "Occ", elT = Float64)
-    @test st_o == TensorMap(ones, Float64, Z2Space(0=> 1, 1=>1)← Z2Space(1 => 1))
+    st_o = TTNKit.state(nd_hcb, "Occ", elT)
+    @test st_o == TensorMap(ones, elT, Z2Space(0=> 1, 1=>1)← Z2Space(1 => 1))
 end
