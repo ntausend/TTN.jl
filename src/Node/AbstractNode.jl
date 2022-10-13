@@ -42,8 +42,46 @@ end
 # associated to them
 hilbertspace(nd::PhysicalNode) = nd.hilbertspace
 
+function _reorder_state(st::Vector, sp::Vector{Pair{Int, Int}})
+    perm = sortperm(sp, lt = (x,y) -> isless(x[1],y[1]))
 
+    # check if inside a group of a QN the numbers are increasing
+    sp_n = sp[perm]
+    idx = 1
+    while idx < length(perm)
+        q = sp_n[idx][1]
+        idx_n = findlast(getindex.(sp_n,1) .== q)
+        perm_slice = @view perm[idx:idx_n]
+        sort!(perm_slice)
+        idx = idx_n+1
+    end
+    st_n = st[perm]
+    return st_n
+end
 
+function state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType = ComplexF64) where{S,I}
+    st_raw = state(nd, Val(Symbol(state_str)))
+    elt_t = promote_type(elT, eltype(st_raw))
+    st_raw = elt_t.(st_raw)
+    if I == Trivial
+        dom = S(1)
+    else
+        idx_non_zero = findall(!iszero, st_raw)
+        sp = spaces(nd)
+        irreps = sp[idx_non_zero]
+        if !(all(irreps .== irreps[1]))
+            error("Try to set a state with unequal irreps: $(state_str)")
+        end
+        dom = S(irreps[1][1] => 1)
+        println(typeof(sp))
+        st_raw = _reorder_state(st_raw, sp)
+    end
+    println(dom)
+
+    return TensorMap(st_raw, hilbertspace(nd) ← dom)
+end
+
+#=
 function state(nd::PhysicalNode, state_str::AbstractString; elT::DataType = ComplexF64)
     hilb = hilbertspace(nd)
     
@@ -58,7 +96,7 @@ function state(nd::PhysicalNode, state_str::AbstractString; elT::DataType = Comp
     end
     return TensorMap(st, hilb ← dom)
 end
-
+=#
 
 function ==(nd1::AbstractNode, nd2::AbstractNode)
     spacetype(nd1)  == spacetype(nd2)    || return false

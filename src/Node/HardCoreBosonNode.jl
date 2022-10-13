@@ -18,13 +18,13 @@ struct HardCoreBosonNode{S<:IndexSpace,I<:Sector} <: PhysicalNode{S,I}
     end
 end
 
-function state_dict(::Type{<:HardCoreBosonNode})
-    return Dict{String, Vector{Int}}("Emp" => [1, 0], "Occ" => [0, 1])
+function spaces(::HardCoreBosonNode{S,I}) where {S,I}
+    if I == Trivial
+        return 2
+    else
+        [0 => 1, 1 => 1]
+    end
 end
 
-function charge_dict(::Type{HardCoreBosonNode{S,I}}) where{S,I}
-    if I == Trivial
-        return nothing
-    end
-    return Dict{String, I}("Emp" => I(0), "Occ" => I(1))
-end
+state(::HardCoreBosonNode,::Val{:Occ}) = [0, 1]
+state(::HardCoreBosonNode,::Val{:Emp}) = [1, 0]

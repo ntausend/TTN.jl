@@ -5,6 +5,7 @@ println("Running Tests....")
 @testset "TTNKit.jl" begin
     @testset "$filename"  for filename in [
         "Node.jl",
+        "HardCoreBosonNode.jl",
         "Lattice.jl",
         "Network.jl",
         "TreeTensorNetwork.jl",

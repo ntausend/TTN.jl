@@ -33,64 +33,25 @@ struct SoftCoreBosonNode{S<:IndexSpace,I<:Sector,N} <: PhysicalNode{S,I}
 end
 
 
-function state_dict(::Type{SoftCoreBosonNode{S,I,N}}) where{S,I,N}
-    states_vec = map(1:N+1) do nn
-        vec = zeros(N+1)
-        vec[nn] = 1
-        return vec
+_parity(::Type{<:ZNIrrep{P}}) where{P} = P
+function spaces(::SoftCoreBosonNode{S,I,N}) where{S,I,N}
+    if I == Trivial
+        return N + 1
+    elseif I <: ZNIrrep
+        parity = _parity(I)
+        return [mod(n, parity) => 1 for n in 0:N]
+    else
+        return [n => 1 for n in 0:N]
     end
-    d = Dict{String, Vector{Int}}()
-    names = string.(collect(0:N))
-    for (s, st) in zip(names, states_vec)
-        d[s] = st
-    end
-    return d
 end
 
-
-function state_dict(::Type{SoftCoreBosonNode{S,ZNIrrep{P},N}}) where{S,P,N}
-    
-    states_vec = map(1:N+1) do nn
-        vec = zeros(N+1)
-        vec[nn] = 1
-        return vec
+function state(::SoftCoreBosonNode{S,I,N}, ::Val{V}) where{S,I,N, V}
+    occ = nothing
+    try
+        occ = parse(Int64, string(V))
+    catch ArgumentError
+        error("$V is not a valid integer needed for indicating occupation")
     end
-    d = Dict{String, Vector{Int}}()
-    st = collect(0:N)
-    names = string.(st)
-
-    for (n,s) in zip(names,st)
-        chrg = mod(s, P)
-        idx_bl  = div(s, P) + 1
-        idx_vec = idx_bl + chrg*P
-        d[n] = states_vec[idx_vec]
-    end
-    return d
-end
-
-charge_dict(::Type{SoftCoreBosonNode{S,Trivial}}) where {S} = nothing
-function charge_dict(::Type{SoftCoreBosonNode{S, U1Irrep, N}}) where{S,N}
-    st = collect(0:N)
-    names = string.(st)
-
-    I = U1Irrep
-    d = Dict{String, I}()
-    for (n, s) in zip(names, st)
-        d[n] = I(s)
-    end
-    return d
-end
-
-function charge_dict(::Type{SoftCoreBosonNode{S, ZNIrrep{P}, N}}) where{S,P,N}
-    st    = collect(0:N)
-    names = string.(st)
-
-    I = ZNIrrep{P}
-    d = Dict{String, I}()
-
-    for (n, s) in zip(names, st)
-        chrg = mod(s, P)
-        d[n] = I(chrg)
-    end
-    return d
+    occ > N && error("Requested occupation number $occ larger than total number of bosons...")
+    return [jj == occ ? 1 : 0 for jj in 0:N]
 end
