@@ -2,14 +2,14 @@ using TTNKit, TensorKit
 using Test
 
 @testset "General Tree Tensor Network" begin
-    n_layers = 2
+    n_layers = 3
     ndtyp = TTNKit.TrivialNode
-    net = BinaryChainNetwork(2, ndtyp)
+    net = BinaryChainNetwork(n_layers, ndtyp)
     
     ttn = RandomTreeTensorNetwork(net, orthogonalize = false)
     
     @test TTNKit.number_of_layers(ttn) == n_layers
-    @test length(TTNKit.layer(ttn,1))  == 2
+    @test length(TTNKit.layer(ttn,1))  == 2^(n_layers-1)
     @test TTNKit.network(ttn) == net
     @test TTNKit.ortho_center(ttn) == (-1,-1)
     ttn = RandomTreeTensorNetwork(net, orthogonalize = true)

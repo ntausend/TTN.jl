@@ -28,3 +28,12 @@ end
 
 state(::HardCoreBosonNode,::Val{:Occ}) = [0, 1]
 state(::HardCoreBosonNode,::Val{:Emp}) = [1, 0]
+
+
+function op(nd::HardCoreBosonNode, ::Val{:Cr})
+    stOcc = state(nd, "Occ", Float64)
+    stEmp = state(nd, "Emp", Float64)
+
+    @tensor opten[-1;-2] := stOcc[-1] * stEmp[-2]
+    return opten
+end

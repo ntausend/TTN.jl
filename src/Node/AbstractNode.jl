@@ -79,6 +79,11 @@ function state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType =
     return TensorMap(st_raw, hilbertspace(nd) ← dom)
 end
 
+
+function op(nd::PhysicalNode, op_str::AbstractString)
+    return op(nd, Val(Symbol(op_str)))
+end
+
 #=
 function state(nd::PhysicalNode, state_str::AbstractString; elT::DataType = ComplexF64)
     hilb = hilbertspace(nd)

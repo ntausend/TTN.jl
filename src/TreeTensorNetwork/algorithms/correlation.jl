@@ -1,20 +1,25 @@
 
-function correlation(ttn::TreeTensorNetwork{D}, op1::TensorMap, op2::TensorMap, 
+function correlation(ttn::TreeTensorNetwork{D}, op1::AbstractTensorMap, op2::AbstractTensorMap, 
                      pos1::Union{NTuple{D,Int}, Int}, pos2::Union{NTuple{D,Int}, Int}) where{D}
     net = network(ttn)
     return _correlation(ttn, net, op1, op2, pos1, pos2)
 end
 
-function _correlation(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op1::TensorMap, op2::TensorMap, 
+function _correlation(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op1::AbstractTensorMap, op2::AbstractTensorMap, 
                      pos1::NTuple{D,Int}, pos2::NTuple{D,Int}) where{D}
     pos1_lin = linear_ind(physical_lattice(net), pos1)
     pos2_lin = linear_ind(physical_lattice(net), pos2)
     return _correlation(ttn, net, op1, op2, pos1_lin, pos2_lin)
-                        
 end
 
-function _correlation_same_parent(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op1::TensorMap, op2::TensorMap, 
-                     parent_pos::Tuple{Int,Int}, idx_ch1::Int, idx_ch2::Int) where{D}
+function _correlation(::TreeTensorNetwork{D}, ::AbstractNetwork{D}, ::AbstractTensorMap, ::AbstractTensorMap, ::Int, ::Int) where{D}
+    error("Not implemented for general networks.... TODO")
+end
+
+# currently only onsite operators supported, i.e. neutral operators which can be represented as a matrix
+function _correlation_same_parent(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D},
+                     op1::OnSiteOperator{S}, op2::OnSiteOperator{S}, 
+                     parent_pos::Tuple{Int,Int}, idx_ch1::Int, idx_ch2::Int) where{D, S}
     ttnc = copy(ttn)
     # move ortho_center to the parent position
     move_ortho!(ttnc, parent_pos)
@@ -34,15 +39,8 @@ function _correlation_same_parent(ttn::TreeTensorNetwork{D}, net::AbstractNetwor
     return dot(T,ocomp*T)
 end
 
-
-function _correlation(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op1::TensorMap, op2::TensorMap, 
-                     pos1::Int, pos2::Int) where{D}
-    error("Not implemented for general networks.... TODO")
-
-end
-
-function _correlation(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op1::TensorMap, op2::TensorMap, 
-                     pos1::Int, pos2::Int) where{D}
+function _correlation(ttn::TreeTensorNetwork{D}, net::BinaryNetwork{D}, op1::OnSiteOperator{S}, op2::OnSiteOperator{S}, 
+                     pos1::Int, pos2::Int) where{D, S}
     if pos1 == pos2 
         @tensor ocomp[-1;-2] := op1[-1,s]*op2[s,-2]
         return _expect(ttn, net, ocomp, pos1)
