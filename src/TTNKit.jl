@@ -31,11 +31,12 @@ module TTNKit
 
 
     # nodes
-    export TrivialNode, HardCoreBosonNode, Node
+    export TrivialNode, HardCoreBosonNode, SpinHalfNode, Node
     include("./Node/AbstractNode.jl")
     include("./Node/Node.jl")
     include("./Node/HardCoreBosonNode.jl")
     include("./Node/SoftCoreBosonNode.jl")
+    include("./Node/SpinHalfNode.jl")
 
     # lattice class
     export AbstractLattice, Chain, Rectangle, Square
@@ -50,16 +51,19 @@ module TTNKit
     include("./Network/BinaryNetwork.jl")
 
     
-    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
+    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork, increase_dim_tree_tensor_network
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
 
     include("./TreeTensorNetwork/algorithms/inner.jl")
+
+    include("./TDVP/TDVP.jl")
 
     # load the definition of special operator types for dispatching measuring functions
     include("./TPO/AbstractTensorDefinitions.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
     include("./TreeTensorNetwork/algorithms/correlation.jl")
 
+    export transverseIsingHamiltonian1D
     include("./TPO/AbstractTPO.jl")
     #include("./TPO/TPOSum/Interactions.jl")
     #include("./TPO/TPOSum/TPOSum.jl")

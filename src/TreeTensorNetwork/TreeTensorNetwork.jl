@@ -42,6 +42,37 @@ function ProductTreeTensorNetwork(net::AbstractNetwork, states::Vector{<:Abstrac
     return  ttn
 end
 
+function increase_dim_tree_tensor_network(ttn::TreeTensorNetwork; maxdim::Int = 1, elT = ComplexF64)
+
+    net = network(ttn)
+    
+    ttnc = _initialize_empty_ttn(net)
+
+    domains, codomains = _build_domains_and_codomains(net,  maxdim)
+    fused_last = fuse(codomains[end][1])
+    domains[end][1] = _correct_domain(fused_last, 1) 
+    
+    for (ll,pp) in net
+
+        prev_dom  = domain(ttn[(ll,pp)])
+        prev_codom = codomain(ttn[(ll,pp)])
+
+        dom  = domains[ll][pp]
+        codom = codomains[ll][pp]
+
+        data = zeros((dims(codom)..., dim(dom)))
+        for i in 1:dim(prev_dom)
+            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] = convert(Array, ttn[(ll,pp)])[:,:,i]
+        end
+
+        tensor = TensorMap(data, codom ← dom)
+
+        ttnc[ll][pp] = tensor
+    end
+
+    return TreeTensorNetwork(ttnc, [-1,-1], net)
+end
+
 # returning the ll-th tensor network layer
 layer(ttn::TreeTensorNetwork, l::Int) = ttn.data[l]
 number_of_layers(ttn::TreeTensorNetwork) = length(ttn.data)
