@@ -11,9 +11,24 @@ using Test
     @test TTNKit.number_of_layers(ttn) == n_layers
     @test length(TTNKit.layer(ttn,1))  == 2^(n_layers-1)
     @test TTNKit.network(ttn) == net
+
     @test TTNKit.ortho_center(ttn) == (-1,-1)
+    for p in net
+        @test TTNKit.ortho_direction(ttn, p) == -1
+    end
+    
     ttn = RandomTreeTensorNetwork(net, orthogonalize = true)
+
     @test TTNKit.ortho_center(ttn) == (n_layers,1)
+    @test TTNKit.ortho_direction(ttn, (n_layers,1)) == -1
+    for p in net
+        if (p == (n_layers, 1))
+            @test TTNKit.ortho_direction(ttn, p) == -1
+        else
+            @test TTNKit.ortho_direction(ttn, p) == 3
+        end
+    end
+
     @test ttn[1,1] == ttn[(1,1)]
     
     n_ten = TensorMap(randn, ℂ^2 ⊗ ℂ^2 ← ℂ^1)
@@ -23,10 +38,31 @@ using Test
 
     TTNKit.move_down!(ttn,1)
     @test TTNKit.ortho_center(ttn) == (n_layers-1,1)
+    @test TTNKit.ortho_direction(ttn, (n_layers, 1)) == 1
+    @test TTNKit.ortho_direction(ttn, (n_layers-1, 1)) == -1
+
+
     TTNKit.move_up!(ttn)
     @test TTNKit.ortho_center(ttn) == (n_layers,1)
-    TTNKit.move_ortho!(ttn, (1,1))
-    @test TTNKit.ortho_center(ttn) == (1,1)
+    @test TTNKit.ortho_direction(ttn, (n_layers, 1))   == -1
+    @test TTNKit.ortho_direction(ttn, (n_layers-1, 1)) == 3
+
+    oc = (1,1)
+    TTNKit.move_ortho!(ttn, oc)
+    @test TTNKit.ortho_center(ttn) == oc
+    for p in net
+        if(p == oc)
+            @test TTNKit.ortho_direction(ttn, p) == -1
+        else
+            c_path = TTNKit.connecting_path(net, p, oc)
+            nd_next = c_path[1]
+            if nd_next[1] == p[1] - 1
+                @test TTNKit.ortho_direction(ttn, p) == nd_next[2]
+            else
+                @test TTNKit.ortho_direction(ttn, p) == 3
+            end
+        end
+    end
     
     net = BinaryRectangularNetwork(n_layers, TTNKit.HardCoreBosonNode)
     ttn = RandomTreeTensorNetwork(net, orthogonalize = true)

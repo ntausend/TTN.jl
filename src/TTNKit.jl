@@ -61,6 +61,7 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/correlation.jl")
 
     include("./TPO/AbstractTPO.jl")
+    include("./TPO/ProjTPO.jl")
     #include("./TPO/TPOSum/Interactions.jl")
     #include("./TPO/TPOSum/TPOSum.jl")
 

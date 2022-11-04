@@ -1,5 +1,8 @@
 struct TreeTensorNetwork{D, S<:IndexSpace, I<:Sector}
     data::Vector{Vector{TensorMap}}
+    # should we simply save the index of the tensor or
+    # more information? Currently the index... not so happy about that
+    ortho_direction::Vector{Vector{Int64}}
     ortho_center::Vector{Int}
     net::AbstractNetwork{D, S, I}
 end
@@ -10,11 +13,19 @@ function eltype(ttn::TreeTensorNetwork)
 end
 
 include("./ttn_factory.jl")
+function _initialize_ortho_direction(net)
+    ortho_direction = Vector{Vector{Int64}}(undef, number_of_layers(net))
+    foreach(eachlayer(net)) do ll
+        ortho_direction[ll] = repeat([-1], number_of_tensors(net, ll))
+    end
+    return ortho_direction
+end
 
 function RandomTreeTensorNetwork(net::AbstractNetwork; maxdim::Int = 1,
                 orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64)
     ttn_vec = _construct_random_tree_tensor_network(net, maxdim, elT)
-    ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    ortho_direction = _initialize_ortho_direction(net)
+    ttn = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
     if orthogonalize
         ttn = _reorthogonalize!(ttn, normalize = normalize)
     end
@@ -25,7 +36,8 @@ function RandomTreeTensorNetwork(net::AbstractNetwork, target_charge; maxdim::In
                 orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64,
                 tries::Int = 1000)
     ttn_vec = _construct_random_tree_tensor_network(net, target_charge, maxdim, elT, tries)
-    ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    ortho_direction = _initialize_ortho_direction(net)
+    ttn = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
     if orthogonalize
         ttn = _reorthogonalize!(ttn, normalize = normalize)
     end
@@ -35,7 +47,8 @@ end
 function ProductTreeTensorNetwork(net::AbstractNetwork, states::Vector{<:AbstractString};
                 orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64)
     ttn_vec = _construct_product_tree_tensor_network(net, states, elT)
-    ttn = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    ortho_direction = _initialize_ortho_direction(net)
+    ttn = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
     if orthogonalize
         ttn = _reorthogonalize!(ttn, normalize = normalize)
     end
@@ -49,6 +62,11 @@ number_of_layers(ttn::TreeTensorNetwork) = length(ttn.data)
 network(ttn::TreeTensorNetwork) = ttn.net
 # returning the current orthogonality center
 ortho_center(ttn::TreeTensorNetwork) = Tuple(ttn.ortho_center)
+
+# returns the ortho_direction of a given position in the network.
+# this returns the INDEX inside the tensor at that position which is connected to the
+# ortho center, see the check_normality function for usage
+ortho_direction(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}) = ttn.ortho_direction[pos[1]][pos[2]]
 
 
 Base.getindex(ttn::TreeTensorNetwork, l::Int, p::Int) = ttn.data[l][p]
@@ -95,6 +113,9 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork,
     ttn[pos] = Q
     ttn[pos_parent] = res
 
+    ttn.ortho_direction[pos[1]][pos[2]] = number_of_child_nodes(net, pos) + 1
+    ttn.ortho_direction[pos_parent[1]][pos_parent[2]] = -1
+
     return ttn
 end
 
@@ -129,6 +150,9 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, 
     ttn[pos_child] = tn_child * L
 
     ttn[pos] = TensorKit.permute(Q, Tuple(perm[1:end-1]), (perm[end],))
+
+    ttn.ortho_direction[pos[1]][pos[2]] = n_child
+    ttn.ortho_direction[pos_child[1]][pos_child[2]] = -1
     return ttn
 end
 
@@ -213,13 +237,8 @@ function check_normality(ttn::TreeTensorNetwork)
     oc = ortho_center(ttn)
     all(oc .== -1) && return false, nothing
     
-    lc = oc[1]
-    pc = oc[2]
-    
     net = network(ttn)
 
-    n_layers = number_of_layers(net)
-    
     
     are_id = Bool[]
     
@@ -234,11 +253,14 @@ function check_normality(ttn::TreeTensorNetwork)
         # the tensor over all indices not connecting towards the orthogonality center leads to an
         # identity over that index which is connecting towards the orhtogonality centrum.
 
+        pos == ortho_center(ttn) && continue
+        tn = ttn[pos]
+        
+        #=
         c_path = connecting_path(net, pos, oc)
         isempty(c_path) && continue # this is the orthognoality centrum, no checks here needed.
         nd_next = c_path[1]
 
-        tn = ttn[pos]
         # in case of orhtogonality direction is towards the parent node -> the default grouping
         # is already the desired one for contracting
         if(nd_next[1] == pos[1] - 1)
@@ -251,6 +273,10 @@ function check_normality(ttn::TreeTensorNetwork)
             # now we can perform the desired permutation on the tensor
             tn = TensorKit.permute(tn, idx_codom, idx_dom)
         end
+        =#
+        ortho_dir = ortho_direction(ttn, pos)
+        idx_dom, idx_codom = split_index(net, pos, ortho_dir)
+        tn = TensorKit.permute(tn, idx_codom, idx_dom)
 
         res = adjoint(tn)*tn
         push!(are_id, res ≈ one(res))
@@ -266,5 +292,6 @@ function Base.copy(ttn::TreeTensorNetwork)
     datac = deepcopy(ttn.data)
     ortho_centerc = deepcopy(ttn.ortho_center)
     netc = deepcopy(ttn.net)
-    return TreeTensorNetwork(datac, ortho_centerc, netc)
+    ortho_directionc = copy(ttn.ortho_direction)
+    return TreeTensorNetwork(datac, ortho_directionc, ortho_centerc, netc)
 end
