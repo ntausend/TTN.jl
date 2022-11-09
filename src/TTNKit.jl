@@ -51,8 +51,14 @@ module TTNKit
     include("./Network/BinaryNetwork.jl")
 
     
-    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork, increase_dim_tree_tensor_network
+    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork, increase_dim_tree_tensor_network_zeros, increase_dim_tree_tensor_network_randn
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
+
+    export transverseIsingHamiltonian
+    include("./TPO/AbstractTPO.jl")
+
+    export ProjTensorProductOperator, update_environment, environment
+    include("./TPO/TPOSum/ProjTPO.jl")
 
     include("./TreeTensorNetwork/algorithms/inner.jl")
 
@@ -63,8 +69,7 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/expect.jl")
     include("./TreeTensorNetwork/algorithms/correlation.jl")
 
-    export transverseIsingHamiltonian1D
-    include("./TPO/AbstractTPO.jl")
+    
     #include("./TPO/TPOSum/Interactions.jl")
     #include("./TPO/TPOSum/TPOSum.jl")
 

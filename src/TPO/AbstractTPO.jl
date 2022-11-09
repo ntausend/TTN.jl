@@ -6,7 +6,7 @@ lattice(tpo::AbstractTensorProductOperator) = tpo.lat
 
 struct MPO <: TTNKit.AbstractTensorProductOperator{TTNKit.SimpleLattice{1}}
     lat::TTNKit.SimpleLattice{1}
-    data::Vector{TensorMap}
+    data::Vector{AbstractTensorMap}
 end
 
 
@@ -20,13 +20,11 @@ function transverseIsingHamiltonian(parameters::Tuple, lat::SimpleLattice)
     σ_z = [1 0; 0 -1]
     σ_x = [0 1; 1 0]
 
-    matrix = zeros(dim(hilb), dim(hilb), 3, 3)
-    matrix[:,:,1,1] .= matrix[:,:,3,3] .= id
-    matrix[:,:,2,1] .= σ_z
-    matrix[:,:,3,1] .= g*σ_x
-    matrix[:,:,3,2] .= J*σ_z
+    hamiltonian = zeros(dim(hilb), dim(hilb), 3, 3)
+    hamiltonian[:,:,1,1] .= hamiltonian[:,:,3,3] .= id
+    hamiltonian[:,:,2,1] .= σ_z
+    hamiltonian[:,:,3,1] .= g*σ_x
+    hamiltonian[:,:,3,2] .= J*σ_z
 
-    hamiltonian = TensorKit.permute(Tensor(matrix, hilb*(hilb)'*ℂ^3*(ℂ^3)'),(1,3),(2,4))
-
-    return MPO(lat, Vector{TensorMap}( fill(hamiltonian, number_of_sites(lat)) ))
+    return MPO(lat, Vector{TensorMap}( fill(Tensor(hamiltonian, (hilb)'*hilb*ℂ^3*(ℂ^3)'), number_of_sites(lat)) ))
 end
