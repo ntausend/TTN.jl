@@ -1,5 +1,6 @@
-struct BinaryNetwork{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D, S, I}
-    lattices::Vector{SimpleLattice{D, S, I}}
+#struct BinaryNetwork{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D, S, I}
+struct BinaryNetwork{L<:SimpleLattice} <: AbstractNetwork{L}
+    lattices::Vector{L}
 end
 
 function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwargs...) where{D}
@@ -27,7 +28,8 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
         # pairing direction of the next layer
     end
     
-    return BinaryNetwork{D, spacetype(vnd_type), sectortype(vnd_type)}(lat_vec)
+    #return BinaryNetwork{D, spacetype(vnd_type), sectortype(vnd_type)}(lat_vec)
+    return BinaryNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 function BinaryNetwork(dimensions::NTuple; kwargs...) 
     return BinaryNetwork(dimensions, TrivialNode; kwargs...)
@@ -40,7 +42,8 @@ number_of_child_nodes(::BinaryNetwork, ::Tuple{Int,Int}) = 2
 number_of_tensors(net::BinaryNetwork) = 2^(number_of_layers(net)) - 1
 
 
-const BinaryChainNetwork{S<:IndexSpace, I<:Sector} = BinaryNetwork{1, S, I}
+#const BinaryChainNetwork{S<:IndexSpace, I<:Sector} = BinaryNetwork{1, S, I}
+const BinaryChainNetwork{L<:SimpleLattice{1}} = BinaryNetwork{L}
 function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwargs...)
     tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
     phys_lat = Chain(tensors_per_layer[1], nd; kwargs...)
@@ -49,7 +52,8 @@ function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwa
         Chain(nn, nvd_type)
     end
     lat_vec[1] = phys_lat
-    return BinaryChainNetwork{spacetype(nvd_type), sectortype(nvd_type)}(lat_vec)
+    #return BinaryChainNetwork{spacetype(nvd_type), sectortype(nvd_type)}(lat_vec)
+    return BinaryChainNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 BinaryChainNetwork(number_of_layers::Int; kwargs...) = BinaryChainNetwork(number_of_layers, TrivialNode; kwargs...)
 

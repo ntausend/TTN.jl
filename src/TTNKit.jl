@@ -52,17 +52,25 @@ module TTNKit
     
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
-
+    
     include("./TreeTensorNetwork/algorithms/inner.jl")
 
     # load the definition of special operator types for dispatching measuring functions
     include("./TPO/AbstractTensorDefinitions.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
-    include("./TreeTensorNetwork/algorithms/correlation.jl")
 
+    include("./TreeTensorNetwork/algorithms/correlation.jl")
+    
+
+    #=
+
+
+    # TPO TODO:Tests
     include("./TPO/AbstractTPO.jl")
     include("./TPO/ProjTPO.jl")
-    #include("./TPO/TPOSum/Interactions.jl")
-    #include("./TPO/TPOSum/TPOSum.jl")
+
+    include("./TPO/TPOSum/Interactions.jl")
+    include("./TPO/TPOSum/TPOSum.jl")
+    =#
 
 end # module

@@ -1,18 +1,21 @@
 
-abstract type AbstractNetwork{D, S<:IndexSpace, I<:Sector} end
+#abstract type AbstractNetwork{D, S<:IndexSpace, I<:Sector} end
+abstract type AbstractNetwork{L<:AbstractLattice} end
 
 # generic network type, needs the connectivity matrices for connecting layers
 # only allows for connectivity between adjacent layers...
-struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
+#struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
+struct Network{L<:AbstractLattice} <: AbstractNetwork{L}
 	# adjacency matrix per layer, first is physical connectivity 
 	# to first TTN Layer
     connections::Vector{SparseMatrixCSC{Int, Int}}
 	#lattices per layer, first is physical layer
-	lattices::Vector{AbstractLattice{D,S,I}}
+	#lattices::Vector{AbstractLattice{D,S,I}}
+	lattices::Vector{L}
 end
 
 # dimensionality of network
-dimensionality(::Type{<:AbstractNetwork{D}}) where D  = D
+dimensionality(::Type{<:AbstractNetwork{L}}) where L  = dimensionality(L)
 dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
 
 # returning the lattices of the network, 1 is physical, and 2:n_layers are the virtuals
@@ -49,8 +52,8 @@ number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 
 physical_coordinates(net::AbstractNetwork) = coordinates(physical_lattice(net))
 
-TensorKit.spacetype( ::Type{<:AbstractNetwork{D,S}}) where{D,S} = S
-TensorKit.sectortype(::Type{<:AbstractNetwork{D,S,I}}) where{D,S,I} = I
+TensorKit.spacetype( ::Type{<:AbstractNetwork{L}}) where{L} = spacetype(L)
+TensorKit.sectortype(::Type{<:AbstractNetwork{L}}) where{L} = sectortype(L)
 TensorKit.spacetype(net::AbstractNetwork)  = spacetype(typeof(net))
 TensorKit.sectortype(net::AbstractNetwork) = sectortype(typeof(net))
 
@@ -270,5 +273,6 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	end
 	lat_vec[end] = Chain(1,vnd_type)
 	
-	return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
+	#return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
+	return Network{typeof(lat_vec[1])}(adjmats, lat_vec)
 end

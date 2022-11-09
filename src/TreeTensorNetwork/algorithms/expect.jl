@@ -1,6 +1,6 @@
 # expectation value of a onsite operator i.e.: <n_j>
 
-function expect(ttn::TreeTensorNetwork{D}, op::OnSiteOperator) where{D}
+function expect(ttn::TreeTensorNetwork, op::OnSiteOperator)
     physlat = physical_lattice(network(ttn))
     res = map(eachindex(physlat)) do (pos)
         expect(ttn, op, pos)
@@ -9,17 +9,13 @@ function expect(ttn::TreeTensorNetwork{D}, op::OnSiteOperator) where{D}
     return reshape(res, dims)
 end
 
-function expect(ttn::TreeTensorNetwork{D}, op::OnSiteOperator, pos::Union{NTuple{D,Int},Int}) where{D}
+function expect(ttn::TreeTensorNetwork, op::OnSiteOperator, pos::NTuple)
+    return expect(ttn, op, linear_ind(physical_lattice(network(ttn)),pos))
+end
+
+function expect(ttn::TreeTensorNetwork, op::OnSiteOperator, pos::Int)
+
     net = network(ttn)
-    return _expect(ttn, net, op, pos)
-end
-
-function _expect(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op::OnSiteOperator, pos::NTuple{D,Int}) where{D}
-    return _expect(ttn,net, op, linear_ind(physical_lattice(net),pos))
-end
-
-function _expect(ttn::TreeTensorNetwork{D}, net::AbstractNetwork{D}, op::OnSiteOperator, pos::Int) where{D}
-
     ttnc = copy(ttn)
     physlat = physical_lattice(net)
     hilbttn = hilbertspace(node(physlat,1))

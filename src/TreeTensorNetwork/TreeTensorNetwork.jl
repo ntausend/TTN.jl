@@ -1,10 +1,11 @@
-struct TreeTensorNetwork{D, S<:IndexSpace, I<:Sector}
+#struct TreeTensorNetwork{D, S<:IndexSpace, I<:Sector}
+struct TreeTensorNetwork{T<:AbstractNetwork}
     data::Vector{Vector{TensorMap}}
     # should we simply save the index of the tensor or
     # more information? Currently the index... not so happy about that
-    ortho_direction::Vector{Vector{Int64}}
+    ortho_direction::Vector{Vector{Int}}
     ortho_center::Vector{Int}
-    net::AbstractNetwork{D, S, I}
+    net::T
 end
 
 function eltype(ttn::TreeTensorNetwork) 

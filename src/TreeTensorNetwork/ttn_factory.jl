@@ -76,7 +76,8 @@ end
 
 
 
-function _construct_random_tree_tensor_network2(net::AbstractNetwork{D,S, Trivial}, maxdim::Int, elT::DataType) where {D, S}
+function _construct_random_tree_tensor_network2(net::AbstractNetwork{<:AbstractLattice{D,S, Trivial}},
+                                                maxdim::Int, elT::DataType) where {D, S}
     # we dont need tensors for the physical layer... only for the virutal Tree Layers
     n_layers = number_of_layers(net)
 
@@ -169,7 +170,10 @@ function _build_domains_and_codomains(net::AbstractNetwork, maxdim::Int)
     return domains, codomains
 end
 
-function _build_domains_and_codomains(net::AbstractNetwork{D,S,I}, target_charge::I, maxdim::Int, tries::Int) where{D,S, I<:Sector}
+function _build_domains_and_codomains(net::AbstractNetwork{<:AbstractLattice{D,S,I}}, 
+                                      target_charge::I, maxdim::Int, tries::Int) where{D,S, I<:Sector}
+#function _build_domains_and_codomains(net::AbstractNetwork{D,S,I}, target_charge::I, maxdim::Int, tries::Int) where{D,S, I<:Sector}
+    #if(I == Trivial)
     if(I == Trivial)
         target_sp = spacetype(net)(1)
     else
