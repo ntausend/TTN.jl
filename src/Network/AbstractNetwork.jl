@@ -50,6 +50,61 @@ dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
 # number of physical sites
 number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 
+# length of the network == total number of sites included in the network
+#Base.length(net::AbstractNetwork) = sum(map(jj -> length(lattice(net,jj)), 0:number_of_layers(net)))
+
+"""
+	internal_index_of_legs(net::AbstractNetwork, pos::Tuple{Int, Int})
+
+Returns a list of indices associated to the legs of a tensor located at `pos`
+
+## Arguments:
+
+---
+
+- net::AbstractNetwork
+- pos::Tuple{Int,Int}: Position of Tensor in the Network
+
+## Returns:
+
+---
+
+For every leg of the tensor it returns a unique index. The indices are increasing
+inside one layer (the physical legs are numbered 1, 2, 3, ...., N_phys) such that
+the indices of the child legs are adjacent but the prarent index is shifted.
+
+## Example:
+
+---
+
+```
+	net = BinaryChainNetwork(2) # creates a network with two virtual layers
+	TTNKit.internal_index_of_legs(net, (1,1)) # returns [1,2,5]
+	TTNkit.internal_index_of_legs(net, (1,2)) # returns [3,4,6]
+	TTNKit.internal_index_of_legs(net, (2,1)) # returns [5,6,7]
+```
+
+"""
+function internal_index_of_legs(net::AbstractNetwork, pos::Tuple{Int,Int})
+	number_of_childs_prev_layers = mapreduce(+,1:pos[1]-1, init = 0) do (ll)
+			mapreduce(+, 1:number_of_tensors(net, ll), init = 0) do (pp)
+				return number_of_child_nodes(net, (ll,pp))
+			end
+		end
+
+	n_of_chds_t_layer_p = mapreduce(+, 1:pos[2]-1, init = 0) do (pp)
+			number_of_child_nodes(net, (pos[1], pp))
+		end
+	
+	n_of_chds_tn = number_of_child_nodes(net, pos)
+	n_shift_1 = number_of_childs_prev_layers + n_of_chds_t_layer_p
+	n_shift_2 = length(lattice(net, pos[1]-1)) + number_of_childs_prev_layers
+
+	idx_parent = pos[2] + n_shift_2
+	return vcat([jj + n_shift_1 for jj in 1:n_of_chds_tn], idx_parent)
+end
+
+
 physical_coordinates(net::AbstractNetwork) = coordinates(physical_lattice(net))
 
 TensorKit.spacetype( ::Type{<:AbstractNetwork{L}}) where{L} = spacetype(L)

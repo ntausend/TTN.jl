@@ -176,3 +176,14 @@ function adjacency_matrix(net::BinaryChainNetwork, l::Int64)
 	J = vcat(pos_this[1:2:end], pos_this[2:2:end])
 	return sparse(I,J,repeat([1], n_this), n_next, n_this)
 end
+
+# find a good overload function for this one
+#=
+function internal_index_of_legs(net::BinaryChainNetwork, pos::Tuple{Int,Int})
+    n_layers = number_of_layers(net)
+    number_of_childs_prev_layers = 2^(n_layers - pos[1] + 1)
+    n_shift_1 = 2^(pos[2] - 1) + number_of_childs_prev_layers 
+    n_shift_2 = 2^(n_layers - pos[2] + 2)
+	return [1 + n_shift_1, 2 + n_shift_1, n_shift_2 + pos[2]]
+end
+=#
