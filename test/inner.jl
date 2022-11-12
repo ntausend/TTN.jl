@@ -1,3 +1,5 @@
+using TensorKit, TTNKit
+using Test
 @testset "Inner product" begin
     n_layers = 2
     ndtyp = TTNKit.TrivialNode
@@ -17,6 +19,6 @@
     @test TTNKit.inner(ttn,ttn) ≈ TTNKit.norm(ttn)^2
 
     normalize!(ttn)
-    @tensor TTNKit.norm(ttn) ≈ 1
+    @test TTNKit.norm(ttn) ≈ 1
 
 end

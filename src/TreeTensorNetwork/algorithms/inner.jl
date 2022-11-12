@@ -5,10 +5,11 @@ function inner(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
     dimensionality(net1) == dimensionality(net2) || return ComplexF64(0)
     physical_lattice(net1) == physical_lattice(net2) || return ComplexF64(0)
 
-    return _inner(ttn1, net1, ttn2, net2)
+    return _inner(ttn1, ttn2)
 end
 
-function _inner(::TreeTensorNetwork, ::AbstractNetwork, ::TreeTensorNetwork, ::AbstractNetwork)
+function _inner(::TreeTensorNetwork{<:AbstractNetwork}, ::TreeTensorNetwork{<:AbstractNetwork})
+    #, ::AbstractNetwork, ::TreeTensorNetwork, ::AbstractNetwork)
     error("Overlap function for not implemented for general lattices.")
 end
 
@@ -29,8 +30,9 @@ end
 
 # is this function valid for every network with same structure?
 # so we can trop the <:BinaryNetwork restriction?
-function _inner(ttn1::TreeTensorNetwork, net::N, 
-                ttn2::TreeTensorNetwork, ::N) where{N<:BinaryNetwork}
+function _inner(ttn1::TreeTensorNetwork{N}, ttn2::TreeTensorNetwork{N}) where{N<:BinaryNetwork}
+
+    net = network(ttn1)
 
     elT = promote_type(eltype(ttn1), eltype(ttn2))
     # check in case if symmetric the Top node for qn correspondence

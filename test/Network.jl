@@ -88,6 +88,10 @@ using Test
     @test TTNKit.split_index(net, (1,2), 1) == (Tuple(1), (2,3))
     @test TTNKit.split_index(net, (1,2), 2) == (Tuple(2), (1,3))
     @test TTNKit.split_index(net, (1,2), 3) == (Tuple(3), (1,2))
+
+    @test TTNKit.internal_index_of_legs(net, (1,1)) == [1,2,5]
+    @test TTNKit.internal_index_of_legs(net, (1,2)) == [3,4,6]
+    @test TTNKit.internal_index_of_legs(net, (2,1)) == [5,6,7]
 end
 
 
@@ -95,7 +99,6 @@ end
     n_layers = 2
     
     @test_throws TTNKit.DimensionsException BinaryNetwork((2,3), TrivialNode)
-
 
     n_x = 2
     n_y = 4
@@ -113,6 +116,7 @@ end
         total_tens += 1
     end
     @test TTNKit.number_of_tensors(net) == total_tens
+
 end
     
 @testset "D = 1" begin
@@ -120,6 +124,11 @@ end
     D = 1
 
     net = BinaryChainNetwork(n_layers, TTNKit.HardCoreBosonNode)
+
+    @test TTNKit.internal_index_of_legs(net, (1,1)) == [1,2,5]
+    @test TTNKit.internal_index_of_legs(net, (1,2)) == [3,4,6]
+    @test TTNKit.internal_index_of_legs(net, (2,1)) == [5,6,7]
+
     @test TTNKit.number_of_layers(net) == n_layers
     @test TTNKit.number_of_sites(net)  == 2^n_layers
     @test TTNKit.dimensionality(net) == 1
