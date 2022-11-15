@@ -4,15 +4,15 @@ println("Running Tests....")
 
 @testset "TTNKit.jl" begin
     @testset "$filename"  for filename in [
-        #"Node.jl",
-        #"HardCoreBosonNode.jl",
-        #"SoftCoreBosonNode.jl",
-        #"Lattice.jl",
-        #"Network.jl",
-        #"TreeTensorNetwork.jl",
-        #"inner.jl",
-        #"expect.jl",
-        #"correlation.jl",
+        "Node.jl",
+        "HardCoreBosonNode.jl",
+        "SoftCoreBosonNode.jl",
+        "Lattice.jl",
+        "Network.jl",
+        "TreeTensorNetwork.jl",
+        "inner.jl",
+        "expect.jl",
+        "correlation.jl",
         "contract_tensors.jl"
     ]
         println("Running $filename")
