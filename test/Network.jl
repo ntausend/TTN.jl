@@ -74,12 +74,12 @@ using Test
     @test_throws BoundsError TTNKit.connecting_path(net, (1,1), (-1,1))
     
     vec = Vector{Tuple{Int,Int}}(undef, TTNKit.number_of_tensors(net))
-    for (jj, pp) in enumerate(net)
+    for (jj, pp) in enumerate(TTNKit.NodeIterator(net))
         vec[jj] = pp
     end
     @test vec == [(1,1),(1,2), (2,1)]
     vec = Vector{Tuple{Int,Int}}(undef, TTNKit.number_of_tensors(net))
-    for (jj, pp) in enumerate(Iterators.reverse(net))
+    for (jj, pp) in enumerate(Iterators.reverse(TTNKit.NodeIterator(net)))
         vec[jj] = pp
     end
     @test vec == [(2,1),(1,2), (1,1)]
@@ -111,7 +111,7 @@ end
     # warum schlaegt der fehl?
     #@test net == BinaryNetwork((2,),TrivialNode)
     total_tens = 0
-    for pp in net
+    for pp in TTNKit.NodeIterator(net)
         @test TTNKit.number_of_child_nodes(net, pp) == 2
         total_tens += 1
     end

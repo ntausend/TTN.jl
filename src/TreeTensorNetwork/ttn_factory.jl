@@ -54,7 +54,7 @@ function _construct_random_tree_tensor_network(net::AbstractNetwork, maxdim::Int
     # last domain should simply be one dimensional fixin the network
     domains[end][1] = _correct_domain(fused_last, 1)
 
-    for (ll,pp) in net
+    for (ll,pp) in NodeIterator(net)
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
         ttn[ll][pp] = TensorMap(randn, elT, codom ← dom)
@@ -66,7 +66,7 @@ function _construct_random_tree_tensor_network(net::AbstractNetwork, target_char
     ttn = _initialize_empty_ttn(net)
     domains, codomains = _build_domains_and_codomains(net, target_charge, maxdim, tries)
 
-    for (ll,pp) in net
+    for (ll,pp) in NodeIterator(net)
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
         ttn[ll][pp] = TensorMap(randn, elT, codom ← dom)

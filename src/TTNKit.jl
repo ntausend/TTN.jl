@@ -29,6 +29,8 @@ module TTNKit
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import TensorKit: sectortype, spacetype
 
+    # contract_tensor ncon wrapper
+    include("./contract_tensors.jl")
 
     # nodes
     export TrivialNode, HardCoreBosonNode, Node

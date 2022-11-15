@@ -50,6 +50,7 @@ dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
 # number of physical sites
 number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 
+
 # length of the network == total number of sites included in the network
 #Base.length(net::AbstractNetwork) = sum(map(jj -> length(lattice(net,jj)), 0:number_of_layers(net)))
 
@@ -247,42 +248,6 @@ function connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 end
 
 
-function Base.iterate(::AbstractNetwork)
-	pos = (1, 1)
-	return (pos, pos)
-end
-
-function Base.iterate(net::AbstractNetwork, state)
-	#state == n_layers && return nothing
-	state[1] == number_of_layers(net) && return nothing
-
-	if state[2] == number_of_tensors(net, state[1])
-		pos = (state[1] + 1, 1)
-	else
-		pos = (state[1], state[2] + 1)
-	end
-	return (pos, pos)
-end
-
-function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork})
-	pos = (number_of_layers(itr.itr), 1)
-	return (pos, pos)
-end
-
-function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork}, state)
-	state == (1,1) && return nothing	
-	
-	if(state[2] == 1)
-		n_l = state[1] - 1
-		n_t = number_of_tensors(itr.itr, n_l)
-		pos = (n_l, n_t)
-	else
-		pos = (state[1], state[2] - 1)
-	end
-
-	return (pos, pos)
-end
-
 eachlayer(net::AbstractNetwork) = 1:number_of_layers(net)
 eachindex(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))
 
@@ -330,4 +295,46 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	
 	#return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
 	return Network{typeof(lat_vec[1])}(adjmats, lat_vec)
+end
+
+struct NodeIterator
+	net::AbstractNetwork
+end
+
+Base.length(nit::NodeIterator) = mapreduce(l -> length(l), +, init = 0, lattices(nit.net)[2:end])
+
+function Base.iterate(::NodeIterator)
+	pos = (1, 1)
+	return (pos, pos)
+end
+
+function Base.iterate(nit::NodeIterator, state)
+	#state == n_layers && return nothing
+	state[1] == number_of_layers(nit.net) && return nothing
+
+	if state[2] == number_of_tensors(nit.net, state[1])
+		pos = (state[1] + 1, 1)
+	else
+		pos = (state[1], state[2] + 1)
+	end
+	return (pos, pos)
+end
+
+function Base.iterate(itr::Iterators.Reverse{<:NodeIterator})
+	pos = (number_of_layers(itr.itr.net), 1)
+	return (pos, pos)
+end
+
+function Base.iterate(itr::Iterators.Reverse{<:NodeIterator}, state)
+	state == (1,1) && return nothing	
+	
+	if(state[2] == 1)
+		n_l = state[1] - 1
+		n_t = number_of_tensors(itr.itr.net, n_l)
+		pos = (n_l, n_t)
+	else
+		pos = (state[1], state[2] - 1)
+	end
+
+	return (pos, pos)
 end

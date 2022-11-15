@@ -13,7 +13,7 @@ using Test
     @test TTNKit.network(ttn) == net
 
     @test TTNKit.ortho_center(ttn) == (-1,-1)
-    for p in net
+    for p in TTNKit.NodeIterator(net)
         @test TTNKit.ortho_direction(ttn, p) == -1
     end
     
@@ -21,7 +21,7 @@ using Test
 
     @test TTNKit.ortho_center(ttn) == (n_layers,1)
     @test TTNKit.ortho_direction(ttn, (n_layers,1)) == -1
-    for p in net
+    for p in TTNKit.NodeIterator(net)
         if (p == (n_layers, 1))
             @test TTNKit.ortho_direction(ttn, p) == -1
         else
@@ -50,7 +50,7 @@ using Test
     oc = (1,1)
     TTNKit.move_ortho!(ttn, oc)
     @test TTNKit.ortho_center(ttn) == oc
-    for p in net
+    for p in TTNKit.NodeIterator(net)
         if(p == oc)
             @test TTNKit.ortho_direction(ttn, p) == -1
         else

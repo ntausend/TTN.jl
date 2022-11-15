@@ -159,7 +159,7 @@ end
 
 
 function _reorthogonalize!(ttn::TreeTensorNetwork; normalize::Bool = true)
-    for pos in network(ttn)
+    for pos in NodeIterator(network(ttn))
         ttn = _orthogonalize_to_parent!(ttn, pos)
     end
     ttn.ortho_center .= [number_of_layers(ttn), 1]
@@ -244,7 +244,7 @@ function check_normality(ttn::TreeTensorNetwork)
     are_id = Bool[]
     
     # general strategy for checking normalization
-    for pos in net
+    for pos in NodeIterator(net)
         # for a general node check the nearest path connecting this node to
         # the orhtogonality centrum. The first node in this path dictates the 
         # orhtonomality flow, i.e. if the index set is divided between child nodes (1,..,nc)
