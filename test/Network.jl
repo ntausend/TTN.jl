@@ -49,7 +49,7 @@ using Test
             @test TTNKit.parent_node(net, (ll,pp)) ==  (ll+1, div(pp+1,2))
         end
     end
-    @test TTNKit.parent_node(net, (n_layers,1)) == nothing
+    @test TTNKit.parent_node(net, (n_layers,1)) === nothing
     
     for ll in TTNKit.eachlayer(net)
         for pp in 1:TTNKit.number_of_tensors(net, ll)

@@ -1,251 +1,200 @@
-struct ProjTensorProductOperator{D, S<:IndexSpace, I<:Sector}
-    net::AbstractNetwork{D, S, I}
+using TTNKit: number_of_child_nodes, number_of_sites, number_of_layers, number_of_tensors, index_of_child, eachindex, eachlayer, parent_node, child_nodes
+
+struct ProjTensorProductOperator
+    net::AbstractNetwork
     tpo::AbstractTensorProductOperator
 
-    bottom_envs::Vector{Vector{Vector{AbstractTensorMap}}}
-    top_envs::Vector{Vector{AbstractTensorMap}}
+    bottomEnvironment::Vector{Vector{Vector{AbstractTensorMap}}}
+    topEnvironment::Vector{Vector{AbstractTensorMap}}
  
-    Indices::Dict
+    bottomIndices::Vector{Vector{Vector{Vector{Int64}}}}
+    topIndices::Vector{Vector{Vector{Int64}}}
 end
 
+function Base.copy(ptpo::ProjTensorProductOperator)
+    netc = deepcopy(ptpo.net)
+    tpoc = deepcopy(ptpo.tpo)
+    bottomEnvironmentc = deepcopy(ptpo.bottomEnvironment)
+    topEnvironmentc = deepcopy(ptpo.topEnvironment)
+    bottomIndicesc = deepcopy(ptpo.bottomIndices)
+    topIndicesc = deepcopy(ptpo.topIndices)
+    return ProjTensorProductOperator(netc, tpoc, bottomEnvironmentc, topEnvironmentc, bottomIndicesc, topIndicesc)
+end
 
 function contract_tensors(tensorList::Vector{AbstractTensorMap}, indexList::Vector{Vector{Int}})
-    unique_indices = Any[]
-    double_indices = Any[]
+    uniqueIndices = Any[]
+    doubleIndices = Any[]
     flatIndexList = vcat(indexList...)  
 
     while !(isempty(flatIndexList))
         el = popfirst!(flatIndexList)
-        if !(el in flatIndexList) && !(el in double_indices)
-            append!(unique_indices, [el])
+        if !(el in flatIndexList) && !(el in doubleIndices)
+            append!(uniqueIndices, [el])
         else
-            append!(double_indices, [el])
+            append!(doubleIndices, [el])
         end
     end
 
-    n = -1
-    for unique_ind in unique_indices
-        for list in indexList
-            if unique_ind in list
-                replace!(list, unique_ind => n)
-                n -= 1
-                break
-            end
+    contractList = map(indexList) do list
+        map(list) do pp
+            return pp in uniqueIndices ? -findall(isequal(pp), uniqueIndices)[1] : findall(isequal(pp), doubleIndices)[1]
         end
-    end 
+    end
 
-    return (unique_indices, @ncon(tensorList, indexList))
+    return (uniqueIndices, @ncon(tensorList, contractList))
 end
 
+num_chds(net::AbstractNetwork, pos::Tuple{Int,Int}) = number_of_child_nodes(net, pos)
+int_index(net::AbstractNetwork, pos::Tuple{Int,Int}) = internal_index_of_legs(net, pos)
 
-function linear_index(net::AbstractNetwork, pos::Tuple{Int, Int})
-
-    pos[1] == 0 && return pos[2]
-
-    n_count = TTNKit.number_of_sites(net)
-
-    for ll in 1:pos[1]-1
-        n_count += TTNKit.number_of_tensors(net, ll)
-    end
-
-    return pos[2] + n_count
-end
-
-function build_Dict(net::AbstractNetwork)
-
-    n_sites = TTNKit.number_of_sites(net)
-    n_tensors = TTNKit.number_of_tensors(net) + n_sites
-
-    indices = Dict()
-
-    n_chds = 0
-    for pp in 1:n_sites
-        for n in 1:TTNKit.number_of_child_nodes(net, (1,pp))
-            indices[("bottom", 1, pp, n)] = [n_chds + n, n_chds + n + n_tensors, n_chds + n + 2*n_tensors, 1 + n_chds + n + 2*n_tensors]
-        end
-        n_chds += TTNKit.number_of_child_nodes(net, (1,pp))
-    end
-
-    indices[(0, 0)] = [1+2*n_tensors]
-    indices[(0, 1)] = [1+n_sites+2*n_tensors]
-    
-    for ll in TTNKit.eachlayer(net)
-        for pp in TTNKit.eachindex(net, ll)
-            indices[(ll, pp)] = append!([linear_index(net, pos_chd) for pos_chd in TTNKit.child_nodes(net, (ll,pp))], [linear_index(net, (ll,pp))])
-            indices[(-ll, pp)] = append!([linear_index(net, (ll,pp)) + n_tensors], [linear_index(net, pos_chd)+ n_tensors for pos_chd in TTNKit.child_nodes(net, (ll,pp))])
-        end
-    end
-
-    indices[("top", TTNKit.number_of_layers(net), 1)] = [n_tensors, 2*n_tensors, 2*n_tensors + n_sites + 2, 2*n_tensors + n_sites + 3]
-    indices[(TTNKit.number_of_layers(net)+1, 1)] = [2*n_tensors + n_sites + 2]
-    indices[(-TTNKit.number_of_layers(net)-1, 1)] = [2*n_tensors + n_sites + 3]
-
-
-    return indices
-end
-
-function bottom_env(ttn::TreeTensorNetwork, Indices::Dict, tpo::AbstractTensorProductOperator)
+function bottomEnvironment(ttn::TreeTensorNetwork, tpo::AbstractTensorProductOperator)
     
     net = TTNKit.network(ttn)
-    indices = copy(Indices)
+
+    n_sites = number_of_sites(net)
+    n_tensors = number_of_tensors(net) + n_sites
 
     # first two vectors are for layer and position within the layer respectivley, 
-    # third one is for enumerating the bottom envs - one for each child leg
+    # third one is for enumerating the bottom environments - one for each child leg
 
-    bottom_envs = Vector{Vector{Vector{AbstractTensorMap}}}(undef, TTNKit.number_of_layers(net)) 
-    bottom_envs[1] = Vector{Vector{AbstractTensorMap}}(undef, TTNKit.number_of_tensors(net, 1))
+    bottomEnvironment = Vector{Vector{Vector{AbstractTensorMap}}}(undef, number_of_layers(net)) 
+    bottomIndices = Vector{Vector{Vector{Vector{Int}}}}(undef, number_of_layers(net)) 
 
-    n_total = 0
+    # first layer
+    bottomEnvironment[1] = Vector{Vector{AbstractTensorMap}}([[tpo.data[n] for n in 1:num_chds(net, (1,pp))] for pp in eachindex(net,1)])
+    bottomIndices[1] = Vector{Vector{Vector{Int}}}([[[int_index(net, (1,pp))[n], int_index(net, (1,pp))[n]+n_tensors, -(int_index(net, (1,pp))[n]), -(int_index(net, (1,pp))[n]+1)] for n in 1:num_chds(net,(1,pp))] for pp in eachindex(net,1)])
 
-    for pp in TTNKit.eachindex(net, 1)
-        n_chds = TTNKit.number_of_child_nodes(net, (1,pp))
-        bottom_envs[1][pp] = Vector{AbstractTensorMap}([tpo.data[n] for n in 1+n_total:n_total+n_chds])
-        n_total += n_chds
-    end
+    # contract tensors at both ends of the MPO chain
+    dim = dims(codomain(tpo.data[1]))[end]
+    (bottomIndices[1][1][1], bottomEnvironment[1][1][1]) = contract_tensors(Vector{AbstractTensorMap}([bottomEnvironment[1][1][1], Tensor(vcat(zeros(dim-1), 1), (ℂ^dim)')]), [bottomIndices[1][1][1],[-1]])
+    (bottomIndices[1][end][end], bottomEnvironment[1][end][end]) = contract_tensors(Vector{AbstractTensorMap}([bottomEnvironment[1][end][end], Tensor(vcat(1, zeros(dim-1)), ℂ^dim)]), [bottomIndices[1][end][end],[-number_of_sites(net)-1]])
 
-    for ll in Iterators.drop(TTNKit.eachlayer(net), 1)
-        bottom_envs[ll] = Vector{Vector{AbstractTensorMap}}(undef, TTNKit.number_of_tensors(net, ll))
+    for ll in Iterators.drop(eachlayer(net), 1)
+        bottomEnvironment[ll] = Vector{Vector{AbstractTensorMap}}(undef, number_of_tensors(net, ll))
+        bottomIndices[ll] = Vector{Vector{Vector{Int}}}(undef, number_of_tensors(net, ll))
 
-        for pp in TTNKit.eachindex(net, ll)
-            n_chds = TTNKit.number_of_child_nodes(net, (ll,pp))
-            bottom_envs[ll][pp] = Vector{AbstractTensorMap}(undef, n_chds)
+        for pp in eachindex(net, ll)
+            n_chds = num_chds(net, (ll,pp))
+            bottomEnvironment[ll][pp] = Vector{AbstractTensorMap}(undef, n_chds)
+            bottomIndices[ll][pp] = Vector{Vector{Int}}(undef, n_chds)
 
-            for chd_nd in TTNKit.child_nodes(net, (ll,pp))
-                chd_idx = TTNKit.index_of_child(net, chd_nd)
+            for chd_nd in child_nodes(net, (ll,pp))
+                chd_idx = index_of_child(net, chd_nd)
 
-                tensorList = Vector{AbstractTensorMap}([copy(ttn[(chd_nd)]), copy(adjoint(ttn[(chd_nd)]))])
-                indexList = [copy(indices[chd_nd]), copy(indices[(-chd_nd[1], chd_nd[2])])]
+                tensorListTTN = Vector{AbstractTensorMap}([copy(ttn[(chd_nd)]), adjoint(copy(ttn[(chd_nd)]))])
+                tensorListBottom = Vector{AbstractTensorMap}([copy(bottomEnvironment[chd_nd[1]][chd_nd[2]][index_of_child(net, chd_chd_nd)]) for chd_chd_nd in child_nodes(net, chd_nd)])
+                indexListTTN = Vector{Vector{Int}}([int_index(net, chd_nd), int_index(net, chd_nd)[vcat(end,1:end-1)].+n_tensors])
+                indexListBottom = Vector{Vector{Int}}([copy(bottomIndices[chd_nd[1]][chd_nd[2]][index_of_child(net, chd_chd_nd)]) for chd_chd_nd in child_nodes(net, chd_nd)])
 
-                for chd_chd_nd in TTNKit.child_nodes(net, chd_nd)
-                    chd_chd_idx = TTNKit.index_of_child(net, chd_chd_nd)
-                    append!(tensorList, [copy(bottom_envs[chd_nd[1]][chd_nd[2]][chd_chd_idx])])
-                    append!(indexList, [copy(indices[("bottom", chd_nd[1], chd_nd[2], chd_chd_idx)])])
-                end
-                
-                (newIndices, bottom_envs[ll][pp][chd_idx]) = contract_tensors(tensorList, indexList)
-                indices[("bottom", ll, pp, chd_idx)] = newIndices 
+                (bottomIndices[ll][pp][chd_idx], bottomEnvironment[ll][pp][chd_idx]) = contract_tensors(vcat(tensorListTTN, tensorListBottom), vcat(indexListTTN, indexListBottom))
             end        
         end
     end 
 
-    return indices, bottom_envs
+    return bottomIndices, bottomEnvironment
 end
 
-function top_env(ttn::TreeTensorNetwork{D}, indices::Dict, bottom_envs::Vector{Vector{Vector{AbstractTensorMap}}}) where {D}
+function topEnvironment(ttn::TreeTensorNetwork{D}, bottomEnvironment::Vector{Vector{Vector{AbstractTensorMap}}}, bottomIndices::Vector{Vector{Vector{Vector{Int64}}}}) where {D}
     
     net = TTNKit.network(ttn)
+    n_sites = number_of_sites(net)
+    n_tensors = number_of_tensors(net) + n_sites
 
     # first two vectors are for layer and position within the layer respectivley
-    top_envs = Vector{Vector{AbstractTensorMap}}(undef, TTNKit.number_of_layers(net))
+    topEnvironment = Vector{Vector{AbstractTensorMap}}(undef, number_of_layers(net))
 
-    # identity matrix for the top environment of the top node
-    top_envs[TTNKit.number_of_layers(net)] = [TensorKit.id(domain(ttn[(TTNKit.number_of_layers(net), 1)]))⊗TensorKit.id(domain(ttn[(TTNKit.number_of_layers(net), 1)])')]
+    topIndices = Vector{Vector{Vector{Int}}}(undef, number_of_layers(net)) 
+    topIndices[number_of_layers(net)] = Vector{Vector{Int}}(undef, number_of_tensors(net, 1))
 
-    for ll in Iterators.drop(reverse(TTNKit.eachlayer(net)), 1)
-        top_envs[ll] = Vector{AbstractTensorMap}(undef, TTNKit.number_of_tensors(net, ll))
+    # top environment of the top node
+    topEnvironment[number_of_layers(net)] = [Tensor([1], ℂ^1*(ℂ^1)')]
+    topIndices[number_of_layers(net)][1] = [n_tensors, 2*n_tensors] 
 
-        for pp in TTNKit.eachindex(net, ll)
-            prnt_nd = TTNKit.parent_node(net, (ll,pp))
-            idx_chd = TTNKit.index_of_child(net, (ll,pp))
+    for ll in Iterators.drop(reverse(eachlayer(net)), 1)
+        topEnvironment[ll] = Vector{AbstractTensorMap}(undef, number_of_tensors(net, ll))
+        topIndices[ll] = Vector{Vector{Int}}(undef, number_of_tensors(net, ll))
 
+        for pp in eachindex(net, ll)
+            prnt_nd = parent_node(net, (ll,pp))
+            idx_chd = index_of_child(net, (ll,pp))
 
             # top environment of node (ll,pp) is built by contracting the parent node with its top environment and its remaining bottom environments
-            tensorList = Vector{AbstractTensorMap}([copy(ttn[(prnt_nd)]), copy(adjoint(ttn[(prnt_nd)])), copy(top_envs[prnt_nd[1]][prnt_nd[2]])])
-            indexList = Vector{Vector{Int}}([copy(indices[prnt_nd]), copy(indices[(-prnt_nd[1], prnt_nd[2])]), copy(indices[("top", prnt_nd[1], prnt_nd[2])])])
-
-            for chd_idx in vcat(1:idx_chd-1..., idx_chd+1:TTNKit.number_of_child_nodes(net, prnt_nd)...)
-                append!(tensorList, [copy(bottom_envs[prnt_nd[1]][prnt_nd[2]][chd_idx])])
-                append!(indexList, [copy(indices[("bottom", prnt_nd[1], prnt_nd[2], chd_idx)])])
-            end
+            tensorListTTN = Vector{AbstractTensorMap}([copy(ttn[(prnt_nd)]), copy(adjoint(ttn[(prnt_nd)])), copy(topEnvironment[prnt_nd[1]][prnt_nd[2]])])
+          tensorListBottom = Vector{AbstractTensorMap}([copy(bottomEnvironment[prnt_nd[1]][prnt_nd[2]][chd_nd]) for chd_nd in deleteat!(collect(1:num_chds(net, prnt_nd)), idx_chd)])
+            indexListTTN = Vector{Vector{Int}}([int_index(net, prnt_nd), int_index(net, prnt_nd)[vcat(end,1:end-1)].+n_tensors, topIndices[prnt_nd[1]][prnt_nd[2]]])
+            indexListBottom = Vector{Vector{Int}}([copy(bottomIndices[prnt_nd[1]][prnt_nd[2]][chd_nd]) for chd_nd in deleteat!(collect(1:num_chds(net, prnt_nd)), idx_chd)])
 
             # contract tensors and save the indices of the new top environment
-            newIndices, top_envs[ll][pp] = contract_tensors(tensorList, indexList)
-            indices[("top", ll, pp)] = newIndices
+            (topIndices[ll][pp], topEnvironment[ll][pp]) = contract_tensors(vcat(tensorListTTN, tensorListBottom), vcat(indexListTTN, indexListBottom))
         end
     end 
 
-    return indices, top_envs
+    return topIndices, topEnvironment
 end
 
 function ProjTensorProductOperator(ttn::TreeTensorNetwork{D}, tpo::AbstractTensorProductOperator) where {D}
     net = TTNKit.network(ttn)
 
-    indices = build_Dict(net)
-    indices, bottom_envs = bottom_env(ttn, indices, tpo)
-    indices, top_envs = top_env(ttn, indices, bottom_envs)
+    bottomIndices, bottomEnvironmentc = bottomEnvironment(ttn, tpo)
+    topIndices, topEnvironmentc = topEnvironment(ttn, bottomEnvironmentc, bottomIndices)
 
-    return ProjTensorProductOperator(net, tpo, bottom_envs, top_envs, indices)
+    return ProjTensorProductOperator(net, tpo, bottomEnvironmentc, topEnvironmentc, bottomIndices, topIndices)
 end
 
 
 function environment(ptpo::ProjTensorProductOperator, pos::Tuple{Int, Int})
     net = ptpo.net
-    indices = ptpo.Indices
+    topIndices = ptpo.topIndices
+    bottomIndices = ptpo.bottomIndices
 
     dim = dims(codomain(ptpo.tpo.data[1]))[end]
 
-    tensorList = Vector{AbstractTensorMap}([copy(ptpo.top_envs[pos[1]][pos[2]])])
-    indexList = Vector{Vector{Int}}([copy(indices[("top", pos[1], pos[2])])])
+    tensorList = Vector{AbstractTensorMap}(vcat([copy(ptpo.topEnvironment[pos[1]][pos[2]])], [copy(ptpo.bottomEnvironment[pos[1]][pos[2]][chd_nd]) for chd_nd in 1:num_chds(net,pos)]))
+    indexList = Vector{Vector{Int}}(vcat([copy(topIndices[pos[1]][pos[2]])], [copy(bottomIndices[pos[1]][pos[2]][chd_nd]) for chd_nd in 1:num_chds(net,pos)]))
 
-    append!(tensorList, [Tensor(vcat(zeros(dim-1), 1), (ℂ^dim)'),  Tensor(vcat(1, zeros(dim-1)), ℂ^dim)])
-    append!(indexList, [copy(indices[(0, 0)]), copy(indices[(0, 1)])])
+    (newIndices, environment) = contract_tensors(tensorList, indexList)
 
-    append!(tensorList, [Tensor([1], ℂ^1), Tensor([1], (ℂ^1)')])
-    append!(indexList, [copy(indices[(TTNKit.number_of_layers(net)+1, 1)]), copy(indices[(-TTNKit.number_of_layers(net)-1, 1)])])
-
-    for chd_idx in 1:TTNKit.number_of_child_nodes(net, pos)
-        append!(tensorList, [copy(ptpo.bottom_envs[pos[1]][pos[2]][chd_idx])])
-        append!(indexList, [copy(indices[("bottom", pos[1], pos[2], chd_idx)])])
-    end
-
-    newIndices, environment = contract_tensors(tensorList, indexList)
-
-    # permuting resulting environment for easier handling later on
+    # permuting indices of the resulting environment for easier handling later on
     len = length(newIndices)
-    permutation_order = [1:len...]
-    sorting_array = []
-    for i in 1:len
-        append!(sorting_array, [[newIndices[i], permutation_order[i]]])
-    end
-    sort!(sorting_array, by=first)
-    permutation_order = [x[2] for x in sorting_array]
+    permutationOrder = [1:len...]
+    sortingArray = map((x,y) -> [x,y], newIndices, permutationOrder)
+    sort!(sortingArray, by=first)
+    permutationOrder = [s[2] for s in sortingArray]
 
-    return TensorKit.permute(environment, Tuple(permutation_order[Int(len/2+1):len]), Tuple(permutation_order[1:Int(len/2)]))
+    return TensorKit.permute(environment, Tuple(permutationOrder[Int(len/2+1):len]), Tuple(permutationOrder[1:Int(len/2)]))
 end
 
 
 function update_environment(ptpo::ProjTensorProductOperator, t::AbstractTensorMap, pos_initial::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
     #check if t has correct index structure
     net = ptpo.net
-    indices = ptpo.Indices
+    n_sites = number_of_sites(net)
+    n_tensors = number_of_tensors(net) + n_sites
+
+    topIndices = ptpo.topIndices
+    bottomIndices = ptpo.bottomIndices
 
     Δ = pos_final .- pos_initial
 
     if Δ[1] == 1
 
-        tensorList = Vector{AbstractTensorMap}([t, adjoint(t)])
-        indexList = Vector{Vector{Int}}([copy(indices[pos_initial]), copy(indices[(-pos_initial[1], pos_initial[2])])])
+        tensorListTTN = Vector{AbstractTensorMap}([t, adjoint(t)])
+        indexListTTN = Vector{Vector{Int}}([int_index(net, pos_initial), int_index(net, pos_initial)[vcat(end,1:end-1)].+n_tensors])
+        tensorListBottom = Vector{AbstractTensorMap}([copy(ptpo.bottomEnvironment[pos_initial[1]][pos_initial[2]][chd_nd]) for chd_nd in 1:num_chds(net,pos_initial)])
+        indexListBottom = Vector{Vector{Int}}([copy(bottomIndices[pos_initial[1]][pos_initial[2]][chd_nd]) for chd_nd in 1:num_chds(net,pos_initial)])
 
-        for chd in 1:TTNKit.number_of_child_nodes(net, pos_initial)
-            append!(tensorList, [copy(ptpo.bottom_envs[pos_initial[1]][pos_initial[2]][chd])])
-            append!(indexList, [copy(indices[("bottom", pos_initial[1], pos_initial[2], chd)])])
-        end
-
-        newIndices, ptpo.bottom_envs[pos_final[1]][pos_final[2]][TTNKit.index_of_child(net, pos_initial)] = contract_tensors(tensorList, indexList)
+        nothing, ptpo.bottomEnvironment[pos_final[1]][pos_final[2]][index_of_child(net, pos_initial)] = contract_tensors(vcat(tensorListTTN, tensorListBottom), vcat(indexListTTN, indexListBottom))
 
     elseif Δ[1] == -1
 
-        idx_chd = TTNKit.index_of_child(net, pos_final)
+        idx_chd = index_of_child(net, pos_final)
 
-        tensorList = Vector{AbstractTensorMap}([t, adjoint(t), copy(ptpo.top_envs[pos_initial[1]][pos_initial[2]])])
-        indexList = Vector{Vector{Int}}([copy(indices[pos_initial]), copy(indices[(-pos_initial[1], pos_initial[2])]), copy(indices[("top", pos_initial[1], pos_initial[2])])])
+        tensorListTTN = Vector{AbstractTensorMap}([t, adjoint(t), copy(ptpo.topEnvironment[pos_initial[1]][pos_initial[2]])])
+        indexListTTN = Vector{Vector{Int}}([int_index(net, pos_initial), int_index(net, pos_initial)[vcat(end,1:end-1)].+n_tensors, copy(topIndices[pos_initial[1]][pos_initial[2]])])
+        tensorListBottom = Vector{AbstractTensorMap}([copy(ptpo.bottomEnvironment[pos_initial[1]][pos_initial[2]][chd_nd]) for chd_nd in deleteat!(collect(1:num_chds(net, pos_initial)), idx_chd)])
+        indexListBottom = Vector{Vector{Int}}([copy(bottomIndices[pos_initial[1]][pos_initial[2]][chd_nd]) for chd_nd in deleteat!(collect(1:num_chds(net, pos_initial)), idx_chd)])
 
-        for chd_idx in vcat(1:idx_chd-1..., idx_chd+1:TTNKit.number_of_child_nodes(net, pos_initial)...)
-            append!(tensorList, [copy(ptpo.bottom_envs[pos_initial[1]][pos_initial[2]][chd_idx])])
-            append!(indexList, [copy(indices[("bottom", pos_initial[1], pos_initial[2], chd_idx)])])
-        end
-
-        newIndices, ptpo.top_envs[pos_final[1]][pos_final[2]] = contract_tensors(tensorList, indexList)
+        (nothing, ptpo.topEnvironment[pos_final[1]][pos_final[2]]) = contract_tensors(vcat(tensorListTTN, tensorListBottom), vcat(indexListTTN, indexListBottom))
 
     else
         error("Invalid step for updating environments: ", pos_initial, ", ", pos_final)

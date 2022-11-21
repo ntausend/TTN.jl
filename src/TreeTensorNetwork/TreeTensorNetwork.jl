@@ -85,7 +85,8 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
         ttn_vec[ll][pp] = tensor
     end
 
-    ttnc = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    ortho_direction = _initialize_ortho_direction(net)
+    ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
 
     if orthogonalize
         ttnc = _reorthogonalize!(ttnc, normalize = normalize)
@@ -123,7 +124,8 @@ function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::
         ttn_vec[ll][pp] = tensor
     end
 
-    ttnc = TreeTensorNetwork(ttn_vec, [-1,-1], net)
+    ortho_direction = _initialize_ortho_direction(net)
+    ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
 
     if orthogonalize
         ttnc = _reorthogonalize!(ttnc, normalize = normalize)

@@ -62,6 +62,7 @@ module TTNKit
 
     include("./TreeTensorNetwork/algorithms/inner.jl")
 
+    export TDVP, setTimeParameters!, tdvp_path, tdvpforward!, tdvpbackward!, tdvptopnode!, energyvariance, tdvprun
     include("./TDVP/TDVP.jl")
 
     # load the definition of special operator types for dispatching measuring functions

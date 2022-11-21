@@ -12,7 +12,7 @@ function _correlation(ttn::TreeTensorNetwork, net::AbstractNetwork, op1::Abstrac
     return _correlation(ttn, net, op1, op2, pos1_lin, pos2_lin)
 end
 
-function _correlation(::TreeTensorNetwork, ::AbstractNetwork, ::AbstractTensorMap, ::AbstractTensorMap, ::Int, ::Int) where{D}
+function _correlation(::TreeTensorNetwork, ::AbstractNetwork, ::AbstractTensorMap, ::AbstractTensorMap, ::Int, ::Int)
     error("Not implemented for general networks.... TODO")
 end
 
