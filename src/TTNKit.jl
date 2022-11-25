@@ -2,6 +2,10 @@ module TTNKit
     using SparseArrays
     using TensorKit
     using Distributions: Multinomial
+    using Parameters: @with_kw
+    using MPSKit: MPOHamiltonian, fill_data!, DenseMPO, _embedders, SparseMPO, PeriodicArray
+    using MPSKitModels: LocalOperator, @mpoham
+    using KrylovKit
 
     struct NotImplemented <: Exception
         fn::Symbol
@@ -24,6 +28,9 @@ module TTNKit
     end
     Base.showerror(io::IO, e::NotSupportedException) = print(io, "Functionality is not supported: "*e.msg)
 
+    struct QuantumNumberMissmatch <: Exception end
+    Base.showerror(io::IO, ::QuantumNumberMissmatch) = print(io, "Quantum number combination not allowed.")
+
 
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
@@ -38,6 +45,7 @@ module TTNKit
     include("./Node/Node.jl")
     include("./Node/HardCoreBosonNode.jl")
     include("./Node/SoftCoreBosonNode.jl")
+    include("./Node/SpinHalfNode.jl")
 
     # lattice class
     export AbstractLattice, Chain, Rectangle, Square
@@ -64,12 +72,25 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/correlation.jl")
     
 
+    #============================= TENSOR PRODUCT OPERATORS =========================#
+    # abstract TPO
+    include("./TPO/AbstractTPO.jl")
+    # MPO class
+    include("./TPO/MPO.jl")
+    include("./TPO/ProjTPO.jl")
+
+    # model implementations
+    include("./TPO/Models/TransverseFieldIsing.jl")
+    include("./TPO/Models/TrivialModel.jl")
+
+
+    # dmrg
+    include("./DMRG/dmrg.jl")
+
     #=
 
 
     # TPO TODO:Tests
-    include("./TPO/AbstractTPO.jl")
-    include("./TPO/ProjTPO.jl")
 
     include("./TPO/TPOSum/Interactions.jl")
     include("./TPO/TPOSum/TPOSum.jl")

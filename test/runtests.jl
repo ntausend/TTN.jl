@@ -7,6 +7,7 @@ println("Running Tests....")
         "Node.jl",
         "HardCoreBosonNode.jl",
         "SoftCoreBosonNode.jl",
+        "SpinHalfNode.jl",
         "Lattice.jl",
         "Network.jl",
         "TreeTensorNetwork.jl",

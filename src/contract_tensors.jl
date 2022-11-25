@@ -34,27 +34,23 @@ function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::
     double_occurence = findall(x -> x == 2, n_count)
     single_occurence = findall(x -> x == 1, n_count)
     =#
-    unique_indices = Any[]
-    double_indices = Any[]
+    unique_indices = Int64[]
+    double_indices = Int64[]
     flatIndexList = collect(Iterators.flatten(index_list))#vcat(indexList...)  
     
     while !(isempty(flatIndexList))
         el = popfirst!(flatIndexList)
         if !(el in flatIndexList) && !(el in double_indices)
-            append!(unique_indices, [el])
+            append!(unique_indices, el)
         else
-            append!(double_indices, [el])
+            append!(double_indices, el)
         end
     end
 
-    
-    index_list_c = deepcopy(index_list)
-    foreach(enumerate(unique_indices)) do (jj,idx_open)
-        foreach(index_list_c) do list
-            replace!(list, idx_open => -jj)
+    contract_list = map(index_list) do list
+        map(list) do pp
+            return pp in unique_indices ? -findall(isequal(pp), unique_indices)[1] : findall(isequal(pp), double_indices)[1]
         end
     end
-    
-    return unique_indices, @ncon(tensor_list, index_list_c)
-    
+    return unique_indices, @ncon(tensor_list, contract_list)
 end
