@@ -38,8 +38,8 @@ jobs:
         run: |
           using Pkg;
           pkg"dev ."
-          pkg"add https://github.com/maartenvd/MPSKit.jl.git#master
-          pkg"add https://github.com/maartenvd/MPSKitModels.jl.git#master"
+          Pkg.add(url="https://github.com/maartenvd/MPSKit.jl.git", rev="master")
+          Pkg.add(url="https://github.com/maartenvd/MPSKitModles.jl.git", rev="master")
       - name: Run the tests
         shell: julia --project=monorepo {0}
         run: |
