@@ -85,7 +85,10 @@ module TTNKit
 
 
     # dmrg
-    include("./DMRG/dmrg.jl")
+    include("./algorithms/SweepProtocol/AbstractSweepProtocol.jl")
+    include("./algorithms/SweepProtocol/SimpleSweepProtocol.jl")
+    include("./algorithms/SweepProtocol/TDVPSweepProtocol.jl")
+    include("./algorithms/dmrg.jl")
 
     #=
 

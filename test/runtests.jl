@@ -10,11 +10,13 @@ println("Running Tests....")
         "SpinHalfNode.jl",
         "Lattice.jl",
         "Network.jl",
+        "sweep_protocoals.jl",
         "TreeTensorNetwork.jl",
         "inner.jl",
         "expect.jl",
         "correlation.jl",
-        "contract_tensors.jl"
+        "contract_tensors.jl",
+        "environments.jl"
     ]
         println("Running $filename")
         include(filename)
