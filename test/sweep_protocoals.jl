@@ -7,7 +7,7 @@ using Test
         n_layers = 3
         n_sweeps = 2
         net = BinaryChainNetwork(n_layers)
-        sp  = TTNKit.SimpleSweepProtocol(net, n_sweeps)
+        sp  = TTNKit.SimpleSweepHandler(net, n_sweeps)
 
         @test TTNKit.start_position(sp) == (1,1)
         @test TTNKit.next_position(sp, (1,1))  == (1,2)

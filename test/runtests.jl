@@ -10,7 +10,7 @@ println("Running Tests....")
         "SpinHalfNode.jl",
         "Lattice.jl",
         "Network.jl",
-        "sweep_protocoals.jl",
+        #"sweep_handlers.jl",
         "TreeTensorNetwork.jl",
         "inner.jl",
         "expect.jl",
