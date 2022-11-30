@@ -92,17 +92,10 @@ function internal_index_of_legs(net::AbstractNetwork, pos::Tuple{Int,Int})
 				return number_of_child_nodes(net, (ll,pp))
 			end
 		end
-
-	n_of_chds_t_layer_p = mapreduce(+, 1:pos[2]-1, init = 0) do (pp)
-			number_of_child_nodes(net, (pos[1], pp))
-		end
-	
-	n_of_chds_tn = number_of_child_nodes(net, pos)
-	n_shift_1 = number_of_childs_prev_layers + n_of_chds_t_layer_p
+	n_shift_1 = number_of_childs_prev_layers
 	n_shift_2 = length(lattice(net, pos[1]-1)) + number_of_childs_prev_layers
-
 	idx_parent = pos[2] + n_shift_2
-	return vcat([jj + n_shift_1 for jj in 1:n_of_chds_tn], idx_parent)
+	return vcat([jj + n_shift_1 for (_,jj) in child_nodes(net,pos)], idx_parent)
 end
 
 
