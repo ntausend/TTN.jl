@@ -56,6 +56,84 @@ function ProductTreeTensorNetwork(net::AbstractNetwork, states::Vector{<:Abstrac
     return  ttn
 end
 
+function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::Int = 1,
+    orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64)
+
+    net = network(ttn)
+    nodeIt = NodeIterator(net)
+    
+    ttn_vec = _initialize_empty_ttn(net)
+
+    domains, codomains = _build_domains_and_codomains(net,  maxdim)
+    fused_last = fuse(codomains[end][1])
+    domains[end][1] = _correct_domain(fused_last, 1) 
+    
+    for (ll,pp) in nodeIt
+
+        prev_dom  = domain(ttn[(ll,pp)])
+        prev_codom = codomain(ttn[(ll,pp)])
+
+        dom  = domains[ll][pp]
+        codom = codomains[ll][pp]
+
+        data = zeros((dims(codom)..., dim(dom)))
+        for i in 1:dim(prev_dom)
+            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] = convert(Array, ttn[(ll,pp)])[:,:,i]
+        end
+
+        tensor = TensorMap(data, codom ← dom)
+
+        ttn_vec[ll][pp] = tensor
+    end
+
+    ortho_direction = _initialize_ortho_direction(net)
+    ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
+
+    if orthogonalize
+        ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+    end
+
+    return ttnc
+end
+
+function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::Int = 1,
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, elT = ComplexF64)
+
+    net = network(ttn)
+    nodeIt = NodeIterator(net)
+    
+    ttn_vec = _initialize_empty_ttn(net)
+
+    domains, codomains = _build_domains_and_codomains(net,  maxdim)
+    fused_last = fuse(codomains[end][1])
+    domains[end][1] = _correct_domain(fused_last, 1) 
+    
+    for (ll,pp) in nodeIt
+        prev_dom  = domain(ttn[(ll,pp)])
+        prev_codom = codomain(ttn[(ll,pp)])
+
+        dom  = domains[ll][pp]
+        codom = codomains[ll][pp]
+
+        data = randn(elT, (dims(codom)..., dim(dom))).*factor
+        for i in 1:dim(prev_dom)
+            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] = convert(Array, ttn[(ll,pp)])[:,:,i]
+        end
+
+        tensor = TensorMap(data, codom ← dom)
+        ttn_vec[ll][pp] = tensor
+    end
+
+    ortho_direction = _initialize_ortho_direction(net)
+    ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
+
+    # if orthogonalize
+    #     ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+    # end
+
+    return ttnc
+end
+
 # returning the ll-th tensor network layer
 layer(ttn::TreeTensorNetwork, l::Int) = ttn.data[l]
 number_of_layers(ttn::TreeTensorNetwork) = length(ttn.data)

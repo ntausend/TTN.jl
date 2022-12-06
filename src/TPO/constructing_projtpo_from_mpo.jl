@@ -52,7 +52,6 @@ function _construct_bottom_environments(ttn::TreeTensorNetwork, tpo::MPO)
     bIndices[1][1][1], bEnvironment[1][1][1] = contract_tensors([bEnvironment[1][1][1], ctl], [bIndices[1][1][1], [-1]])
     bIndices[1][end][end], bEnvironment[1][end][end] = contract_tensors([bEnvironment[1][end][end], ctr], [bIndices[1][end][end],[-number_of_sites(net)-1]])
 
-
     for ll in Iterators.drop(eachlayer(net), 1)
         bEnvironment[ll] = Vector{Vector{AbstractTensorMap}}(undef, number_of_tensors(net, ll))
         bIndices[ll] = Vector{Vector{Vector{Int}}}(undef, number_of_tensors(net, ll))
