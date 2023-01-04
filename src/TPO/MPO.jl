@@ -10,7 +10,7 @@ function MPO(lat::L, mpo::MPOHamiltonian) where L
 end
 
 function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
-    s = convert(SparseMPO,mpo)
+    s = convert(SparseMPO,mpo.data)
     embeds = PeriodicArray(_embedders.([s[i].domspaces for i in 1:length(s)]))
 
     data = PeriodicArray(map(1:size(s,1)) do loc

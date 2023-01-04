@@ -31,6 +31,18 @@ function dmrg(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwarg
     func = (action, T) -> eigsolve(action, T, 1, :SR)
     return sweep(psic, SimpleSweepHandler(psic, pTPO, func, n_sweeps); kwargs...)
 end
+
+function tdvp(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwargs...)
+    timestep = get(kwargs, :timestep, 1e-2)
+    finaltime = get(kwargs, :finaltime, 1.)
+    psic = copy(psi0)
+    psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
+
+    pTPO = ProjTensorProductOperator(psic, mpo)
+    func = (action, dt, T) -> exponentiate(action, -1im*dt, T)
+    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...)
+end
+
 # get next step
 #if verbose_level ≥ 3
 #    println("\tFinished optimizing position $(pos)")

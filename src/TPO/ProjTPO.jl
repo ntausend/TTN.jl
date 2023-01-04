@@ -119,6 +119,36 @@ function ∂A(projTPO::ProjTensorProductOperator, pos::Tuple{Int,Int})
     return action
 end
 
+
+# action of the TPO on the removed link tensor between positions posi (initial) and posf (final)
+function ∂A2(projTPO::ProjTensorProductOperator, T::AbstractTensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int})
+    tEnv = top_environment(projTPO, posi)
+    bEnvs = bottom_environment(projTPO, posi)
+    ttn_coord = Vector{Float64}(internal_index_of_legs(network(projTPO), posi))
+    tInds = top_indices(projTPO, posi)
+    bInds = bottom_indices(projTPO, posi)
+
+    if posf ∈ child_nodes(projTPO.net, posi)
+        idx = index_of_child(projTPO.net, posf)
+        r_coord = [ttn_coord[idx], ttn_coord[idx]+0.5]
+        ttn_coord[idx] += 0.5 
+    else 
+        idx = 1+number_of_child_nodes(projTPO.net, posi)
+        r_coord = [ttn_coord[idx]-0.5, ttn_coord[idx]]
+        ttn_coord[idx] -= 0.5 
+    end
+    n_tensors = number_of_tensors(projTPO.net) + number_of_sites(projTPO.net)
+    function action(R::AbstractTensorMap)
+        inds, res = contract_tensors(vcat(T, adjoint(T), bEnvs), vcat([ttn_coord], [ttn_coord[vcat(end,1:end-1)].+n_tensors], bInds))
+        inds, res = contract_tensors([res, R], [inds, r_coord])
+        inds, res = contract_tensors([res, tEnv], [inds, tInds])
+
+        perm = collect(1:length(inds))[sortperm(inds)]
+        return TensorKit.permute(res, Tuple(perm[1:end-1]), (perm[end],))
+    end
+    return action
+end
+
 #=
 # special case of simple binary network... this is easy
 function ∂A(projTPO::ProjTensorProductOperator, net::BinaryNetwork, pos::Tuple{Int,Int})
