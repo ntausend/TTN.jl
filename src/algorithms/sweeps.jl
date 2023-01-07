@@ -32,7 +32,6 @@ function dmrg(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwarg
     return sweep(psic, SimpleSweepHandler(psic, pTPO, func, n_sweeps); kwargs...)
 end
 
-
 function tdvp(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwargs...)
     timestep = get(kwargs, :timestep, 1e-2)
     finaltime = get(kwargs, :finaltime, 1.)

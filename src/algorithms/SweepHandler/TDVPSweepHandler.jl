@@ -17,6 +17,7 @@ mutable struct TDVPSweepHandler <: AbstractRegularSweepHandler
     end
 end
 
+# Why this? it is already in the same way as the abstract one, isn't it?
 function Base.iterate(sp::TDVPSweepHandler)
     pos = start_position(sp)
     return (pos, 1)
@@ -45,6 +46,34 @@ end
 function _tdvp_path(net::AbstractNetwork)
     path = Vector{Tuple{Int,Int}}([(TTNKit.number_of_layers(net), 1)])
 
+    function gotochild(pos::Tuple{Int,Int})      
+        for chd_nd in TTNKit.child_nodes(net, pos)
+            if chd_nd[1] > 0
+                append!(path, [chd_nd])
+                gotochild(chd_nd)
+                append!(path, [pos])
+            end
+        end
+    end 
+
+    gotochild(path[1])
+
+    return path
+end
+
+function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
+
+
+#= Not needed, already the default fallback behavior
+initialize!(::TDVPSweepHandler) = nothing
+update_next_sweep!(sp::TDVPSweepHandler) = nothing
+=#
+
+
+function _tdvp_path(net::AbstractNetwork)
+    path = Vector{Tuple{Int,Int}}([(TTNKit.number_of_layers(net), 1)])
+
+    #why using a function here? -> dont see the why this adds anything
     function gotochild(pos::Tuple{Int,Int})      
         for chd_nd in TTNKit.child_nodes(net, pos)
             if chd_nd[1] > 0

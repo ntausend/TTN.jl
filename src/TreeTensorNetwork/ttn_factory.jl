@@ -51,7 +51,7 @@ function _construct_random_tree_tensor_network(net::AbstractNetwork, maxdim::Int
     domains, codomains = _build_domains_and_codomains(net,  maxdim)
     # we need to correct the last domain
     fused_last = fuse(codomains[end][1])
-    # last domain should simply be one dimensional fixin the network
+    # last domain should simply be one dimensional fixing the network
     domains[end][1] = _correct_domain(fused_last, 1)
 
     for (ll,pp) in NodeIterator(net)
@@ -205,3 +205,92 @@ function _build_domains_and_codomains(net::AbstractNetwork{<:AbstractLattice{D,S
     end
     return domains, codomains
 end
+
+#===========================================================================================
+                Enlarging TTN Tensors by some subspace expansion methods to
+                have full simulation space. Only supported for trivial tensors!!
+===========================================================================================#
+
+
+function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::Int = 1,
+    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn))
+
+    net = network(ttn)
+    elT = promote_type(_elT, eltype(ttn))
+    
+    if (!sectortype(net) == Trivial)
+        throw(ArgumentError("Increasing subspace by filling with zeros only allowed without Quantum Numbers"))
+    end
+    
+    ttn_vec = _initialize_empty_ttn(net)
+
+    domains, codomains = _build_domains_and_codomains(net,  maxdim)
+    fused_last = fuse(codomains[end][1])
+    domains[end][1] = _correct_domain(fused_last, 1) 
+
+    
+    for (ll,pp) in NodeIterator(net)
+
+        prev_dom  = domain(ttn[(ll,pp)])
+        prev_codom = codomain(ttn[(ll,pp)])
+
+        dom  = domains[ll][pp]
+        codom = codomains[ll][pp]
+
+        data = zeros(elT, (dims(codom)..., dim(dom)))
+        for i in 1:dim(prev_dom)
+            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] .= convert(Array, ttn[(ll,pp)])[:,:,i]
+        end
+
+        tensor = TensorMap(data, codom ← dom)
+
+        ttn_vec[ll][pp] = tensor
+    end
+
+    ortho_direction = _initialize_ortho_direction(net)
+    ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
+
+    if orthogonalize
+        ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+    end
+
+    return ttnc
+end
+
+function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::Int = 1,
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, _elT = eltype(ttn))
+
+    net = network(ttn)
+    elT = promote_type(_elT, eltype(ttn))
+    
+    ttn_vec = _initialize_empty_ttn(net)
+    domains, codomains = _build_domains_and_codomains(net,  maxdim)
+    fused_last = fuse(codomains[end][1])
+    domains[end][1] = _correct_domain(fused_last, 1) 
+    
+    for (ll,pp) in NodeIterator(net)
+        prev_dom  = domain(ttn[(ll,pp)])
+        prev_codom = codomain(ttn[(ll,pp)])
+
+        dom  = domains[ll][pp]
+        codom = codomains[ll][pp]
+
+        data = randn(elT, (dims(codom)..., dim(dom))).*factor
+        for i in 1:dim(prev_dom)
+            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] .= convert(Array, ttn[(ll,pp)])[:,:,i]
+        end
+
+        tensor = TensorMap(data, codom ← dom)
+        ttn_vec[ll][pp] = tensor
+    end
+
+    ortho_direction = _initialize_ortho_direction(net)
+    ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
+
+    # if orthogonalize
+    #     ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+    # end
+
+    return ttnc
+end
+

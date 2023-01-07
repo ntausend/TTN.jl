@@ -160,10 +160,10 @@ Base.setindex!(ttn::TreeTensorNetwork, tn::TensorMap, pos::Tuple{Int, Int}) = se
 
 # makes `pos` orthogonal by splitting between domain and codomain as T = QR and shifting
 # R into the parent node
-_orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}) = _orthogonalize_to_parent!(ttn, network(ttn), pos)
+_orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}; regularize = false) = _orthogonalize_to_parent!(ttn, network(ttn), pos; regularize = regularize)
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
-function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int})
+function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}; regularize = false)
     @assert 0 < pos[1] ≤ number_of_layers(net)
 
     pos[1] == number_of_layers(net) && (return ttn)
@@ -182,6 +182,11 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork,
     # corresponding leg of the parent node
     
     Q,R = leftorth(tn_child)
+    
+    # handles large normed TTN's. Specially for random initialization
+    if regularize
+        R = R/norm(R)
+    end
 
     idx_dom, idx_codom = split_index(net, pos, idx)
     
@@ -238,7 +243,7 @@ end
 
 function _reorthogonalize!(ttn::TreeTensorNetwork; normalize::Bool = true)
     for pos in NodeIterator(network(ttn))
-        ttn = _orthogonalize_to_parent!(ttn, pos)
+        ttn = _orthogonalize_to_parent!(ttn, pos; regularize = normalize)
     end
     ttn.ortho_center .= [number_of_layers(ttn), 1]
     if(normalize)
@@ -261,7 +266,7 @@ function move_up!(ttn::TreeTensorNetwork; normalize::Bool = false)
         ttn.ortho_center[2] = pnd[2]
     end
 
-    _orthogonalize_to_parent!(ttn, oc)
+    _orthogonalize_to_parent!(ttn, oc; regularize = normalize)
 end
 
 function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize::Bool = false)

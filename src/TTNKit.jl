@@ -3,8 +3,8 @@ module TTNKit
     using TensorKit
     using Distributions: Multinomial
     using Parameters: @with_kw
-    using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray # fill_data!
-    using MPSKitModels: LocalOperator #, @mpoham
+    using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
+    using MPSKitModels: LocalOperator
     using KrylovKit
 
     struct NotImplemented <: Exception
