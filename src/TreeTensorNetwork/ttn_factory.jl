@@ -218,7 +218,7 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
     net = network(ttn)
     elT = promote_type(_elT, eltype(ttn))
     
-    if (!sectortype(net) == Trivial)
+    if (!(sectortype(net) == Trivial))
         throw(ArgumentError("Increasing subspace by filling with zeros only allowed without Quantum Numbers"))
     end
     
