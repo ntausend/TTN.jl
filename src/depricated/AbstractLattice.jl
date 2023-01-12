@@ -6,23 +6,10 @@ function _check_dimensions(dims::NTuple{D, Int}) where D
     end
 end
 
-abstract type AbstractLattice{D, S, I, B<:AbstractBackend} end
+abstract type AbstractLattice{D, S<:IndexSpace, I<:Sector} end
 
 dimensionality(::Type{<:AbstractLattice{D}}) where D = D
 dimensionality(lat::AbstractLattice) = dimensionality(typeof(lat))
-backend(lat::AbstractLattice) = backend(typeof(lat))
-backend(::Type{<:AbstractLattice{D,S,I,B}}) where{D,S,I,B} = B
-
-# extracting indices, only necessary for ITensors backend
-function ITensors.siteinds(lat::AbstractLattice)
-    is_physical(lat) || error("Site indices only meaningful for physical lattices")
-    return collect(1:number_of_sites(lat))
-end
-function ITensors.siteinds(lat::AbstractLattice{D,S,I,ITensorsBackend}) where{D,S,I}
-    is_physical(lat) || error("Site indices only meaningful for physical lattices")
-    return map(hilbertspace, lat)
-end
-
 
 
 nodes(lat::AbstractLattice) = lat.lat
@@ -67,16 +54,18 @@ end
 
 Base.eachindex(la::AbstractLattice) = 1:number_of_sites(la)
 
+
+
 # general lattice -> Maybe removed in the future?
-struct GenericLattice{D, S, I,B<:AbstractBackend} <: AbstractLattice{D, S, I,B}
+struct Lattice{D, S<:IndexSpace, I<:Sector} <: AbstractLattice{D, S, I}
     lat::Vector{Node{S,I}}
     dims::NTuple{D, Int}
 end
-Base.size(lat::GenericLattice) = lat.dims
+Base.size(lat::Lattice) = lat.dims
 
 # only for homogenous hilberstapces with trivial sectors currently
-function CreateChain(number_of_sites::Int; backend = TensorKitBackend()) 
-    lat_vec = [Node(n, "$n", backend) for n in 1:number_of_sites]
+function CreateChain(number_of_sites::Int; field::Type{<:EuclideanSpace} = ComplexSpace)
+    lat_vec = [Node(n, "$n"; field = field) for n in 1:number_of_sites]
     _check_dimensions((number_of_sites,))
-    return GenericLattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1]), typeof(backend)}(lat_vec, (number_of_sites,))
+    return Lattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, (number_of_sites,))
 end

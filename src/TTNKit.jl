@@ -1,6 +1,7 @@
 module TTNKit
     using SparseArrays
     using TensorKit
+    using ITensors
     using Distributions: Multinomial
     using Parameters: @with_kw
     using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
@@ -35,22 +36,28 @@ module TTNKit
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import TensorKit: sectortype, spacetype
+    import ITensors: state, op, space
+
+    include("./backends/backends.jl")
 
     # contract_tensor ncon wrapper
-    include("./contract_tensors.jl")
+    #include("./contract_tensors.jl")
 
     # nodes
-    export TrivialNode, HardCoreBosonNode, Node
+    #export TrivialNode, HardCoreBosonNode, Node
     include("./Node/AbstractNode.jl")
     include("./Node/Node.jl")
+    include("./Node/ITensorNode.jl")
     include("./Node/HardCoreBosonNode.jl")
     include("./Node/SoftCoreBosonNode.jl")
     include("./Node/SpinHalfNode.jl")
 
+
     # lattice class
-    export AbstractLattice, Chain, Rectangle, Square
     include("./Lattice/AbstractLattice.jl")
     include("./Lattice/SimpleLattice.jl")
+    #= Currently deactivating all class objects, starting implementing ITensor support
+    export AbstractLattice, Chain, Rectangle, Square
 
     # including the Network classes
 
@@ -89,6 +96,9 @@ module TTNKit
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+
+    =#
+
 
     #=
 

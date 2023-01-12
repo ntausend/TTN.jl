@@ -4,19 +4,22 @@ println("Running Tests....")
 
 @testset "TTNKit.jl" begin
     @testset "$filename"  for filename in [
-        "Node.jl",
-        "HardCoreBosonNode.jl",
-        "SoftCoreBosonNode.jl",
-        "SpinHalfNode.jl",
-        "Lattice.jl",
-        "Network.jl",
+        "Node/Node.jl",
+        "Node/HardCoreBosonNode.jl",
+        "Node/SoftCoreBosonNode.jl",
+        "Node/SpinHalfNode.jl",
+        "Node/ITensorNode.jl",
+        "Lattice/GenericLattice.jl",
+        "Lattice/SimpleLattice_tensorkit.jl",
+        "Lattice/SimpleLattice_itensors.jl",
+        #"Network.jl",
         #"sweep_handlers.jl",
-        "TreeTensorNetwork.jl",
-        "inner.jl",
-        "expect.jl",
-        "correlation.jl",
-        "contract_tensors.jl",
-        "environments.jl"
+        #"TreeTensorNetwork.jl",
+        #"inner.jl",
+        #"expect.jl",
+        #"correlation.jl",
+        #"contract_tensors.jl",
+        #"environments.jl"
     ]
         println("Running $filename")
         include(filename)

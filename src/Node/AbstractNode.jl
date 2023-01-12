@@ -1,4 +1,4 @@
-abstract type AbstractNode{S<:IndexSpace, I<:Sector} end
+abstract type AbstractNode{S, I} end
 
 # overload TTNKit functions
 TTNKit.spacetype(::Type{<:AbstractNode{S}}) where S = S
@@ -10,7 +10,7 @@ TensorKit.sectortype(nd::AbstractNode) = sectortype(typeof(nd))
 # getter functions
 
 # defining a hilbertspace by the node space type. may be depricated in future
-hilbertspace(nd::AbstractNode, sectors) = spacetype(nd)(sectors)
+hilbertspace(nd::AbstractNode, sectors, args...; kwargs...) = spacetype(nd)(sectors, args...; kwargs...)
 
 # linear position of the node
 position(nd::AbstractNode) = nd.s
@@ -30,7 +30,7 @@ function Base.show(io::IO, nd::AbstractNode)
 end
 
 # abstract physical node assiciated to the physical layer of the tree
-abstract type PhysicalNode{S<:IndexSpace, I<:Sector} <: AbstractNode{S,I} end
+abstract type PhysicalNode{S, I} <: AbstractNode{S,I} end
 
 function Base.show(io::IO, nd::PhysicalNode)
     s = "Node ($(description(nd))), Number: $(position(nd)),"
@@ -59,7 +59,7 @@ function _reorder_state(st::Vector, sp::Vector{Pair{Int, Int}})
     return st_n
 end
 
-function state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType = ComplexF64) where{S,I}
+function ITensors.state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType = ComplexF64) where{S,I}
     st_raw = state(nd, Val(Symbol(state_str)))
     elt_t = promote_type(elT, eltype(st_raw))
     st_raw = elt_t.(st_raw)
@@ -67,7 +67,7 @@ function state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType =
         dom = S(1)
     else
         idx_non_zero = findall(!iszero, st_raw)
-        sp = spaces(nd)
+        sp = space(nd)
         irreps = sp[idx_non_zero]
         if !(all(irreps .== irreps[1]))
             error("Try to set a state with unequal irreps: $(state_str)")
@@ -80,7 +80,7 @@ function state(nd::PhysicalNode{S,I}, state_str::AbstractString, elT::DataType =
 end
 
 
-function op(nd::PhysicalNode, op_str::AbstractString)
+function ITensors.op(nd::PhysicalNode, op_str::AbstractString)
     return op(nd, Val(Symbol(op_str)))
 end
 

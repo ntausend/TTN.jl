@@ -22,7 +22,7 @@ struct SpinHalfNode{S<:IndexSpace, I<:Sector} <: PhysicalNode{S,I}
     end
 end
 
-function spaces(::SpinHalfNode{S,I}) where {S,I}
+function space(::SpinHalfNode{S,I}) where {S,I}
     if I == Trivial
         return 2
     else

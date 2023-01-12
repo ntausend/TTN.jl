@@ -14,7 +14,7 @@ elT = Float64
     @test spacetype(nd_sh) <: ComplexSpace
 
     nd_2 = TTNKit.nodetype(nd_sh)
-    @test nd_2 == Node{spacetype(nd_sh), Trivial}
+    @test nd_2 == TTNKit.Node{spacetype(nd_sh), Trivial}
     @test !(nd_2 == nd_sh)
 
     for (st, st_name) in zip([[1,0], [0,1], [1/sqrt(2), 1/sqrt(2)], [1/sqrt(2), -1/sqrt(2)]], 
@@ -23,7 +23,7 @@ elT = Float64
         st_o = TTNKit.state(nd_sh, st_name, elT)
         @test st_o == TensorMap(elT.(st), ℂ^2 ← ℂ^1)
     end
-    @test TTNKit.spaces(nd_sh) == 2
+    @test TTNKit.space(nd_sh) == 2
 end
 
 @testset "Phsical Node Properties, SpinHalfNode, U1" begin
@@ -36,14 +36,14 @@ end
     @test spacetype(nd_sh) <: GradedSpace
 
     nd_2 = TTNKit.nodetype(nd_sh)
-    @test nd_2 == Node{spacetype(nd_sh), U1Irrep}
+    @test nd_2 == TTNKit.Node{spacetype(nd_sh), U1Irrep}
     @test !(nd_2 == nd_sh)
 
     for (st, st_name) in zip([[1,0], [0,1], [1/sqrt(2), 1/sqrt(2)], [1/sqrt(2), -1/sqrt(2)]], 
                               ["Up", "Down", "Right",            "Left"])
         @test TTNKit.state(nd_sh, Val(Symbol(st_name))) == st
     end
-    @test TTNKit.spaces(nd_sh) == [0 => 1, 1 => 1]
+    @test TTNKit.space(nd_sh) == [0 => 1, 1 => 1]
 
 
     st_o = TTNKit.state(nd_sh, "Up", elT)
@@ -64,14 +64,14 @@ end
     @test spacetype(nd_sh) <: GradedSpace
 
     nd_2 = TTNKit.nodetype(nd_sh)
-    @test nd_2 == Node{spacetype(nd_sh), Z2Irrep}
+    @test nd_2 == TTNKit.Node{spacetype(nd_sh), Z2Irrep}
     @test !(nd_2 == nd_sh)
 
     for (st, st_name) in zip([[1,0], [0,1], [1/sqrt(2), 1/sqrt(2)], [1/sqrt(2), -1/sqrt(2)]], 
                               ["Up", "Down", "Right",            "Left"])
         @test TTNKit.state(nd_sh, Val(Symbol(st_name))) == st
     end
-    @test TTNKit.spaces(nd_sh) == [0 => 1, 1 => 1]
+    @test TTNKit.space(nd_sh) == [0 => 1, 1 => 1]
 
     st_o = TTNKit.state(nd_sh, "Up", elT)
     @test st_o == TensorMap(ones, elT, Z2Space(0=> 1, 1=>1)← Z2Space(0 => 1))
