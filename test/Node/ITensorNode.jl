@@ -6,7 +6,7 @@ using Test
     nd_sh = TTNKit.ITensorNode(1,"SpinHalf"; conserve_qns = false)
 
     @test TTNKit.position(nd_sh) == 1
-    @test TTNKit.description(nd_sh) == "SpinHalf 1"
+    @test TTNKit.description(nd_sh) == "SpinHalf"
     @test TTNKit.sectortype(nd_sh) == Int64
     @test TTNKit.spacetype(nd_sh) == Index
 
@@ -25,7 +25,7 @@ end
     nd_sh = TTNKit.ITensorNode(1,"SpinHalf"; conserve_qns = true)
 
     @test TTNKit.position(nd_sh) == 1
-    @test TTNKit.description(nd_sh) == "SpinHalf 1"
+    @test TTNKit.description(nd_sh) == "SpinHalf"
     @test sectortype(nd_sh) == Vector{Pair{QN, Int64}}
     @test spacetype(nd_sh) == Index
 

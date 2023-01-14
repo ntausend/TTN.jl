@@ -32,11 +32,21 @@ module TTNKit
     struct QuantumNumberMissmatch <: Exception end
     Base.showerror(io::IO, ::QuantumNumberMissmatch) = print(io, "Quantum number combination not allowed.")
 
+    struct IndexMissmatchException <: Exception 
+        idx::Index
+        desc::String
+    end
+    Base.showerror(io::IO, e::IndexMissmatchException) = print(io, "Index $(e.idx) not fullfill requirements: $(e.desc)") 
+
 
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import TensorKit: sectortype, spacetype
-    import ITensors: state, op, space
+    import ITensors: state, op, space, siteinds
+    using ITensors: dim as dim_it
+    using TensorKit: dim as dim_tk
+
+    dim(ind::I) where{I} = I <: Index ? dim_it(ind) : dim_tk(ind) 
 
     include("./backends/backends.jl")
 
@@ -56,19 +66,21 @@ module TTNKit
     # lattice class
     include("./Lattice/AbstractLattice.jl")
     include("./Lattice/SimpleLattice.jl")
-    #= Currently deactivating all class objects, starting implementing ITensor support
-    export AbstractLattice, Chain, Rectangle, Square
 
     # including the Network classes
-
-    
-    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
 
+    include("./TreeTensorNetwork/TreeTensorNetwork.jl")
+    #= Currently deactivating all class objects, starting implementing ITensor support
+    export AbstractLattice, Chain, Rectangle, Square
+
+
+    
+    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
+
     
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
-    include("./TreeTensorNetwork/TreeTensorNetwork.jl")
     
     include("./TreeTensorNetwork/algorithms/inner.jl")
 

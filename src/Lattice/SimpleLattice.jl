@@ -70,25 +70,19 @@ function SimpleLattice(dims::NTuple{D, Int}, nd::Type{<:AbstractNode}; kwargs...
         nd(l, n; kwargs...)
     end
     lat_vec = vec(lat_vec)
-    backend = hilbertspace(lat_vec[1]) isa Index ? ITensorsBackend : TensorKitBackend
-    return SimpleLattice{length(dims), spacetype(lat_vec[1]), sectortype(lat_vec[1]), backend}(lat_vec, dims)
+    #backend = hilbertspace(lat_vec[1]) isa Index ? ITensorsBackend : TensorKitBackend
+    #backend == ITensorsBackend  && (lat_vec = ITensorNode.(lat_vec))
+    _backend = backend(lat_vec[1])
+    # now convert the lattice in the case of being physical and ITensors being the backend to ITensorNodes
+    _backend == ITensorsBackend && lat_vec[1] isa PhysicalNode && (lat_vec = ITensorNode.(lat_vec))
+    return SimpleLattice{length(dims), spacetype(lat_vec[1]), sectortype(lat_vec[1]), _backend}(lat_vec, dims)
 end
-function SimpleLattice(dims::NTuple{D, Int}, nd::Type{<:ITensorNode}, type::AbstractString; kwargs...) where{D}
-    # checking if dims are in the correct layout
-    _check_dimensions(dims)
-    prod_it = Iterators.product(UnitRange.(1, dims)...)
-    lin_inds = map(p -> _linear_ind_simple_lattice(p, dims), prod_it)
-
-    lat_vec = map(l -> nd(l, type; kwargs...), lin_inds)
-    lat_vec = vec(lat_vec) # necessary?
-    return SimpleLattice{length(dims), spacetype(lat_vec[1]), sectortype(lat_vec[1]), ITensorsBackend}(lat_vec, dims)
-end
-
 # Fast factory of a lattice with trivial nodes with hilbertspace dimension local_dim
 function SimpleLattice(dims::NTuple{D, Int}, local_dim::Int; backend=TensorKitBackend()) where D
     return SimpleLattice(dims, TrivialNode; local_dim = local_dim, backend = backend)
 end
 
+# factory from indices, and from ITensor node with type specifier
 function SimpleLattice(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     _check_dimensions(dims)
     prod_it = Iterators.product(UnitRange.(1, dims)...)
@@ -99,11 +93,25 @@ function SimpleLattice(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     lat_vec = vec(lat_vec)
     return SimpleLattice{length(dims), spacetype(lat_vec[1]), sectortype(lat_vec[1]), ITensorsBackend}(lat_vec, dims)
 end
+function SimpleLattice(dims::NTuple{D, Int}, nd::Type{<:ITensorNode}, type::AbstractString; kwargs...) where{D}
+    # checking if dims are in the correct layout
+    indices = siteinds(type, prod(dims); kwargs...)
+    return SimpleLattice(dims, indices)
+    #=
+    _check_dimensions(dims)
+    prod_it = Iterators.product(UnitRange.(1, dims)...)
+    lin_inds = map(p -> _linear_ind_simple_lattice(p, dims), prod_it)
+
+    lat_vec = map(l -> nd(l, type; kwargs...), lin_inds)
+    lat_vec = vec(lat_vec) # necessary?
+    return SimpleLattice{length(dims), spacetype(lat_vec[1]), sectortype(lat_vec[1]), ITensorsBackend}(lat_vec, dims)
+    =#
+end
+
 
 #const BinaryChain = BinaryLattice{1}
 Chain(n_sites::Int, local_dim::Int; kwargs...) = SimpleLattice((n_sites,), local_dim; kwargs...)
 Chain(n_sites::Int, nd::Type{<:AbstractNode}, args...; kwargs...) = SimpleLattice((n_sites,), nd, args...; kwargs...)
-Chain(indices::Vector{<:Index}) = SimpleLattice((length(indices),), indices)
 
 
 #const BinaryRectangle = BinaryLattice{2}
@@ -116,6 +124,7 @@ Rectangle(dims::Tuple{Int, Int}, nd::Type{<:AbstractNode}, args...; kwargs...) =
 Square(n_lin::Int, nd::Type{<:AbstractNode}, args...; kwargs...) = Rectangle(n_lin, n_lin, nd, args...; kwargs...)
 
 # production from itensor indices
+Chain(indices::Vector{<:Index}) = SimpleLattice((length(indices),), indices)
 Rectangle(dims::Tuple{Int,Int}, indices::Vector{<:Index}) = SimpleLattice(dims, indices)
 Rectangle(n_x::Int, n_y::Int, indices::Vector{<:Index}) = SimpleLattice((n_x,n_y), indices)
 Rectangle(indices::Matrix{<:Index}) = Rectangle(size(indices), flatten(indices))

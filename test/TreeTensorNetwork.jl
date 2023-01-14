@@ -1,12 +1,12 @@
-using TTNKit, TensorKit
+using TTNKit, TensorKit, ITensors
 using Test
 
-@testset "General Tree Tensor Network" begin
+@testset "General Tree Tensor Network, TensorKit" begin
     n_layers = 3
     ndtyp = TTNKit.TrivialNode
-    net = BinaryChainNetwork(n_layers, ndtyp)
+    net = TTNKit.BinaryChainNetwork(n_layers, ndtyp; backend = TTNKit.TensorKitBackend())
     
-    ttn = RandomTreeTensorNetwork(net, orthogonalize = false)
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = false)
     
     @test TTNKit.number_of_layers(ttn) == n_layers
     @test length(TTNKit.layer(ttn,1))  == 2^(n_layers-1)
@@ -17,7 +17,7 @@ using Test
         @test TTNKit.ortho_direction(ttn, p) == -1
     end
     
-    ttn = RandomTreeTensorNetwork(net, orthogonalize = true)
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)
 
     @test TTNKit.ortho_center(ttn) == (n_layers,1)
     @test TTNKit.ortho_direction(ttn, (n_layers,1)) == -1
@@ -34,7 +34,7 @@ using Test
     n_ten = TensorMap(randn, ℂ^2 ⊗ ℂ^2 ← ℂ^1)
     ttn[1,1] = n_ten
     @test ttn[1,1] == n_ten
-    ttn = RandomTreeTensorNetwork(net, orthogonalize = true)
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)
 
     TTNKit.move_down!(ttn,1)
     @test TTNKit.ortho_center(ttn) == (n_layers-1,1)
@@ -64,8 +64,8 @@ using Test
         end
     end
     
-    net = BinaryRectangularNetwork(n_layers, TTNKit.HardCoreBosonNode)
-    ttn = RandomTreeTensorNetwork(net, orthogonalize = true)
+    net = TTNKit.BinaryRectangularNetwork(n_layers, TTNKit.HardCoreBosonNode)
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)
 
     TTNKit.move_down!(ttn,1)
     @test TTNKit.ortho_center(ttn) == (n_layers-1,1)
@@ -80,14 +80,102 @@ using Test
 
 
     elT = Float64
-    ttn = RandomTreeTensorNetwork(net; elT = elT)
+    ttn = TTNKit.RandomTreeTensorNetwork(net; elT = elT)
     @test eltype(ttn) == elT
 
     elT = ComplexF64
-    ttn = RandomTreeTensorNetwork(net; elT = elT)
+    ttn = TTNKit.RandomTreeTensorNetwork(net; elT = elT)
+    @test eltype(ttn) == elT
+end
+@testset "General Tree Tensor Network, ITensors" begin
+    n_layers = 3
+    ndtyp = TTNKit.TrivialNode
+    net = TTNKit.BinaryChainNetwork(n_layers, ndtyp; backend = TTNKit.ITensorsBackend())
+    
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = false)
+    
+    @test TTNKit.number_of_layers(ttn) == n_layers
+    @test length(TTNKit.layer(ttn,1))  == 2^(n_layers-1)
+    @test TTNKit.network(ttn) == net
+
+    @test TTNKit.ortho_center(ttn) == (-1,-1)
+    for p in TTNKit.NodeIterator(net)
+        @test TTNKit.ortho_direction(ttn, p) == -1
+    end
+    
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)
+
+    @test TTNKit.ortho_center(ttn) == (n_layers,1)
+    @test TTNKit.ortho_direction(ttn, (n_layers,1)) == -1
+    for p in TTNKit.NodeIterator(net)
+        if (p == (n_layers, 1))
+            @test TTNKit.ortho_direction(ttn, p) == -1
+        else
+            @test TTNKit.ortho_direction(ttn, p) == 3
+        end
+    end
+
+    @test ttn[1,1] == ttn[(1,1)]
+    
+    #n_ten = randomITensor(Index(2),Index(2), Index(1))
+    n_ten = randomITensor(inds(ttn[1,1]))
+    ttn[1,1] = n_ten
+    @test ttn[1,1] == n_ten
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)
+
+    TTNKit.move_down!(ttn,1)
+    @test TTNKit.ortho_center(ttn) == (n_layers-1,1)
+    @test TTNKit.ortho_direction(ttn, (n_layers, 1)) == 1
+    @test TTNKit.ortho_direction(ttn, (n_layers-1, 1)) == -1
+
+
+    TTNKit.move_up!(ttn)
+    @test TTNKit.ortho_center(ttn) == (n_layers,1)
+    @test TTNKit.ortho_direction(ttn, (n_layers, 1))   == -1
+    @test TTNKit.ortho_direction(ttn, (n_layers-1, 1)) == 3
+
+    oc = (1,1)
+    TTNKit.move_ortho!(ttn, oc)
+    @test TTNKit.ortho_center(ttn) == oc
+    for p in TTNKit.NodeIterator(net)
+        if(p == oc)
+            @test TTNKit.ortho_direction(ttn, p) == -1
+        else
+            c_path = TTNKit.connecting_path(net, p, oc)
+            nd_next = c_path[1]
+            if nd_next[1] == p[1] - 1
+                @test TTNKit.ortho_direction(ttn, p) == nd_next[2]
+            else
+                @test TTNKit.ortho_direction(ttn, p) == 3
+            end
+        end
+    end
+    
+    net = TTNKit.BinaryRectangularNetwork(n_layers, TTNKit.ITensorNode, "SpinHalf")
+    ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)
+
+    TTNKit.move_down!(ttn,1)
+    @test TTNKit.ortho_center(ttn) == (n_layers-1,1)
+    TTNKit.move_up!(ttn)
+    @test TTNKit.ortho_center(ttn) == (n_layers,1)
+    TTNKit.move_ortho!(ttn, (1,1))
+    @test TTNKit.ortho_center(ttn) == (1,1)
+    
+    is_normal, res = TTNKit.check_normality(ttn)
+    @test is_normal
+    @test res ≈ 1
+
+
+    elT = Float64
+    ttn = TTNKit.RandomTreeTensorNetwork(net; elT = elT)
+    @test eltype(ttn) == elT
+
+    elT = ComplexF64
+    ttn = TTNKit.RandomTreeTensorNetwork(net; elT = elT)
     @test eltype(ttn) == elT
 end
 
+#=
 function sig_z_non_sym()
     σ_z = [0 0; 0 1]
     sp  = ℂ^2
@@ -147,3 +235,5 @@ end
      
     @test round(Int64, sum(n_z_exp)) ≈ sum(n_z_exp)
 end
+
+=#

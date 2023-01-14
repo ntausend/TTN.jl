@@ -1,15 +1,21 @@
+function _get_description(_tags)
+    tags_n = string.(removetags(_tags, "Site"))
+    id_n   = findfirst(t -> occursin("n=",t), tags_n)
+    isnothing(id_n) || deleteat!(tags_n, id_n)
+    return only(tags_n)
+end
+
+
 struct ITensorNode{I} <: PhysicalNode{Index, I}
     s::Int
     desc::AbstractString
     hilbertspace::Index{I}
     function ITensorNode(pos, _idx::Index{I}) where{I}
         t_S = tags(_idx)
-        #id_st = findfirst(t -> t == "Site", t_S)
-        #isnothing(id_st) ||  error("Index given to the node $_idx is not derived from a ITensor hilbertspace.")
-        (3 ≥ length(t_S)≥2 && string(t_S[1]) == "Site") || 
-                        error("Index given to the node $_idx is not derived from a ITensor hilbertspace.")
+        hastags(t_S, "Site") || throw(IndexMissmatchException(_idx, "Not derived from a ITensor hilbertspace"))
+        desc = _get_description(t_S)
         idx = length(t_S) == 3 ? _idx : addtags(_idx, "n=$pos")
-        desc = string(t_S[2]) * " $pos"
+        #desc = desc# * " $pos"
         return new{I}(pos, desc, idx)
     end
 end
@@ -30,3 +36,10 @@ end
 index(nd::ITensorNode) = hilbertspace(nd)
 state(nd::ITensorNode, st::AbstractString) = state(index(nd), st)
 space(nd::ITensorNode) = space(index(nd))
+
+# convert from Trivial node to ITensor node if requirements are there
+ITensorNode(nd::TrivialNode{Index, Int64}) = ITensorNode(nd.s,nd.hilbertspace)
+
+struct ITensorNodeConverstionError <: Exception end
+Base.showerror(io::IO, ::ITensorNodeConverstionError) = print(io, "Tried to converted a Node to ITensor node which is not compatible.")
+ITensorNode(nd::TrivialNode{S,I}) where{S,I} = throw(ITensorNodeConverstionError())

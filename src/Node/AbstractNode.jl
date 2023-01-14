@@ -6,6 +6,8 @@ TTNKit.spacetype(nd::AbstractNode) = spacetype(typeof(nd))
 TensorKit.sectortype(::Type{<:AbstractNode{S,I}}) where {S,I} = I
 TensorKit.sectortype(nd::AbstractNode) = sectortype(typeof(nd))
 
+backend(::AbstractNode{Index, I}) where{I} = ITensorsBackend
+backend(::AbstractNode{S, I}) where{S,I}   = TensorKitBackend
 
 # getter functions
 

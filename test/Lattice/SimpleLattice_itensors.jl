@@ -12,7 +12,7 @@ using Test
     @test TTNKit.dimensionality(lat) == 2
     @test TTNKit.spacetype(lat)  == Index
     @test TTNKit.sectortype(lat) == Int64
-    @test_broken TTNKit.node(lat, 1) == TTNKit.TrivialNode(1,indices[1])
+    @test TTNKit.node(lat, 1) == TTNKit.ITensorNode(1,indices[1])
     @test TTNKit.number_of_sites(lat) == n_sites^2
     @test TTNKit.linear_ind(lat,(2,1)) == 2
     @test TTNKit.linear_ind(lat,(1,2)) == n_sites + 1
@@ -25,15 +25,14 @@ using Test
         (1,2)
         (2,2)
     ]
-    #=
+    
     @test TTNKit.coordinates(lat) == coordinates
     lat2 = TTNKit.Square(n_sites, indices)
-    @test_broken lat == lat2
-    lat3 = TTNKit.Square(n_sites^2, dim, backend = backend)
+    @test lat == lat2
+    lat3 = TTNKit.Square(n_sites, dim, backend = backend)
     @test !(lat == lat3)
-    lat4 = TTNKit.Chain(n_sites^2, indices)
-    @test_broken !(lat == lat4)
-    =#
+    lat4 = TTNKit.Chain(indices)
+    @test !(lat == lat4)
 end
 
 @testset "Spin Half Node Lattice, ITensors" begin
@@ -44,16 +43,14 @@ end
     indices = TTNKit.siteinds(lat)
     
 
-    @test_broken TTNKit.nodetype(lat) == TTNKit.ITensorNode
+    @test TTNKit.nodetype(lat) == TTNKit.Node{Index, Int64}
 
-    #=
     lat2 = TTNKit.Square(n_sites, indices)
     @test lat == lat2
-    lat3 = TTNKit.Square(n_sites^2, indices)
+    lat3 = TTNKit.Square(n_sites, ndtype, "SpinHalf")
     @test !(lat == lat3)
     @test TTNKit.sectortype(lat) == Int64
     @test TTNKit.is_physical(lat)
-    =#
 
 
 end
