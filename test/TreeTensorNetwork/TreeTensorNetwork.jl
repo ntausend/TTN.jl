@@ -175,7 +175,6 @@ end
     @test eltype(ttn) == elT
 end
 
-#=
 function sig_z_non_sym()
     σ_z = [0 0; 0 1]
     sp  = ℂ^2
@@ -192,7 +191,7 @@ function sig_z_sym()
 end
 sig_z(;conserve_qns = true) = conserve_qns ? sig_z_sym() : sig_z_non_sym()
 
-@testset "Generate Random Number conserved State with target charge" begin
+@testset "Generate Random Number conserved State with target charge, TensorKit" begin
     # number of layers
     n_layer = 4
     # linear lattice
@@ -210,12 +209,12 @@ sig_z(;conserve_qns = true) = conserve_qns ? sig_z_sym() : sig_z_non_sym()
     n_z = sig_z(; conserve_qns = conserve_qns)
 
     # expectation value
-    n_z_exp = TTNKit.expect(ttn, n_z)
+    n_z_exp = real.(TTNKit.expect(ttn, n_z))
      
-    @test sum(n_z_exp) ≈ chrg
+    @test isapprox(sum(n_z_exp), chrg, atol = 1E-14)
 end
 
-@testset "Generate Random Number conserved State with random charge" begin
+@testset "Generate Random Number conserved State with random charge, TensorKit" begin
     # number of layers
     n_layer = 4
     # linear lattice
@@ -231,9 +230,50 @@ end
     n_z = sig_z(; conserve_qns = conserve_qns)
 
     # expectation value
-    n_z_exp = TTNKit.expect(ttn, n_z)
+    n_z_exp = real.(TTNKit.expect(ttn, n_z))
      
     @test round(Int64, sum(n_z_exp)) ≈ sum(n_z_exp)
 end
+@testset "Generate Random Number conserved State with target charge, ITensors" begin
+    # number of layers
+    n_layer = 4
+    # linear lattice
+    conserve_qns = true
+    net = TTNKit.BinaryNetwork((4,4), TTNKit.ITensorNode, "SpinHalf"; conserve_qns = conserve_qns)
 
-=#
+    chrg = 0
+    target_charge = conserve_qns ? QN("Sz", chrg) : chrg
+    maxdim = 16
+    
+    ttn = TTNKit.RandomTreeTensorNetwork(net, target_charge; maxdim = maxdim)
+
+
+    # number operator
+    #n_z = sig_z(; conserve_qns = conserve_qns)
+
+    # expectation value
+    n_z_exp = real.(TTNKit.expect(ttn, "Z"))
+     
+    @test isapprox(sum(n_z_exp), chrg, atol = 1E-14)
+end
+
+@testset "Generate Random Number conserved State with random charge, ITensors" begin
+    # number of layers
+    n_layer = 4
+    # linear lattice
+    conserve_qns = true
+    net = TTNKit.BinaryNetwork((4,4), TTNKit.ITensorNode, "SpinHalf"; conserve_qns = conserve_qns)
+
+    maxdim = 16
+    
+    ttn = TTNKit.RandomTreeTensorNetwork(net; maxdim = maxdim)
+
+
+    # number operator
+    #n_z = sig_z(; conserve_qns = conserve_qns)
+
+    # expectation value
+    n_z_exp = real.(TTNKit.expect(ttn, "Z"))
+     
+    @test round(Int64, sum(n_z_exp)) ≈ sum(n_z_exp)
+end

@@ -147,8 +147,11 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork{LA,ITensor,ITensorsBac
     tn_parent = ttn[pos_parent]
 
     # the left index for the splitting is simply the not commoninds of tn_child
-    idx_l = uniqueinds(tn_child, tn_parent)
-    Q,R = qr(tn_child, idx_l; tags = tags(commonind(tn_child,tn_parent)))
+    idx_r = commonind(tn_child, tn_parent)
+    #idx_l = uniqueinds(tn_child, tn_parent)
+    idx_l = uniqueinds(tn_child, idx_r)
+    #Q,R = qr(tn_child, idx_l; tags = tags(idx_r))
+    Q,R = factorize(tn_child, idx_l; tags = tags(idx_r))
     
     # handles large normed TTN's. Specially for random initialization
     if regularize
@@ -216,8 +219,10 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork{LA,ITensor,ITensorsBack
 
     # the indices we need to have of the left hand from the splitting needs to be all except
     # the chared index to the child index
-    idx_l = uniqueinds(tn_parent, tn_child)
-    Q,R = qr(tn_parent, idx_l, tags = tags(commonind(tn_parent, tn_child)))
+    idx_r = commonind(tn_parent, tn_child)
+    idx_l = uniqueinds(tn_parent, idx_r)
+    #Q,R = qr(tn_parent, idx_l, tags = tags(idx_r))
+    Q,R  = factorize(tn_parent, idx_l; tags = tags(idx_r))
 
     ttn[pos_child] = tn_child * R
 
@@ -272,15 +277,15 @@ function move_down!(ttn::TreeTensorNetwork, n_child::Int; normalize::Bool = fals
     _orthogonalize_to_child!(ttn, oc, n_child)
 end
 
-function move_ortho!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}; normalize::Bool = false)
-    check_valid_position(network(ttn), pos)
+function move_ortho!(ttn::TreeTensorNetwork, pos_target::Tuple{Int, Int}; normalize::Bool = false)
+    check_valid_position(network(ttn), pos_target)
 
     # if ttn was not canonical, we simply reorthogonalize the ttn... is this ok?
     ortho_center(ttn) == (-1,-1) && _reorthogonalize!(ttn, normalize = normalize)
     
     oc = ortho_center(ttn)
 
-    path = connecting_path(network(ttn), oc, pos)
+    path = connecting_path(network(ttn), oc, pos_target)
 
     for pos in path
         Δoc = pos .- oc
@@ -399,7 +404,6 @@ function check_normality(ttn::TreeTensorNetwork{L, ITensor, ITensorsBackend}) wh
             tn = TensorKit.permute(tn, idx_codom, idx_dom)
         end
         =#
-        
         ortho_dir = ortho_direction(ttn, pos)
         if length(inds(tn)) == ortho_dir
             idx = commonind(tn, ttn[parent_node(net, pos)])
@@ -428,6 +432,6 @@ function Base.copy(ttn::TreeTensorNetwork)
     datac = deepcopy(ttn.data)
     ortho_centerc = deepcopy(ttn.ortho_center)
     netc = deepcopy(ttn.net)
-    ortho_directionc = copy(ttn.ortho_direction)
+    ortho_directionc = deepcopy(ttn.ortho_direction)
     return TreeTensorNetwork(datac, ortho_directionc, ortho_centerc, netc)
 end

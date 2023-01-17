@@ -7,6 +7,7 @@ module TTNKit
     using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
     using MPSKitModels: LocalOperator
     using KrylovKit
+    using LinearAlgebra
 
     struct NotImplemented <: Exception
         fn::Symbol
@@ -43,10 +44,21 @@ module TTNKit
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import TensorKit: sectortype, spacetype
     import ITensors: state, op, space, siteinds
-    using ITensors: dim as dim_it
+    import ITensors: expect
+    using ITensors:  dim as dim_it
     using TensorKit: dim as dim_tk
+    using ITensors:  dims as dims_it
+    using TensorKit: dims as dims_tk
 
     dim(ind::I) where{I} = I <: Index ? dim_it(ind) : dim_tk(ind) 
+
+    # fixing missing support for qn-sparse qr decomposition of ITensors, should
+    # be included in the future.. see pullrequest:
+    # https://github.com/ITensor/ITensors.jl/pull/1009
+    # This is also my code from 
+    # https://github.com/ntausend/variance_iTensor
+    # in slightly modified version of Jan Reimers
+    include("./qn_qr_it/qr.jl")
 
     include("./backends/backends.jl")
 
@@ -72,6 +84,11 @@ module TTNKit
     include("./Network/BinaryNetwork.jl")
 
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
+    include("./TreeTensorNetwork/algorithms/inner.jl")
+    include("./TreeTensorNetwork/algorithms/expect.jl")
+    
+
+
     #= Currently deactivating all class objects, starting implementing ITensor support
     export AbstractLattice, Chain, Rectangle, Square
 
@@ -82,11 +99,9 @@ module TTNKit
     
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
     
-    include("./TreeTensorNetwork/algorithms/inner.jl")
 
     # load the definition of special operator types for dispatching measuring functions
     include("./TPO/AbstractTensorDefinitions.jl")
-    include("./TreeTensorNetwork/algorithms/expect.jl")
 
     include("./TreeTensorNetwork/algorithms/correlation.jl")
     
