@@ -232,7 +232,7 @@ end
     # expectation value
     n_z_exp = real.(TTNKit.expect(ttn, n_z))
      
-    @test isapprox(round(Int64, sum(n_z_exp)), sum(n_z_exp), 1E-14)
+    @test isapprox(round(Int64, sum(n_z_exp)), sum(n_z_exp); atol = 1E-14)
 end
 @testset "Generate Random Number conserved State with target charge, ITensors" begin
     # number of layers
@@ -275,5 +275,5 @@ end
     # expectation value
     n_z_exp = real.(TTNKit.expect(ttn, "Z"))
      
-    @test isapprox(round(Int64, sum(n_z_exp)), sum(n_z_exp), 1E-14)
+    @test isapprox(round(Int64, sum(n_z_exp)), sum(n_z_exp); atol = 1E-14)
 end
