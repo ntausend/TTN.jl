@@ -39,7 +39,12 @@ function test_expectation(dims, conserve_qns, op, ndtype, states, expected)
     net = TTNKit.BinaryNetwork(dims, ndtype; conserve_qns = conserve_qns)
     ttn = TTNKit.ProductTreeTensorNetwork(net, states)
     obs_measured = TTNKit.expect(ttn, op)
-    @test all(obs_measured .≈ expected)
+    
+    approx_sim = mapreduce(*, zip(obs_measured, expected)) do (meas, ex)
+        isapprox(meas, ex; atol = 1E-14)
+    end
+
+    @test approx_sim
 end
 
 
