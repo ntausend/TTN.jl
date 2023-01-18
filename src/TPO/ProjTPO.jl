@@ -178,9 +178,10 @@ end
 #=
 # action of the TPO on the removed link tensor between positions posi (initial) and posf (final)
 function ∂A2(projTPO::ProjTensorProductOperator, T::AbstractTensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int})
+    net = network(projTPO)
     tEnv = top_environment(projTPO, posi)
     bEnvs = bottom_environment(projTPO, posi)
-    ttn_coord = Vector{Float64}(internal_index_of_legs(network(projTPO), posi))
+    ttn_coord = Vector{Float64}(internal_index_of_legs(net, posi))
     tInds = top_indices(projTPO, posi)
     bInds = bottom_indices(projTPO, posi)
 
@@ -195,9 +196,24 @@ function ∂A2(projTPO::ProjTensorProductOperator, T::AbstractTensorMap, posi::T
     end
     n_tensors = number_of_tensors(projTPO.net) + number_of_sites(projTPO.net)
     function action(R::AbstractTensorMap)
-        inds, res = contract_tensors(vcat(T, adjoint(T), bEnvs), vcat([ttn_coord], [ttn_coord[vcat(end,1:end-1)].+n_tensors], bInds))
-        inds, res = contract_tensors([res, R], [inds, r_coord])
-        inds, res = contract_tensors([res, tEnv], [inds, tInds])
+        if posf ∈ child_nodes(projTPO.net, posi)
+            idx = index_of_child(projTPO.net, posf)
+            n_chds = number_of_child_nodes(net, posi)
+
+            bEnvsSplit = map(chd_nd -> bEnvs[chd_nd], deleteat!(collect(1:n_chds), idx))
+            bIndsSplit = map(chd_nd -> bInds[chd_nd], deleteat!(collect(1:n_chds), idx))
+
+            inds, res = contract_tensors(vcat(T, bEnvsSplit),vcat([ttn_coord], bIndsSplit))
+            inds, res = contract_tensors([res, R], [inds, r_coord])
+            inds, res = contract_tensors([res, bEnvs[idx]], [inds, bInds[idx]])
+            inds, res = contract_tensors([res, adjoint(T)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
+            inds, res = contract_tensors([res, tEnv], [inds, tInds])
+        else    
+            inds, res = contract_tensors(vcat(T, bEnvs), vcat([ttn_coord], bInds))
+            inds, res = contract_tensors([res, adjoint(T)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
+            inds, res = contract_tensors([res, R], [inds, r_coord])
+            inds, res = contract_tensors([res, tEnv], [inds, tInds])
+        end
 
         perm = collect(1:length(inds))[sortperm(inds)]
         return TensorKit.permute(res, Tuple(perm[1:end-1]), (perm[end],))

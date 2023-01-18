@@ -18,42 +18,26 @@ function _construct_bottom_environments(ttn::TreeTensorNetwork{N,T}, tpo::MPOWra
     bEnvironment[1] = map(eachindex(net,1)) do pp
         chdnds = child_nodes(net, (1,pp))
         map(1:number_of_child_nodes(net, (1,pp))) do nn
-            #ham[nn]
             ham[chdnds[nn][2]]
         end
     end
     # first layer
+    virt_leg = tpo.mapping
     bIndices[1] = map(eachindex(net,1)) do pp
+        chdnds = child_nodes(net, (1,pp))
         map(1:number_of_child_nodes(net, (1,pp))) do nn
+            chdid_virt = virt_leg[chdnds[nn][2]]
             int_leg = internal_index_of_legs(net, (1, pp))
-            return [-int_leg[nn], int_leg[nn] + n_tensors, int_leg[nn], -int_leg[nn]-1]
+
+            if isone(chdid_virt)
+                return [int_leg[nn] + n_tensors, int_leg[nn], -chdid_virt]
+            elseif chdid_virt == number_of_sites(net)
+                return [-chdid_virt+1, int_leg[nn] + n_tensors, int_leg[nn]]
+            else
+                return [-chdid_virt+1, int_leg[nn] + n_tensors, int_leg[nn], -chdid_virt]
+            end 
         end
     end
-
-    # correct the first and last tensor, if backend is TensorKit
-    tnfirst = ham[1]
-    tnlast  = ham[number_of_sites(net)]
-    codom   = codomain(tnfirst)[1]
-    dom     =   domain(tnlast)[2]
-    if sectortype(net) == Trivial
-        ctl = Tensor([jj == 1 ? 1 : 0 for jj in 1:dim(dom)], dom')
-        ctr = Tensor([jj == dim(codom) ? 1 : 0  for jj in 1:dim(codom)], codom)
-    else
-        ctl = Tensor(zeros, codom')
-        ctr = Tensor(zeros, dom)
-        # these can only have the trivial rep
-        trRep = keys(blocks(ctl))[1]
-        blocks(ctl)[trRep][1] = 1
-        trRep = keys(blocks(ctr))[1]
-        blocks(ctr)[trRep][end] = 1
-    end
-    bIndices[1][1][1], bEnvironment[1][1][1] = contract_tensors([bEnvironment[1][1][1], ctl], [bIndices[1][1][1], [-1]])
-    bIndices[1][end][end], bEnvironment[1][end][end] = contract_tensors([bEnvironment[1][end][end], ctr], [bIndices[1][end][end],[-number_of_sites(net)-1]])
-
-    #@plansor tmp1[-1,-2,-3] := ctl[1] * tnfirst[1, -1, -2, -3]
-    #@plansor tmp2[-1,-2,-3] := tnlast[-1, -2, -3, 1] * ctr[1]
-
-
 
     for ll in Iterators.drop(eachlayer(net), 1)
         bEnvironment[ll] = Vector{Vector{T}}(undef, number_of_tensors(net, ll))
@@ -89,7 +73,7 @@ end
 function _construct_top_environments(ttn::TreeTensorNetwork{N,T}, bEnv::Vector{Vector{Vector{T}}}, bInd::Vector{Vector{Vector{Vector{Int64}}}}) where{N, T<:TensorMap}
 
 
-    net = TTNKit.network(ttn)
+    net = network(ttn)
     n_sites = number_of_sites(net)
     n_tensors = number_of_tensors(net) + n_sites
 

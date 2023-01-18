@@ -6,7 +6,7 @@
     g::Float64 # Transverse Field interaction
 end
 
-function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{1})
+function Hamiltonian_dep(md::TransverseFieldIsing, lat::AbstractLattice{1}; mapping::Vector{Int} = collect(eachindex(lat)))
     J = md.J
     g = md.g
     
@@ -20,18 +20,9 @@ function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{1})
         Sz = TensorMap(sz, sp, sp)
 
 
-        ham = MPOHamiltonian(LocalOperator(J * Sx ⊗ Sx, (1, 2)) +
-                             LocalOperator(g * Sz, (1,)))
-
-        #hamdat = Array{Union{Missing,typeof(sx)},3}(missing,1,3,3)
-        #hamdat[1,1,1] = id;
-        #hamdat[1,end,end] = id;
-        #hamdat[1,1,2] = J*sx;
-        #hamdat[1,2,end] = sx;
-        #hamdat[1,1,end] = g*sz;
-
-        #ham = MPOHamiltonian(hamdat);
-
+        ham1 = @mpoham(sum(J * Sx{i}*Sx{j} for (i,j) in nearest_neighbours(lat, mapping)))
+        ham2 = @mpoham(sum(g * Sz{k} for k in eachindex(lat)))
+        ham = ham1 + ham2
     else
         sp = Rep[ℤ₂](0 => 1, 1 => 1)
 
@@ -44,5 +35,24 @@ function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{1})
 
         ham = MPOHamiltonian(J * nn) + MPOHamiltonian(g * sz)
     end
-    return MPOWrapper(lat, ham)
+    return MPOWrapper(lat, ham, mapping)
+end
+
+
+function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, TensorKitBackend};
+        mapping::Vector{Int} = collect(TTNKit.eachindex(lat))) where{D,S,I}
+    J = md.J
+    g = md.g
+    
+    ampo = OpSum();
+
+    for i in eachindex(lat)
+        ITensors.add!(ampo, g, "Z",i)
+    end
+
+    for (i,j) in nearest_neighbours(lat, mapping)
+        ITensors.add!(ampo, J, "X",i,"X",j)
+    end
+
+    return Hamiltonian(ampo, "SpinHalf", lat; mapping = mapping);
 end

@@ -5,7 +5,7 @@ module TTNKit
     using Distributions: Multinomial
     using Parameters: @with_kw
     using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
-    using MPSKitModels: LocalOperator
+    using MPSKitModels: LocalOperator, @mpoham
     using KrylovKit
     using LinearAlgebra
     using Printf
@@ -95,6 +95,8 @@ module TTNKit
     include("./TPO/MPO.jl")
     # abstract TPO
     include("./TPO/ProjTPO.jl")
+
+    include("./TPO/utilsMPO.jl")
 
     # model implementations
     include("./TPO/Models/TransverseFieldIsing.jl")
