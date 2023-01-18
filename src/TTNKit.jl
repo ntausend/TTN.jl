@@ -8,6 +8,7 @@ module TTNKit
     using MPSKitModels: LocalOperator
     using KrylovKit
     using LinearAlgebra
+    using Printf
 
     struct NotImplemented <: Exception
         fn::Symbol
@@ -58,12 +59,13 @@ module TTNKit
     # This is also my code from 
     # https://github.com/ntausend/variance_iTensor
     # in slightly modified version of Jan Reimers
-    include("./qn_qr_it/qr.jl")
+    # just use the factorize for the moment... dont want to get nasty warnings
+    #include("./qn_qr_it/qr.jl")
 
     include("./backends/backends.jl")
 
     # contract_tensor ncon wrapper
-    #include("./contract_tensors.jl")
+    include("./contract_tensors.jl")
 
     # nodes
     #export TrivialNode, HardCoreBosonNode, Node
@@ -88,7 +90,22 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/expect.jl")
     
 
+    include("./TPO/AbstractTPO.jl")
+    # MPO class
+    include("./TPO/MPO.jl")
+    # abstract TPO
+    include("./TPO/ProjTPO.jl")
 
+    # model implementations
+    include("./TPO/Models/TransverseFieldIsing.jl")
+    include("./TPO/Models/TrivialModel.jl")
+
+
+    # dmrg
+    include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
+    include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
+    #include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
+    include("./algorithms/sweeps.jl")
     #= Currently deactivating all class objects, starting implementing ITensor support
     export AbstractLattice, Chain, Rectangle, Square
 
@@ -107,22 +124,7 @@ module TTNKit
     
 
     #============================= TENSOR PRODUCT OPERATORS =========================#
-    # abstract TPO
-    include("./TPO/AbstractTPO.jl")
-    # MPO class
-    include("./TPO/MPO.jl")
-    include("./TPO/ProjTPO.jl")
 
-    # model implementations
-    include("./TPO/Models/TransverseFieldIsing.jl")
-    include("./TPO/Models/TrivialModel.jl")
-
-
-    # dmrg
-    include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
-    include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
-    include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
-    include("./algorithms/sweeps.jl")
 
     =#
 

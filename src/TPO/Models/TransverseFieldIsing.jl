@@ -44,5 +44,5 @@ function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{1})
 
         ham = MPOHamiltonian(J * nn) + MPOHamiltonian(g * sz)
     end
-    return MPO(lat, ham)
+    return MPOWrapper(lat, ham)
 end

@@ -151,7 +151,7 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork{LA,ITensor,ITensorsBac
     #idx_l = uniqueinds(tn_child, tn_parent)
     idx_l = uniqueinds(tn_child, idx_r)
     #Q,R = qr(tn_child, idx_l; tags = tags(idx_r))
-    Q,R = factorize(tn_child, idx_l; tags = tags(idx_r))
+    Q,R = qr(tn_child, idx_l; tags = tags(idx_r))
     
     # handles large normed TTN's. Specially for random initialization
     if regularize

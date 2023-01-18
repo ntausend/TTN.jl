@@ -1,12 +1,12 @@
-struct MPO{L<:AbstractLattice{1}} <: TTNKit.AbstractTensorProductOperator{L}
+struct MPOWrapper{L<:AbstractLattice{1},M, B} <: TTNKit.AbstractTensorProductOperator{L,B}
     lat::L
-    data::DenseMPO
+    data::M
 end
 
 
-function MPO(lat::L, mpo::MPOHamiltonian) where L
+function MPOWrapper(lat::L, mpo::MPOHamiltonian) where L
     data = _wrapper_mpskit_mpo(mpo)
-    return MPO{L}(lat, data)
+    return MPOWrapper{L, typeof(data), TensorKitBackend}(lat, data)
 end
 
 function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
@@ -19,4 +19,30 @@ function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
         end
     end)
     DenseMPO(data)
+end
+
+function Hamiltonian(mpo::MPO, lat::L) where{L}
+    @assert is_physical(lat)
+    @assert length(lat) == length(mpo)
+    @assert isone(dimensionality(lat))
+    idx_lat = siteinds(lat)
+
+    mpoc = deepcopy(mpo)
+    idx_mpo = first.(siteinds(mpoc,plev = 0))
+
+    foreach(1:length(idx_lat)) do jj
+        sj_lat = idx_lat[jj]
+        sj_mpo = idx_mpo[jj]
+        mpoc[jj] = replaceinds!(mpoc[jj], sj_mpo => sj_lat, prime(sj_mpo) => prime(sj_lat))
+    end
+    return MPOWrapper{L, MPO, ITensorsBackend}(lat, mpoc)
+end
+
+function Hamiltonian(ampo::OpSum, lat::L) where{L}
+    @assert isone(dimensionality(lat))
+    @assert is_physical(lat)
+    idx_lat = siteinds(lat)
+
+    mpo = MPO(ampo, idx_lat)
+    return MPOWrapper{L, MPO, ITensorsBackend}(lat, mpo)
 end

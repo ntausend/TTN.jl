@@ -13,9 +13,9 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
             update!(sp, pos)
         end
         if verbose_level ≥ 1
-            println(repeat("=", 100))
+            println(repeat("=", 50))
             println("Finsihed sweep $(sw).")
-            println(repeat("=", 100))
+            println(repeat("=", 50))
             flush(stdout)
         end
     end

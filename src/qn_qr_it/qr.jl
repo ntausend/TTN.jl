@@ -29,9 +29,9 @@ function remove_trivial_index(Q::ITensor, R::ITensor, vαl, vαr)
   return Q, R
 end
 
-LinearAlgebra.qr(A::ITensor; kwargs...) = error(ITensors.noinds_error_message("qr"))
+#LinearAlgebra.qr(A::ITensor; kwargs...) = error(ITensors.noinds_error_message("qr"))
 
-function LinearAlgebra.qr(A::ITensor, Linds...; kwargs...)
+function qr_custom(A::ITensor, Linds...; kwargs...)
   qtag::TagSet = get(kwargs, :tags, "Link,qr") #tag for new index between Q and R
   Lis = commoninds(A, ITensors.indices(Linds...))
   Ris = uniqueinds(A, Lis)

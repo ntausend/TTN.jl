@@ -7,7 +7,9 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     dir::Symbol
     current_sweep::Int
     energies::Vector{Float64}
-    SimpleSweepHandler(ttn, pTPO, func, n_sweeps) = new(n_sweeps, ttn, pTPO, func, :up, 1, Float64[])
+    curtime::Float64
+    timings::Vector{Float64}
+    SimpleSweepHandler(ttn, pTPO, func, n_sweeps) = new(n_sweeps, ttn, pTPO, func, :up, 1, Float64[], 0.0, Float64[])
 end
 
 function initialize!(sp::SimpleSweepHandler)
@@ -27,11 +29,19 @@ function initialize!(sp::SimpleSweepHandler)
         ism = ttn[p]
         pTPO = update_environments!(pTPO, ism, p, pth[jj+1])
     end
+    sp.curtime = time()
+    return sp
 end
 
 # simple reset the sweep Handler and update the current sweep number
 # current number still needed?
 function update_next_sweep!(sp::SimpleSweepHandler)
+    tn = time()
+    push!(sp.timings, tn - sp.curtime)
+    sp.curtime = tn
+    @printf("Finished Sweep %i. Energy: %.3f. Needed Time: %.3f s\n", sp.current_sweep, sp.energies[end], sp.timings[end])
+    flush(stdout)
+
     sp.dir = :up
     sp.current_sweep += 1 
     return sp
@@ -48,6 +58,8 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     action = ∂A(pTPO, pos)
     val, tn = sp.func(action, t)
     push!(sp.energies, real(val[1]))
+    #@printf("Number of Operator applications: %i, Number of restarts: %i\n", info.numops, info.numiter)
+    flush(stdout)
 
     #save the tensor
     ttn[pos] = tn[1]
