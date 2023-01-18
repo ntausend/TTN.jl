@@ -4,7 +4,7 @@ using Test
 @testset "Projected TPO, no qn conservation" begin
     n_layers = 3
     ndtyp = TTNKit.SpinHalfNode
-    net = BinaryChainNetwork(n_layers, ndtyp)
+    net = TTNKit.BinaryChainNetwork(n_layers, ndtyp)
     lat = TTNKit.physical_lattice(net)
     maxBondDim = 4
 
@@ -13,7 +13,7 @@ using Test
     tpo = TTNKit.Hamiltonian(TTNKit.TransverseFieldIsing(J = J, g = g), lat)
 
     states = fill("Up", TTNKit.number_of_sites(net))
-    ttn = ProductTreeTensorNetwork(net, states, orthogonalize = true)
+    ttn = TTNKit.ProductTreeTensorNetwork(net, states, orthogonalize = true)
 
     ptpo = TTNKit.ProjTensorProductOperator(ttn, tpo)
     energy_expected = g*TTNKit.number_of_sites(net)
