@@ -34,7 +34,7 @@ end
 
 
 _parity(::Type{<:ZNIrrep{P}}) where{P} = P
-function spaces(::SoftCoreBosonNode{S,I,N}) where{S,I,N}
+function space(::SoftCoreBosonNode{S,I,N}) where{S,I,N}
     if I == Trivial
         return N + 1
     elseif I <: ZNIrrep

@@ -57,3 +57,23 @@ function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::
     # println(unique_indices)
     return unique_indices, @ncon(tensor_list, contract_list)
 end
+
+# also return the unique_indices to have compatiblity with other methods... need to rethink about this
+# whole construct..., for ITensors it is useless, since contract_tensors simply contruct the already
+# equal legs
+function contract_tensors(tensor_list::Vector{<:ITensor}, index_list::Vector{Vector{K}}) where{K}
+    unique_indices = K[]
+    double_indices = K[]
+    flatIndexList = collect(Iterators.flatten(index_list))#vcat(indexList...)  
+    
+    while !(isempty(flatIndexList))
+        el = popfirst!(flatIndexList)
+        if !(el in flatIndexList) && !(el in double_indices)
+            append!(unique_indices, el)
+        else
+            append!(double_indices, el)
+        end
+    end
+
+    return unique_indices, reduce(*, tensor_list, init = ITensor(1))
+end

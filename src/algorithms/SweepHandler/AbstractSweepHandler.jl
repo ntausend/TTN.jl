@@ -12,7 +12,7 @@ next_position(::AbstractSweepHandler, ::Tuple{Int, Int}) = nothing
 update_next_sweep!(sp::AbstractSweepHandler) = sp
 
 # closure function for updating
-function update!(sp::AbstractSweepHandler, pos::Tuple{Int, Int}, ttn::TreeTensorNetwork, pTPO::ProjTensorProductOperator, tn::AbstractTensorMap)
+function update!(::AbstractSweepHandler, pos::Tuple{Int, Int}, ttn::TreeTensorNetwork, pTPO::ProjTensorProductOperator, tn::AbstractTensorMap)
     ttn[pos] = tn
     nothing
 end

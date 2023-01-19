@@ -1,30 +1,7 @@
 using TTNKit, TensorKit
 using Test
 
-
-@testset "Basic Lattice Properties" begin
-    n_sites = 8
-    lat = TTNKit.CreateChain(n_sites)
-
-    @test TTNKit.dimensionality(lat) == 1
-    @test spacetype(lat)  == ComplexSpace
-    @test sectortype(lat) == Trivial
-    @test TTNKit.node(lat, 1) == Node(1,"1")
-    @test TTNKit.number_of_sites(lat) == n_sites
-    @test_throws TTNKit.NotImplemented TTNKit.linear_ind(lat,(1,))
-    @test_throws TTNKit.NotImplemented TTNKit.coordinate(lat,1)
-    @test !TTNKit.is_physical(lat)
-    @test TTNKit.nodetype(lat) == TTNKit.Node{ComplexSpace, Trivial}
-    for (jj,nd) in enumerate(lat)
-        @test nd == Node(jj,"$jj")
-    end
-    @test length(lat) == n_sites
-    @test lat[1] == Node(1,"1")
-    @test eachindex(lat) == 1:8
-    @test_throws TTNKit.DimensionsException TTNKit.CreateChain(n_sites - 1)
-end
-
-@testset "Trivial Simple Lattice" begin
+@testset "Trivial Simple Lattice, TensorKit" begin
     n_sites = 2
     dim  = 2
     lat = TTNKit.SimpleLattice((n_sites,n_sites), dim)
@@ -54,7 +31,7 @@ end
     @test !(lat == lat4)
 end
 
-@testset "Hardcore Boson Node Lattice" begin
+@testset "Hardcore Boson Node Lattice, TensorKit" begin
     n_sites = 2
     ndtype = TTNKit.HardCoreBosonNode
     lat = TTNKit.Square(n_sites, ndtype)

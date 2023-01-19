@@ -1,11 +1,10 @@
 
-#abstract type AbstractNetwork{D, S<:IndexSpace, I<:Sector} end
-abstract type AbstractNetwork{L<:AbstractLattice} end
+# Needs to have the same backend as the abstract latice
+abstract type AbstractNetwork{L<:AbstractLattice, B<:AbstractBackend} end
 
 # generic network type, needs the connectivity matrices for connecting layers
 # only allows for connectivity between adjacent layers...
-#struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
-struct Network{L<:AbstractLattice} <: AbstractNetwork{L}
+struct GenericNetwork{L<:AbstractLattice, B<:AbstractBackend} <: AbstractNetwork{L,B}
 	# adjacency matrix per layer, first is physical connectivity 
 	# to first TTN Layer
     connections::Vector{SparseMatrixCSC{Int, Int}}
@@ -17,6 +16,11 @@ end
 # dimensionality of network
 dimensionality(::Type{<:AbstractNetwork{L}}) where L  = dimensionality(L)
 dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
+backend(net::AbstractNetwork) = backend(typeof(net))
+backend(::Type{<:AbstractNetwork{L,B}}) where{L,B} = B
+
+# sitindices, only relevant for the ITensors case
+siteinds(net::AbstractNetwork) = siteinds(physical_lattice(net))
 
 # returning the lattices of the network, 1 is physical, and 2:n_layers are the virtuals
 lattices(net::AbstractNetwork) = net.lattices
@@ -256,7 +260,7 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
+function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int; backend = TensorKitBackend())
 	#bnddm = correct_bonddims(bonddims, n)
 	
 	#@assert length(bonddims) == n_layers-1
@@ -265,7 +269,7 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	lat_vec = Vector{SimpleLattice{1}}(undef, n_layers+1)
 	#bnddim_comp = vcat(local_dim, bonddims)
 
-	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim)
+	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim, backend = backend)
 	vnd_type = nodetype(lat_vec[1])
 
 	for jj in n_layers:-1:1
@@ -287,7 +291,7 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	lat_vec[end] = Chain(1,vnd_type)
 	
 	#return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
-	return Network{typeof(lat_vec[1])}(adjmats, lat_vec)
+	return GenericNetwork{typeof(lat_vec[1]), typeof(backend)}(adjmats, lat_vec)
 end
 
 struct NodeIterator

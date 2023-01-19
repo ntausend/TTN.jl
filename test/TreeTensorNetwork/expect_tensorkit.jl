@@ -39,11 +39,16 @@ function test_expectation(dims, conserve_qns, op, ndtype, states, expected)
     net = TTNKit.BinaryNetwork(dims, ndtype; conserve_qns = conserve_qns)
     ttn = TTNKit.ProductTreeTensorNetwork(net, states)
     obs_measured = TTNKit.expect(ttn, op)
-    @test all(obs_measured .≈ expected)
+    
+    approx_sim = mapreduce(*, zip(obs_measured, expected)) do (meas, ex)
+        isapprox(meas, ex; atol = 1E-14)
+    end
+
+    @test approx_sim
 end
 
 
-@testset "Non-symmetric, HCB, 1D" begin
+@testset "Non-symmetric, HCB, 1D, TensorKit" begin
     n_sites = 16
     conserve_qns = false
     dims = Tuple(n_sites)
@@ -55,7 +60,7 @@ end
     test_expectation(dims, conserve_qns, op, TTNKit.HardCoreBosonNode, states, expected)
 end
 
-@testset "Value, symmetric, HCB, 1D" begin
+@testset "Value, symmetric, HCB, 1D, TensorKit" begin
     n_sites = 16
     conserve_qns = true
     dims = Tuple(n_sites)
@@ -67,7 +72,7 @@ end
     test_expectation(dims, conserve_qns, op, TTNKit.HardCoreBosonNode, states, expected)
 end
 
-@testset "Non-symmetric, HCB, 2D, square lattice" begin
+@testset "Non-symmetric, HCB, 2D, square lattice, TensorKit" begin
     nx = 4
     ny = 4
     n_sites = nx*ny
@@ -84,7 +89,7 @@ end
     test_expectation(dims, conserve_qns, op, TTNKit.HardCoreBosonNode, states, expected)
 end
 
-@testset "Non-symmetric, HCB, 2D, non-square lattice (x larger)" begin
+@testset "Non-symmetric, HCB, 2D, non-square lattice (x larger), TensorKit" begin
     nx = 4
     ny = 2
     n_sites = nx*ny
@@ -102,7 +107,7 @@ end
 end
 
 #= This is not supported, we need x≥y because of the pairing pattern...
-@testset "Non-symmetric, HCB, 2D, non-square lattice (y larger)" begin
+@testset "Non-symmetric, HCB, 2D, non-square lattice (y larger), TensorKit" begin
     nx = 2
     ny = 4
     n_sites = nx*ny
@@ -120,7 +125,7 @@ end
 end
 =#
 
-@testset "Symmetric, HCB, 2D, non-square lattice (x larger)" begin
+@testset "Symmetric, HCB, 2D, non-square lattice (x larger), TensorKit" begin
     nx = 4
     ny = 2
     n_sites = nx*ny
@@ -138,7 +143,7 @@ end
 end
 
 #= This is not supported, we need x≥y because of the pairing pattern...
-@testset "Symmetric, HCB, 2D, non-square lattice (y larger)" begin
+@testset "Symmetric, HCB, 2D, non-square lattice (y larger), TensorKit" begin
     nx = 2
     ny = 4
     n_sites = nx*ny

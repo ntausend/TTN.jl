@@ -61,7 +61,7 @@ function test_scb(n_bosons, conserve_n, conserve_pa, parity)
 
         # creating virtual node copies testing
         nd_2 = TTNKit.nodetype(nd_scb)
-        @test nd_2 == Node{S, I}
+        @test nd_2 == TTNKit.Node{S, I}
         @test !(nd_2 == nd_scb)
 
         foreach(zip(state_names, states)) do (st_name, st)
@@ -69,7 +69,7 @@ function test_scb(n_bosons, conserve_n, conserve_pa, parity)
             st_o = TTNKit.state(nd_scb, st_name, elT)
             @test st_o == TensorMap(st_fn(st), hilbsp, domain_fn(st_name))
         end
-        @test TTNKit.spaces(nd_scb) == spaces
+        @test TTNKit.space(nd_scb) == spaces
     end
 end
 
