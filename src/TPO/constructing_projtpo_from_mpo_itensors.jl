@@ -18,15 +18,20 @@ function _construct_bottom_environments(ttn::TreeTensorNetwork{N,T}, tpo::MPOWra
     bEnvironment[1] = map(eachindex(net,1)) do pp
         chdnds = child_nodes(net, (1,pp))
         map(1:number_of_child_nodes(net, (1,pp))) do nn
-            #ham[nn]
-            ham[chdnds[nn][2]]
+          ham[inverse_mapping(tpo.mapping)[chdnds[nn][2]]]
         end
     end
     # first layer
     bIndices[1] = map(eachindex(net,1)) do pp
         map(1:number_of_child_nodes(net, (1,pp))) do nn
             int_leg = internal_index_of_legs(net, (1, pp))
-            return [-int_leg[nn], int_leg[nn] + n_tensors, int_leg[nn], -int_leg[nn]-1]
+            tpo_leg = inverse_mapping(tpo.mapping)
+            if tpo_leg[int_leg[nn]] == 1 
+                return [int_leg[nn] + n_tensors, int_leg[nn], -tpo_leg[int_leg[nn]]-1]
+            elseif tpo_leg[int_leg[nn]] == n_sites 
+                return [-tpo_leg[int_leg[nn]], int_leg[nn] + n_tensors, int_leg[nn]]
+            end
+            return [-tpo_leg[int_leg[nn]], int_leg[nn] + n_tensors, int_leg[nn], -tpo_leg[int_leg[nn]]-1]
         end
     end
 

@@ -38,8 +38,25 @@ function Hamiltonian_dep(md::TransverseFieldIsing, lat::AbstractLattice{1}; mapp
     return MPOWrapper(lat, ham, mapping)
 end
 
+function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, ITensorsBackend};
+        mapping::Vector{Int} = collect(TTNKit.eachindex(lat))) where{D,S,I}
+    J = md.J
+    g = md.g
+    
+    ampo = OpSum();
 
-function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, TensorKitBackend};
+    for i in eachindex(lat)
+        ITensors.add!(ampo, g, "Z",i)
+    end
+
+    for (i,j) in nearest_neighbours(lat, mapping)
+        ITensors.add!(ampo, J, "X",i,"X",j)
+    end
+
+    return Hamiltonian(ampo, lat; mapping = mapping);
+end
+
+function HamiltonianIT(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, TensorKitBackend};
         mapping::Vector{Int} = collect(TTNKit.eachindex(lat))) where{D,S,I}
     J = md.J
     g = md.g

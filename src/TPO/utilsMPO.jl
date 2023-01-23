@@ -21,10 +21,9 @@ function nearest_neighbours(lat::SimpleLattice, mapping::Vector{Int}; periodic::
     return Vector{Tuple{Vararg{Int}}}(filter(!isnothing, vcat(vec(iter)...))) 
 end
 
-function inverse_mapping(mpo::MPOWrapper)
-    (mapping, inverse) = (mpo.mapping, eachindex(mpo.lat))
-    sorted = sort(collect(zip(mapping,inverse)), by = x -> x[1])
-    return Int[s[2] for s in sorted]
+function inverse_mapping(mapping::Vector{Int})
+    inverse = sort(collect(zip(mapping, 1:length(mapping))), by = x -> x[1])
+    return Int[x[2] for x in inverse]
 end
 
 function lattice_sites(lat::SimpleLattice)
@@ -61,16 +60,11 @@ function hilbert_curve(lat::SimpleLattice)
     curve_lin = map(p -> _linear_ind_simple_lattice(p, lat.dims), curve)
 
     # need to invert the resulting curve
-    curve_inv = sort(collect(zip(curve_lin, eachindex(lat))), by = x -> x[1])
-
-    return Vector{Int}([p[2] for p in curve_inv])
+    # curve_inv = sort(collect(zip(curve_lin, eachindex(lat))), by = x -> x[1])
+    #
+    # return Vector{Int}([p[2] for p in curve_inv])
+    return curve_lin
 end
-
-#=
-function sgn(x)
-    return x < 0 ? -1 : (x > 0 ? 1 : 0)
-end
-=#
 
 function generate2d(x, y, ax, ay, bx, by, curve::Vector{Tuple{Int, Int}})
     w = abs(ax + ay)

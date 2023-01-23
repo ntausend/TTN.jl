@@ -178,8 +178,8 @@ end
 ===========================================================================================#
 
 
-function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork{L, TensorKitBackend}; maxdim::Int = 1,
-    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn)) where {L}
+function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork{N, TensorMap, TensorKitBackend}; maxdim::Int = 1,
+    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn)) where N
 
     net = network(ttn)
     elT = promote_type(_elT, eltype(ttn))
@@ -203,9 +203,9 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork{L, Tensor
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
 
-        data = zeros(elT, (dims(codom)..., dim(dom)))
+        data = zeros(elT, (TensorKit.dims(codom)..., dim(dom)))
         for i in 1:dim(prev_dom)
-            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] .= convert(Array, ttn[(ll,pp)])[:,:,i]
+            data[1:TensorKit.dims(prev_codom)[1], 1:TensorKit.dims(prev_codom)[2], i] .= convert(Array, ttn[(ll,pp)])[:,:,i]
         end
 
         tensor = TensorMap(data, codom ← dom)
@@ -223,8 +223,8 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork{L, Tensor
     return ttnc
 end
 
-function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork{L, TensorKitBackend}; maxdim::Int = 1,
-                orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, _elT = eltype(ttn)) where{L}
+function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork{N, TensorMap, TensorKitBackend}; maxdim::Int = 1,
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, _elT = eltype(ttn)) where N
 
     net = network(ttn)
     elT = promote_type(_elT, eltype(ttn))
@@ -241,9 +241,9 @@ function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork{L, Tensor
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
 
-        data = randn(elT, (dims(codom)..., dim(dom))).*factor
+        data = randn(elT, (TensorKit.dims(codom)..., dim(dom))).*factor
         for i in 1:dim(prev_dom)
-            data[1:dims(prev_codom)[1], 1:dims(prev_codom)[2], i] .= convert(Array, ttn[(ll,pp)])[:,:,i]
+            data[1:TensorKit.dims(prev_codom)[1], 1:TensorKit.dims(prev_codom)[2], i] .= convert(Array, ttn[(ll,pp)])[:,:,i]
         end
 
         tensor = TensorMap(data, codom ← dom)

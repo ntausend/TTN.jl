@@ -55,7 +55,7 @@ lat = SimpleLattice((8,), ITensorNode, "SpinHalf"; kwargs...)
 """
 function SimpleLattice(dims::NTuple{D, Int}, nd::Type{<:AbstractNode}; kwargs...) where {D}
     if nd isa ITensorNode
-        error("Using node type ITensorNode needs specifying the type string for constructing the hilberstapces.")
+        error("Using node type ITensorNode needs specifying the type string for constructing the hilberspaces.")
     end
     # checking if dims are in the correct layout
     _check_dimensions(dims)

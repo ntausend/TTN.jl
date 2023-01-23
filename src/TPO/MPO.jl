@@ -44,11 +44,8 @@ function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
         mapreduce(+,Iterators.product(1:s.odim,1:s.odim)) do (i,j)
             @plansor temp[-1 -2;-3 -4]:=embeds[loc][i][-1;1]*s[loc][i,j][1 -2;-3 2]*conj(embeds[loc+1][j][-4;2])
         end
-    end)
-    DenseMPO(data)
-end
     end
-    Vector{TensorMap}(data)
+    DenseMPO(data)
 end
 
 #TODO: Make this also for symmetry states
@@ -85,7 +82,7 @@ end
 #ITensors constracters
 # also include the mappings here
 
-function Hamiltonian(mpo::MPO, lat::L) where{L}
+function Hamiltonian(mpo::MPO, lat::L; mapping::Vector{Int} = collect(eachindex(lat))) where{L}
     @assert is_physical(lat)
     @assert length(lat) == length(mpo)
     @assert isone(dimensionality(lat))
@@ -99,14 +96,17 @@ function Hamiltonian(mpo::MPO, lat::L) where{L}
         sj_mpo = idx_mpo[jj]
         mpoc[jj] = replaceinds!(mpoc[jj], sj_mpo => sj_lat, prime(sj_mpo) => prime(sj_lat))
     end
-    return MPOWrapper{L, MPO, ITensorsBackend}(lat, mpoc, collect(eachindex(lat)))
+    return MPOWrapper{L, MPO, ITensorsBackend}(lat, mpoc, mapping)
 end
 
-function Hamiltonian(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}) where{D, S, I}
-    @assert isone(dimensionality(lat))
+function Hamiltonian(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}; mapping::Vector{Int} = collect(eachindex(lat))) where{D, S, I}
+    # @assert isone(dimensionality(lat))
     @assert is_physical(lat)
-    idx_lat = siteinds(lat)
+    # idx_lat = siteinds(lat)
+    idx_lat = map(mapping) do pos
+        TTNKit.hilbertspace(lat[pos])
+    end
 
     mpo = MPO(ampo, idx_lat)
-    return MPOWrapper{typeof(lat), MPO, ITensorsBackend}(lat, mpo, collect(eachindex(lat)))
+    return MPOWrapper{typeof(lat), MPO, ITensorsBackend}(lat, mpo, mapping)
 end

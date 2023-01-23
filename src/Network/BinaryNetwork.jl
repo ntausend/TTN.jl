@@ -140,7 +140,7 @@ BinaryRectangularNetwork(dims::Tuple{Int,Int}, nd::Type{<:AbstractNode}, args...
 BinaryRectangularNetwork(dims::Tuple{Int,Int}; kwargs...) = BinaryNetwork(dims, TrivialNode; kwargs...)
 
 BinaryRectangularNetwork(dims::Tuple{Int,Int}, indices::Vector{<:Index}) = BinaryNetwork(dims, indices)
-BinaryRectangularNetwork(indices::Matrix{Int}) = BinaryNetwork(size(indicies), indices)
+BinaryRectangularNetwork(indices::Matrix{Int}) = BinaryNetwork(size(indices), indices)
 
 
 function parent_node(net::BinaryNetwork, pos::Tuple{Int, Int})

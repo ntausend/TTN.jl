@@ -85,6 +85,7 @@ module TTNKit
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
 
+    export TreeTensorNetwork
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
@@ -106,7 +107,8 @@ module TTNKit
     # dmrg
     include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
-    #include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
+    export TDVPSweepHandler
+    include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
     #= Currently deactivating all class objects, starting implementing ITensor support
     export AbstractLattice, Chain, Rectangle, Square

@@ -176,7 +176,7 @@ function ∂A(projTPO::ProjTensorProductOperator{<:BinaryNetwork, ITensor}, pos:
 end
 
 # action of the TPO on the removed link tensor between positions posi (initial) and posf (final)
-function ∂A2(projTPO::ProjTensorProductOperator, T::AbstractTensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int})
+function ∂A2(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
     net = network(projTPO)
     tEnv = top_environment(projTPO, posi)
     bEnvs = bottom_environment(projTPO, posi)
@@ -194,23 +194,32 @@ function ∂A2(projTPO::ProjTensorProductOperator, T::AbstractTensorMap, posi::T
         ttn_coord[idx] -= 0.5 
     end
     n_tensors = number_of_tensors(projTPO.net) + number_of_sites(projTPO.net)
-    function action(R::AbstractTensorMap)
+    function action(link::TensorMap)
         if posf ∈ child_nodes(projTPO.net, posi)
             idx = index_of_child(projTPO.net, posf)
             n_chds = number_of_child_nodes(net, posi)
 
             bEnvsSplit = map(chd_nd -> bEnvs[chd_nd], deleteat!(collect(1:n_chds), idx))
             bIndsSplit = map(chd_nd -> bInds[chd_nd], deleteat!(collect(1:n_chds), idx))
-
-            inds, res = contract_tensors(vcat(T, bEnvsSplit),vcat([ttn_coord], bIndsSplit))
-            inds, res = contract_tensors([res, R], [inds, r_coord])
+            # inds, res = contract_tensors(vcat(isom, bEnvsSplit),vcat([ttn_coord], bIndsSplit))
+            # @show length(inds), inds, codomain(res)
+            # inds, res = contract_tensors([res, link], [inds, r_coord])
+            # @show length(inds), inds, codomain(res)
+            # inds, res = contract_tensors([res, bEnvs[idx]], [inds, bInds[idx]])
+            # @show length(inds), inds, codomain(res)
+            # inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
+            # @show length(inds), inds, codomain(res)
+            # inds, res = contract_tensors([res, tEnv], [inds, tInds])
+            # @show length(inds), inds, codomain(res)
+            inds, res = contract_tensors([isom, tEnv], [ttn_coord, tInds])
+            inds, res = contract_tensors(vcat(res, bEnvsSplit),vcat([inds], bIndsSplit))
+            inds, res = contract_tensors([res, link], [inds, r_coord])
             inds, res = contract_tensors([res, bEnvs[idx]], [inds, bInds[idx]])
-            inds, res = contract_tensors([res, adjoint(T)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
-            inds, res = contract_tensors([res, tEnv], [inds, tInds])
+            inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
         else    
-            inds, res = contract_tensors(vcat(T, bEnvs), vcat([ttn_coord], bInds))
-            inds, res = contract_tensors([res, adjoint(T)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
-            inds, res = contract_tensors([res, R], [inds, r_coord])
+            inds, res = contract_tensors(vcat(isom, bEnvs), vcat([ttn_coord], bInds))
+            inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
+            inds, res = contract_tensors([res, link], [inds, r_coord])
             inds, res = contract_tensors([res, tEnv], [inds, tInds])
         end
 
@@ -220,14 +229,50 @@ function ∂A2(projTPO::ProjTensorProductOperator, T::AbstractTensorMap, posi::T
     return action
 end
 
+function ∂A2(projTPO::ProjTensorProductOperator{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
+    net = network(projTPO)
+    tEnv = top_environment(projTPO, posi)
+    bEnvs = bottom_environment(projTPO, posi)
+    ttn_coord = Vector{Float64}(internal_index_of_legs(net, posi))
+    tInds = top_indices(projTPO, posi)
+    bInds = bottom_indices(projTPO, posi)
+
+    if posf ∈ child_nodes(projTPO.net, posi)
+        idx = index_of_child(projTPO.net, posf)
+        r_coord = [ttn_coord[idx], ttn_coord[idx]+0.5]
+        ttn_coord[idx] += 0.5 
+    else 
+        idx = 1+number_of_child_nodes(projTPO.net, posi)
+        r_coord = [ttn_coord[idx]-0.5, ttn_coord[idx]]
+        ttn_coord[idx] -= 0.5 
+    end
+
+    n_tensors = number_of_tensors(projTPO.net) + number_of_sites(projTPO.net)
+
+    function action(link::ITensor)
+        if posf ∈ child_nodes(projTPO.net, posi)
+            idx = index_of_child(projTPO.net, posf)
+            n_chds = number_of_child_nodes(net, posi)
+
+            bEnvsSplit = map(chd_nd -> bEnvs[chd_nd], deleteat!(collect(1:n_chds), idx))
+            tensorList = [bEnvsSplit..., link, bEnvs[idx]]
+            res = reduce(*, tensorList, init = (tEnv * isom)) * dag(prime(isom))
+        else    
+            res = reduce(*, bEnvs, init = (link * isom)) *tEnv * dag(prime(isom))
+        end
+        return noprime(res)
+    end
+    return action
+end
 #=
 # special case of simple binary network... this is easy
 function ∂A(projTPO::ProjTensorProductOperator, net::BinaryNetwork, pos::Tuple{Int,Int})
     top_env = top_environment(projTPO, pos)
     chld_envs = bottom_environment(projTPO, pos)
-    function action(T::AbstractTensorMap)
+    function action(isom::AbstractTensorMap)
         # do stuff here -> need paper for considering the contractions
         #@tensor 
     end
 end
 =#
+
