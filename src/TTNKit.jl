@@ -10,6 +10,17 @@ module TTNKit
     using LinearAlgebra
     using Printf
 
+
+    # Krylov Parameters
+    # todo ->  make them as kwargs arguments
+    eigsolve_tol = 1e-14
+    eigsolve_krylovdim = 5
+    eigsolve_maxiter = 3
+    eigsolve_verbosity = 0
+    ishermitian = true
+    eigsolve_which_eigenvalue = :SR
+
+
     struct NotImplemented <: Exception
         fn::Symbol
         type_name
@@ -104,10 +115,13 @@ module TTNKit
 
 
     # dmrg
+    include("./algorithms/SubspaceExpansion/AbstractSubspaceExpansion.jl")
     include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     #include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+
+
     #= Currently deactivating all class objects, starting implementing ITensor support
     export AbstractLattice, Chain, Rectangle, Square
 

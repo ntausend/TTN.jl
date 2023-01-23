@@ -23,10 +23,20 @@ function _construct_bottom_environments(ttn::TreeTensorNetwork{N,T}, tpo::MPOWra
         end
     end
     # first layer
+    virt_leg = tpo.mapping
     bIndices[1] = map(eachindex(net,1)) do pp
+        chdnds = child_nodes(net, (1,pp))
         map(1:number_of_child_nodes(net, (1,pp))) do nn
+            chdid_virt = virt_leg[chdnds[nn][2]]
             int_leg = internal_index_of_legs(net, (1, pp))
-            return [-int_leg[nn], int_leg[nn] + n_tensors, int_leg[nn], -int_leg[nn]-1]
+
+            if isone(chdid_virt)
+                return [int_leg[nn] + n_tensors, int_leg[nn], -chdid_virt]
+            elseif chdid_virt == number_of_sites(net)
+                return [-chdid_virt+1, int_leg[nn] + n_tensors, int_leg[nn]]
+            else
+                return [-chdid_virt+1, int_leg[nn] + n_tensors, int_leg[nn], -chdid_virt]
+            end 
         end
     end
 

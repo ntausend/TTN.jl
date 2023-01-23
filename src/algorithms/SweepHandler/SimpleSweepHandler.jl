@@ -3,13 +3,15 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     ttn::TreeTensorNetwork
     pTPO::ProjTensorProductOperator
     func
+    expander::AbstractSubspaceExpander
         
+    maxdims::Vector{Int64}
     dir::Symbol
     current_sweep::Int
     energies::Vector{Float64}
     curtime::Float64
     timings::Vector{Float64}
-    SimpleSweepHandler(ttn, pTPO, func, n_sweeps) = new(n_sweeps, ttn, pTPO, func, :up, 1, Float64[], 0.0, Float64[])
+    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, expander = NoExpander()) = new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, Float64[], 0.0, Float64[])
 end
 
 function initialize!(sp::SimpleSweepHandler)
@@ -44,6 +46,17 @@ function update_next_sweep!(sp::SimpleSweepHandler)
 
     sp.dir = :up
     sp.current_sweep += 1 
+    #update the bond_dimension of the ttn for the next sweep
+    oc = ortho_center(sp.ttn)
+    sp.ttn = _adjust_tree_tensor_dimensions!(sp.ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
+    
+    # check if ttn was altered, this  can be seen by haveing new oc
+    if ortho_center(sp.ttn) != oc
+        # reorthogonalize
+        sp.ttn = move_ortho!(_reorthogonalize!(sp.ttn), oc)
+        # rebuild the environments
+        sp.pTPO = rebuild_environments!(sp.pTPO, sp.ttn)
+    end
     return sp
 end
 
@@ -55,21 +68,35 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     net = network(ttn)
 
     t = ttn[pos]
-    action = ∂A(pTPO, pos)
+    pn = next_position(sp,pos)
+    
+    pth = nothing
+    if !isnothing(pn)
+        pth = connecting_path(net, pos, pn) 
+        posnext = pth[1]
+        # do a subspace expansion, in case of being qn symmetric
+        if !isnothing(posnext)
+            A_next = ttn[posnext]
+            #
+            t, Aprime = expand(t, A_next, sp.expander; reorthogonalize = true)
+
+            ttn[pos]     = t
+            ttn[posnext] = Aprime
+            update_environments!(pTPO, Aprime, posnext, pos)
+        end
+    end
+
+    action  = ∂A(pTPO, pos)
     val, tn = sp.func(action, t)
     push!(sp.energies, real(val[1]))
-    #@printf("Number of Operator applications: %i, Number of restarts: %i\n", info.numops, info.numiter)
-    flush(stdout)
+    tn = tn[1]
+    #@show inds(tn)
+    # truncate the bond
+    ttn = truncate_and_move!(ttn, tn, pos, pn, sp.expander; maxdim = sp.maxdims[sp.current_sweep])
+    #; maxdim = sp.maxdims[sp.current_sweep])#, mindim = 1, cutoff = 1E-13)
 
-    #save the tensor
-    ttn[pos] = tn[1]
-
-    pn = next_position(sp,pos)
-    net = network(sp.ttn)
-
+    
     if !isnothing(pn)
-        move_ortho!(ttn, pn)
-        pth = connecting_path(net, pos, pn)
         pth = vcat(pos, pth)
         for (jj,pk) in enumerate(pth[1:end-1])
             ism = ttn[pk]
