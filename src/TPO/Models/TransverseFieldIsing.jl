@@ -56,7 +56,7 @@ function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, ITens
     return Hamiltonian(ampo, lat; mapping = mapping);
 end
 
-function HamiltonianIT(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, TensorKitBackend};
+function Hamiltonian(md::TransverseFieldIsing, lat::AbstractLattice{D,S,I, TensorKitBackend};
         mapping::Vector{Int} = collect(TTNKit.eachindex(lat))) where{D,S,I}
     J = md.J
     g = md.g

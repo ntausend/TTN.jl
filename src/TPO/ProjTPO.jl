@@ -201,26 +201,17 @@ function ∂A2(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap
 
             bEnvsSplit = map(chd_nd -> bEnvs[chd_nd], deleteat!(collect(1:n_chds), idx))
             bIndsSplit = map(chd_nd -> bInds[chd_nd], deleteat!(collect(1:n_chds), idx))
-            # inds, res = contract_tensors(vcat(isom, bEnvsSplit),vcat([ttn_coord], bIndsSplit))
-            # @show length(inds), inds, codomain(res)
-            # inds, res = contract_tensors([res, link], [inds, r_coord])
-            # @show length(inds), inds, codomain(res)
-            # inds, res = contract_tensors([res, bEnvs[idx]], [inds, bInds[idx]])
-            # @show length(inds), inds, codomain(res)
-            # inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
-            # @show length(inds), inds, codomain(res)
-            # inds, res = contract_tensors([res, tEnv], [inds, tInds])
-            # @show length(inds), inds, codomain(res)
+
             inds, res = contract_tensors([isom, tEnv], [ttn_coord, tInds])
             inds, res = contract_tensors(vcat(res, bEnvsSplit),vcat([inds], bIndsSplit))
             inds, res = contract_tensors([res, link], [inds, r_coord])
             inds, res = contract_tensors([res, bEnvs[idx]], [inds, bInds[idx]])
             inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
         else    
-            inds, res = contract_tensors(vcat(isom, bEnvs), vcat([ttn_coord], bInds))
-            inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
-            inds, res = contract_tensors([res, link], [inds, r_coord])
+            inds, res = contract_tensors([isom, link], [ttn_coord, r_coord])
             inds, res = contract_tensors([res, tEnv], [inds, tInds])
+            inds, res = contract_tensors(vcat(res, bEnvs), vcat([inds], bInds))
+            inds, res = contract_tensors([res, adjoint(isom)], [inds, ttn_coord[vcat(end,1:end-1)].+n_tensors])
         end
 
         perm = collect(1:length(inds))[sortperm(inds)]
@@ -247,8 +238,6 @@ function ∂A2(projTPO::ProjTensorProductOperator{N, ITensor}, isom::ITensor, po
         ttn_coord[idx] -= 0.5 
     end
 
-    n_tensors = number_of_tensors(projTPO.net) + number_of_sites(projTPO.net)
-
     function action(link::ITensor)
         if posf ∈ child_nodes(projTPO.net, posi)
             idx = index_of_child(projTPO.net, posf)
@@ -258,7 +247,7 @@ function ∂A2(projTPO::ProjTensorProductOperator{N, ITensor}, isom::ITensor, po
             tensorList = [bEnvsSplit..., link, bEnvs[idx]]
             res = reduce(*, tensorList, init = (tEnv * isom)) * dag(prime(isom))
         else    
-            res = reduce(*, bEnvs, init = (link * isom)) *tEnv * dag(prime(isom))
+            res = reduce(*, vcat(bEnvs, [dag(prime(isom))]), init = (link * isom)) *tEnv
         end
         return noprime(res)
     end

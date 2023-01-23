@@ -74,7 +74,7 @@ end
 
 function Hamiltonian(ampo::OpSum, type_str::AbstractString, lat::AbstractLattice{D, S, I, TensorKitBackend}; 
             mapping::Vector{Int} = collect(eachindex(lat)), kwargs...) where {D, S, I}
-    sites = siteinds(type_str, number_of_sites(lat); kwargs...)
+    sites= siteinds(type_str, number_of_sites(lat); kwargs...)
     data = _wrapper_itensors_mpo(ampo, sites)
     return MPOWrapper{typeof(lat), typeof(data), TensorKitBackend}(lat, data, mapping)
 end

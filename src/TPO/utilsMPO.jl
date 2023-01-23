@@ -5,6 +5,7 @@ constructs an iterator over all pairs of nearest neighbours, given by a tuple of
 
 function nearest_neighbours(lat::SimpleLattice, mapping::Vector{Int}; periodic::Bool = false)
     prod_it = Iterators.product(UnitRange.(1, lat.dims)...)
+    mapping = inverse_mapping(mapping)
 
     iter = map(prod_it) do pos
       map(enumerate(lat.dims)) do (dir,dim)
