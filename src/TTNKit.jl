@@ -98,6 +98,8 @@ module TTNKit
     
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork, increase_dim_tree_tensor_network_zeros, increase_dim_tree_tensor_network_randn
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
+    include("./TreeTensorNetwork/algorithms/inner.jl")
+    include("./TreeTensorNetwork/algorithms/expect.jl")
 
     export transverseIsingHamiltonian
     include("./TPO/AbstractTPO.jl")
@@ -113,11 +115,11 @@ module TTNKit
     include("./TPO/Models/TrivialModel.jl")
 
 
-    # dmrg
+    # dmrg/tdvp
     include("./algorithms/SubspaceExpansion/AbstractSubspaceExpansion.jl")
     include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
-    #include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
+    include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
 
 
@@ -136,7 +138,7 @@ module TTNKit
     include("./TPO/AbstractTensorDefinitions.jl")
 
     include("./TreeTensorNetwork/algorithms/correlation.jl")
-    
+   =# 
 
     #============================= TENSOR PRODUCT OPERATORS =========================#
 
