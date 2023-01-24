@@ -50,6 +50,13 @@ function update_next_sweep!(sp::SimpleSweepHandler)
     oc = ortho_center(sp.ttn)
     sp.ttn = _adjust_tree_tensor_dimensions!(sp.ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
     
+    #nl = number_of_layers(network(sp.ttn))
+    #qnsp = map(x -> (space.(x)), inds(sp.ttn[nl,1]))
+    #qnsp1,qnsp2 = qnsp
+    #@show last.(qnsp1)
+    #@show last.(qnsp2)
+    #@show (last.(qnsp))
+    
     # check if ttn was altered, this  can be seen by haveing new oc
     if ortho_center(sp.ttn) != oc
         # reorthogonalize
@@ -75,19 +82,33 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
         pth = connecting_path(net, pos, pn) 
         posnext = pth[1]
         # do a subspace expansion, in case of being qn symmetric
-        if !isnothing(posnext)
+        if length(inds(t)) > 2
             A_next = ttn[posnext]
             #
             t, Aprime = expand(t, A_next, sp.expander; reorthogonalize = true)
 
             ttn[pos]     = t
             ttn[posnext] = Aprime
-            update_environments!(pTPO, Aprime, posnext, pos)
+            pTPO = update_environments!(pTPO, Aprime, posnext, pos)
+        else
+            # top node, here we need some different kind of expansion, depending on the tree type.
+            # binary tree needs to enlarge both child indices at once, larger trees not necessary (is this true?)
+            chldnds = child_nodes(net, pos)
+            A_chlds = map(p -> getindex(ttn, p), chldnds)
+            length(A_chlds) == 2 || error("Top node supspace expansion not implemented for non binary trees")
+            t, Al, Ar = expand(t, Tuple(A_chlds), sp.expander; reorthogonalize = true)
+            ttn[pos] = t
+            ttn[chldnds[1]] = Al
+            ttn[chldnds[2]] = Ar
+
+            pTPO = update_environments!(pTPO, Al, chldnds[1], pos)
+            pTPO = update_environments!(pTPO, Ar, chldnds[2], pos)
         end
     end
 
     action  = ∂A(pTPO, pos)
     val, tn = sp.func(action, t)
+    #@printf("Needed time for minimzation: %.3f\n", t2 - t1)
     push!(sp.energies, real(val[1]))
     tn = tn[1]
     #@show inds(tn)

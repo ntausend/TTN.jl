@@ -1,11 +1,64 @@
 
+function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_random)
+    id_t = inds(T)
+    @assert length(id_t) == length(id_n)
+    if !hasqns(T)
+        dims_n = ITensors.dim.(id_n)
+        dims_o = ITensors.dim.(id_t)
+        Ttn = use_random ? randn(eltype(T), dims_n...) : zeros(eltype(T), dims_n...)
+        view(Ttn, UnitRange.(1, dims_o)...) .= array(T)
+        return ITensor(Ttn, id_n...)
+    end
+
+    # in case of qns we have to do more work
+    # first create a dummy Tensor with the correct sectors
+    Ttn = use_random ? randomITensor(eltype(T), flux(T), id_n...) : ITensor(eltype(T), 0, flux(T), id_n...)
+
+    Tpt = ITensors.tensor(T)
+    Tnt = ITensors.tensor(Ttn)
+
+    itpt = inds(Tpt)
+    itnt = inds(Tnt)
+    
+    sp_tnt_l = space.(itnt[1])
+    sp_tnt_r = space.(itnt[2])
+
+    foreach(ITensors.eachnzblock(Tpt)) do bl
+        # qnnumbers
+        sp_l = ITensors.getblock(itpt[1], bl[1])
+        sp_r = ITensors.getblock(itpt[2], bl[2])
+        qn_l = first(sp_l)
+        qn_r = first(sp_r)
+
+        id_bl_tnt_l = findfirst(q -> isequal(q, qn_l), first.(sp_tnt_l))
+        id_bl_tnt_r = findfirst(q -> isequal(q, qn_r), first.(sp_tnt_r))
+        bl_tnt = Block(id_bl_tnt_l, id_bl_tnt_r)
+
+        Tntblv = ITensors.blockview(Tnt, bl_tnt)
+        # sanity check
+        #@assert last(sp_tnt_l[id_bl_tnt_l]) == last(sp_l)
+        view(Tntblv, 1:last(sp_l), 1:last(sp_r)) .= ITensors.blockview(Tpt, bl)
+    end
+
+    # now rebuild the ITensor and split the left indices
+    Tn = itensor(Tnt)
+
+    return Tn
+end
+
+
 # enlarges the tensor with indices id_tu, and id_old -> id_n
 # use_random = true ->  padding with random number otherwise with zeros
-function _enlarge_tensor(T, id_tu, id_old, id_n, use_random)
+function _enlarge_tensor(T::ITensor, id_tu, id_old, id_n, use_random)
     
     @assert all(inds(T) .== [id_tu..., id_old])
     
+    cl = combiner(id_tu...)
+    Tp = cl*T
+    Tn = _enlarge_two_leg_tensor(Tp, (combinedind(cl), id_n), use_random)
 
+    return Tn*dag(cl)
+    #=
     # simple enlargement
     if !hasqns(T)
         dims_n = vcat(ITensors.dim.(id_tu), ITensors.dim(id_n))
@@ -50,6 +103,7 @@ function _enlarge_tensor(T, id_tu, id_old, id_n, use_random)
 
     # now rebuild the ITensor and split the left indices
     Tn = itensor(Tnt) * dag(cl)
+    =#
 
     return Tn
 end
