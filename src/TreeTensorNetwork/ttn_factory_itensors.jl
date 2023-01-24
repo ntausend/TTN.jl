@@ -190,6 +190,82 @@ function _build_domains_and_codomains(net::AbstractNetwork{<:AbstractLattice{D,S
 end
 
 
+include("./utils_itensors.jl")
+
+function _adjust_tree_tensor_dimensions!(ttn::TreeTensorNetwork, maxdim::Int; use_random::Bool=true, reorthogonalize::Bool = true)
+    # got through all the layers and adjusting the bond dimension of the tensors by inserting new larger tensors (if necessary)
+    # filled with elements defined by `padding_function`
+
+    net = network(ttn)
+    # save the orhtogonality centrum for later reference
+    oc = ortho_center(ttn)
+    
+    _reorthogonalize = oc != (-1, -1)
+    reorthogonalize = _reorthogonalize && reorthogonalize
+
+    for pos in NodeIterator(net)
+        # building the fused leg defined by the child legs
+        
+        prnt_node = parent_node(net, pos)
+        # top node, nothing to do here
+        isnothing(prnt_node) && continue
+
+        T = ttn[pos]
+
+        # parent index, to be replaced, if necessary
+        prnt_idx = commonind(T, ttn[prnt_node])
+        # child indices, defining the replacement
+        chld_idx = uniqueinds(T, prnt_idx)
+        
+        # check if dimension of parent link already is good
+
+        dim_chlds = ITensors.dim.(chld_idx)
+        dim_full = prod(dim_chlds)
+        dim_prnt = ITensors.dim(prnt_idx)
+        
+        dim_prnt == min(dim_full, maxdim) && continue
+        
+        # permute the indeces to have the enlarging link at the last position
+        T = ITensors.permute(T, chld_idx..., prnt_idx)
+        leftover_idx = uniqueinds(ttn[prnt_node], prnt_idx)
+        Tprnt = ITensors.permute(ttn[prnt_node], leftover_idx..., prnt_idx)
+        
+        # now we form the fused link of the childs to get the maximal possible hilbertspace
+        full_link = combinedind(combiner(chld_idx; tags = tags(prnt_idx), dir = dir(prnt_idx)))
+        # getting the complement of the current parent link in the full link
+        link_complement = complement(full_link, prnt_idx)
+
+        # if dimension of complement link is zero, we simply throw it away
+        iszero(dim(link_complement)) && continue
+
+        # now correct the space with the missing number of dimensions
+        pssbl_dim = min(maxdim, dim_full) # maximal possible link dimension allowed
+        link_padding = _correct_domain(link_complement, pssbl_dim-dim_prnt)
+        link_new     = combinedind(combiner(directsum(prnt_idx, link_padding); tags = tags(prnt_idx)))
+        # now correct the direction of the index to be aligned with the one in T
+        if !(dir(link_new) == dir(inds(T)[end]))
+            link_new = dag(link_new)
+        end
+
+        # now enlarge the tensors by using the padding function
+        Tn     = _enlarge_tensor(T, chld_idx, prnt_idx, link_new, use_random)
+        Tnprnt = _enlarge_tensor(Tprnt, leftover_idx, prnt_idx, dag(link_new), use_random)
+
+        # Tn and Tnprnt should now be correct enlarged, but not normalized/orhtogonal,
+        # so reset the orthogonality centrum to reference this
+
+        ttn[pos] = Tn
+        ttn[prnt_node] = Tnprnt
+
+        ttn.ortho_center .= [-1, -1]
+    end
+    # if ttn was orthogonal, restore the original oc center
+    if reorthogonalize
+        ttn = _reorthogonalize!(ttn)
+        ttn = move_ortho!(ttn, oc)
+    end
+    return ttn
+end
 
 #===========================================================================================
                 Enlarging TTN Tensors by some subspace expansion methods to

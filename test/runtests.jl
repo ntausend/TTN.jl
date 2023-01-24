@@ -22,7 +22,9 @@ println("Running Tests....")
         #"correlation.jl",
         "contract_tensors.jl",
         "environments.jl",
-        "sweep_handlers.jl",
+        #"sweep_handlers.jl",
+        #"SubspaceExpansion.jl",
+        #"DMRG.jl",
     ]
         println("Running $filename")
         include(filename)

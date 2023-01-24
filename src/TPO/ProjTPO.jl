@@ -121,7 +121,7 @@ end
 
 
 # action of the TPO on the removed A tensor at position p
-# how to define this in the most abstract way for arbitrary networks???
+
 function ∂A(projTPO::ProjTensorProductOperator{N, TensorMap}, pos::Tuple{Int,Int}) where{N}
     tEnv = top_environment(projTPO, pos)
     bEnvs = bottom_environment(projTPO, pos)
@@ -140,40 +140,32 @@ function ∂A(projTPO::ProjTensorProductOperator{N, TensorMap}, pos::Tuple{Int,I
     return action
 end
 
-#=
-function ∂A(projTPO::ProjTensorProductOperator{BinaryNetwork, TensorMap}, pos::Tuple{Int,Int})
-    tEnv  = top_environment(projTPO, pos)
-    bEnvl, bEnvr = bottom_environment(projTPO, pos) 
-    @assert typeof(bEnvl) == typeof(bEnvr) == TensorMap
 
-    function action(T::AbstractTensorMap)
-        @tensor res[-1, -2; -3] := bEnvl[]
-    end
-
-end
-=#
-
+# T_in is needed for estimating the optimal contraction sequence
 function ∂A(projTPO::ProjTensorProductOperator{N, ITensor}, pos::Tuple{Int,Int}) where{N}
     tEnv = top_environment(projTPO, pos)
     bEnvs = bottom_environment(projTPO, pos)
-    println(inds.(bEnvs))
+
     function action(T::ITensor)
-        return noprime(reduce(*, bEnvs, init = T) * tEnv)
+        opt_seq = ITensors.optimal_contraction_sequence(T,tEnv, bEnvs...)
+        return noprime(contract(T, tEnv, bEnvs...; sequence = opt_seq))
     end
     return action
 end
 
-function ∂A(projTPO::ProjTensorProductOperator{<:BinaryNetwork, ITensor}, pos::Tuple{Int, Int})
+# this should be the same as above
+#=
+function ∂A(projTPO::ProjTensorProductOperator{<:BinaryNetwork, ITensor}, pos::Tuple{Int, Int}, T_in::ITensor)
     tEnv  = top_environment(projTPO, pos)
     bEnvl, bEnvr = bottom_environment(projTPO, pos)
-    #@show (inds(bEnvl))
-    #@show (inds(bEnvr))
-    #@show (inds(tEnv))
     @assert typeof(bEnvl) == typeof(bEnvr) == ITensor
+    opt_seq = ITensors.optimal_contraction_sequence(T_in, bEnvl, bEnvr, tEnv)
     function action(T::ITensor)
-        return noprime(((T*bEnvl)*bEnvr)*tEnv)
+        return noprime(contract(T, bEnvl, bEnvr, tEnv; sequence = opt_seq))
     end
 end
+=#
+
 
 # action of the TPO on the removed link tensor between positions posi (initial) and posf (final)
 function ∂A2(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N

@@ -10,6 +10,17 @@ module TTNKit
     using LinearAlgebra
     using Printf
 
+
+    # Krylov Parameters
+    # todo ->  make them as kwargs arguments
+    eigsolve_tol = 1e-14
+    eigsolve_krylovdim = 5
+    eigsolve_maxiter = 3
+    eigsolve_verbosity = 0
+    ishermitian = true
+    eigsolve_which_eigenvalue = :SR
+
+
     struct NotImplemented <: Exception
         fn::Symbol
         type_name
@@ -90,14 +101,36 @@ module TTNKit
 
     export transverseIsingHamiltonian
     include("./TPO/AbstractTPO.jl")
+    # MPO class
+    include("./TPO/MPO.jl")
+    # abstract TPO
+    include("./TPO/ProjTPO.jl")
 
-    export ProjTensorProductOperator, update_environment, environment
-    include("./TPO/TPOSum/ProjTPO.jl")
+    include("./TPO/utilsMPO.jl")
 
-    include("./TreeTensorNetwork/algorithms/inner.jl")
+    # model implementations
+    include("./TPO/Models/TransverseFieldIsing.jl")
+    include("./TPO/Models/TrivialModel.jl")
 
-    export TDVP, setTimeParameters!, tdvp_path, tdvpforward!, tdvpbackward!, tdvptopnode!, energyvariance, tdvprun
-    include("./TDVP/TDVP.jl")
+
+    # dmrg
+    include("./algorithms/SubspaceExpansion/AbstractSubspaceExpansion.jl")
+    include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
+    include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
+    #include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
+    include("./algorithms/sweeps.jl")
+
+
+    #= Currently deactivating all class objects, starting implementing ITensor support
+    export AbstractLattice, Chain, Rectangle, Square
+
+
+    
+    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
+
+    
+    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
+    
 
     # load the definition of special operator types for dispatching measuring functions
     include("./TPO/AbstractTensorDefinitions.jl")

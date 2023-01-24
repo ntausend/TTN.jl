@@ -3,13 +3,15 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     ttn::TreeTensorNetwork
     pTPO::ProjTensorProductOperator
     func
+    expander::AbstractSubspaceExpander
         
+    maxdims::Vector{Int64}
     dir::Symbol
     current_sweep::Int
     energies::Vector{Float64}
     curtime::Float64
     timings::Vector{Float64}
-    SimpleSweepHandler(ttn, pTPO, func, n_sweeps) = new(n_sweeps, ttn, pTPO, func, :up, 1, Float64[], 0.0, Float64[])
+    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, expander = NoExpander()) = new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, Float64[], 0.0, Float64[])
 end
 
 function initialize!(sp::SimpleSweepHandler)
@@ -44,6 +46,24 @@ function update_next_sweep!(sp::SimpleSweepHandler)
 
     sp.dir = :up
     sp.current_sweep += 1 
+    #update the bond_dimension of the ttn for the next sweep
+    oc = ortho_center(sp.ttn)
+    sp.ttn = _adjust_tree_tensor_dimensions!(sp.ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
+    
+    #nl = number_of_layers(network(sp.ttn))
+    #qnsp = map(x -> (space.(x)), inds(sp.ttn[nl,1]))
+    #qnsp1,qnsp2 = qnsp
+    #@show last.(qnsp1)
+    #@show last.(qnsp2)
+    #@show (last.(qnsp))
+    
+    # check if ttn was altered, this  can be seen by haveing new oc
+    if ortho_center(sp.ttn) != oc
+        # reorthogonalize
+        sp.ttn = move_ortho!(_reorthogonalize!(sp.ttn), oc)
+        # rebuild the environments
+        sp.pTPO = rebuild_environments!(sp.pTPO, sp.ttn)
+    end
     return sp
 end
 
@@ -55,21 +75,49 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     net = network(ttn)
 
     t = ttn[pos]
-    action = ∂A(pTPO, pos)
-    val, tn = sp.func(action, t)
-    push!(sp.energies, real(val[1]))
-    #@printf("Number of Operator applications: %i, Number of restarts: %i\n", info.numops, info.numiter)
-    flush(stdout)
-
-    #save the tensor
-    ttn[pos] = tn[1]
-
     pn = next_position(sp,pos)
-    net = network(sp.ttn)
-
+    
+    pth = nothing
     if !isnothing(pn)
-        move_ortho!(ttn, pn)
-        pth = connecting_path(net, pos, pn)
+        pth = connecting_path(net, pos, pn) 
+        posnext = pth[1]
+        # do a subspace expansion, in case of being qn symmetric
+        if length(inds(t)) > 2
+            A_next = ttn[posnext]
+            #
+            t, Aprime = expand(t, A_next, sp.expander; reorthogonalize = true)
+
+            ttn[pos]     = t
+            ttn[posnext] = Aprime
+            pTPO = update_environments!(pTPO, Aprime, posnext, pos)
+        else
+            # top node, here we need some different kind of expansion, depending on the tree type.
+            # binary tree needs to enlarge both child indices at once, larger trees not necessary (is this true?)
+            chldnds = child_nodes(net, pos)
+            A_chlds = map(p -> getindex(ttn, p), chldnds)
+            length(A_chlds) == 2 || error("Top node supspace expansion not implemented for non binary trees")
+            t, Al, Ar = expand(t, Tuple(A_chlds), sp.expander; reorthogonalize = true)
+            ttn[pos] = t
+            ttn[chldnds[1]] = Al
+            ttn[chldnds[2]] = Ar
+
+            pTPO = update_environments!(pTPO, Al, chldnds[1], pos)
+            pTPO = update_environments!(pTPO, Ar, chldnds[2], pos)
+        end
+    end
+
+    action  = ∂A(pTPO, pos)
+    val, tn = sp.func(action, t)
+    #@printf("Needed time for minimzation: %.3f\n", t2 - t1)
+    push!(sp.energies, real(val[1]))
+    tn = tn[1]
+    #@show inds(tn)
+    # truncate the bond
+    ttn = truncate_and_move!(ttn, tn, pos, pn, sp.expander; maxdim = sp.maxdims[sp.current_sweep])
+    #; maxdim = sp.maxdims[sp.current_sweep])#, mindim = 1, cutoff = 1E-13)
+
+    
+    if !isnothing(pn)
         pth = vcat(pos, pth)
         for (jj,pk) in enumerate(pth[1:end-1])
             ism = ttn[pk]

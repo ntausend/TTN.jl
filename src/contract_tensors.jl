@@ -75,5 +75,7 @@ function contract_tensors(tensor_list::Vector{<:ITensor}, index_list::Vector{Vec
         end
     end
 
-    return unique_indices, reduce(*, tensor_list, init = ITensor(1))
+    opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+    return unique_indices, contract(tensor_list; sequence = opt_seq)
+    #return unique_indices, reduce(*, tensor_list, init = ITensor(1))
 end
