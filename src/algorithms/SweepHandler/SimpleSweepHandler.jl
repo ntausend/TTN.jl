@@ -11,7 +11,9 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     energies::Vector{Float64}
     curtime::Float64
     timings::Vector{Float64}
-    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, expander = NoExpander()) = new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, Float64[], 0.0, Float64[])
+    add_timings::Vector{Float64}
+    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, expander = NoExpander()) = 
+        new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, Float64[], 0.0, Float64[], Float64[])
 end
 
 function initialize!(sp::SimpleSweepHandler)
@@ -23,7 +25,7 @@ function initialize!(sp::SimpleSweepHandler)
     #adjust the tree dimension to the first bond dimension
     oc = ortho_center(ttn)
     
-    ttn = _adjust_tree_tensor_dimensions!(ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
+    ttn = adjust_tree_tensor_dimensions!(ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
 
     # check if ttn was altered, this  can be seen by haveing new oc
     if ortho_center(ttn) != oc
@@ -42,8 +44,8 @@ function initialize!(sp::SimpleSweepHandler)
             pTPO = update_environments!(pTPO, ism, p, pth[jj+1])
         end
     end
-    @show sp.ttn[number_of_layers(net), 1] == ttn[number_of_layers(net),1]
-    @show inds(ttn[number_of_layers(net), 1])
+    #@show sp.ttn[number_of_layers(net), 1] == ttn[number_of_layers(net),1]
+    #@show inds(ttn[number_of_layers(net), 1])
 
     sp.ttn = ttn
     sp.pTPO = pTPO

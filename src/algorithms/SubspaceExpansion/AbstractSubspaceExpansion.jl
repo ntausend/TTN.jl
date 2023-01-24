@@ -37,6 +37,10 @@ end
 
 struct DefaultExpander{T} <: NonTrivialExpander
     p::T
+    function DefaultExpander(p::N) where {N<:Number}
+        p ≈ 0 && (return NoExpander())
+        return new{N}(p)
+    end
 end
 
 # special case of having a two leg tensor. here we need to expand both legs at once to rearange the sectors
@@ -56,10 +60,10 @@ function expand(_A::ITensor, _Chlds::Tuple{ITensor, ITensor}, expander::DefaultE
     idfar = combinedind(combiner(id_uar))
 
     id_max  = intersect(idfal, idfar)
-    id_pdl  = _padding(idfal, id_max, expander.p)
-    id_pdr  = _padding(idfar, id_max, expander.p)
-    id_nl   = intersect(directsum(idfal, id_pdl), id_max; tags = tags(id_shl))
-    id_nr   = intersect(directsum(idfar, id_pdr), id_max; tags = tags(id_shr))
+    id_pdl  = _padding(id_shl, id_max, expander.p)
+    id_pdr  = _padding(id_shr, id_max, expander.p)
+    id_nl   = intersect(id_pdl, id_max; tags = tags(id_shl))
+    id_nr   = intersect(id_pdr, id_max; tags = tags(id_shr))
     # now correct directions and enlarge the tensors
     if (id_nl) != dir(inds(Al)[end])
         id_nl = dag(id_nl)
@@ -67,15 +71,15 @@ function expand(_A::ITensor, _Chlds::Tuple{ITensor, ITensor}, expander::DefaultE
     if (id_nr) != dir(inds(Ar)[end])
         id_nr = dag(id_nr)
     end
-    Aln = _enlarge_tensor(Al, id_ual, id_shl, id_nl, true)
-    Arn = _enlarge_tensor(Ar, id_uar, id_shr, id_nr, true)
+    Aln = _enlarge_tensor(Al, id_ual, id_shl, id_nl, false)
+    Arn = _enlarge_tensor(Ar, id_uar, id_shr, id_nr, false)
     if (id_nl) != dir(inds(A)[1])
         id_nl = dag(id_nl)
     end
     if (id_nr) != dir(inds(A)[2])
         id_nr = dag(id_nr)
     end
-    An = _enlarge_two_leg_tensor(A, (id_nl, id_nr), false)
+    An = _enlarge_two_leg_tensor(A, (id_nl, id_nr), true)
 
     if reorthogonalize
         Aln,Rl = factorize(Aln, id_ual; tags = tags(id_nl))
@@ -105,8 +109,9 @@ function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogona
 
     id_max = intersect(idfa, idfb)
     #id_max = directsum(idfa, idfb)
-    id_pd  = _padding(idfa, id_max, expander.p)
-    id_n   = intersect(directsum(idfa, id_pd), id_max; tags = tags(id_sh))
+    id_pd  = _padding(id_sh, id_max, expander.p)
+
+    id_n   = intersect(id_pd, id_max; tags = tags(id_sh))
     #@show id_sh
     #@show id_n
 
@@ -116,13 +121,13 @@ function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogona
     if id_dir != dir(id_n)
         id_n = dag(id_n)
     end
-    An = _enlarge_tensor(A, id_au, id_sh, id_n, false)
+    An = _enlarge_tensor(A, id_au, id_sh, id_n, true)
     # correct the direction for the B tensor
     id_dir = dir(inds(B)[end])
     if id_dir != dir(id_n)
         id_n = dag(id_n)
     end
-    Bn = _enlarge_tensor(B, id_bu, id_sh, id_n, true)
+    Bn = _enlarge_tensor(B, id_bu, id_sh, id_n, false)
 
     if reorthogonalize
         Bn,R = factorize(Bn, id_bu; tags = tags(id_n))

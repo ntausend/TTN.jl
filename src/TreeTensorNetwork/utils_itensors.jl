@@ -58,53 +58,6 @@ function _enlarge_tensor(T::ITensor, id_tu, id_old, id_n, use_random)
     Tn = _enlarge_two_leg_tensor(Tp, (combinedind(cl), id_n), use_random)
 
     return Tn*dag(cl)
-    #=
-    # simple enlargement
-    if !hasqns(T)
-        dims_n = vcat(ITensors.dim.(id_tu), ITensors.dim(id_n))
-        dims_o = vcat(ITensors.dim.(id_tu), ITensors.dim(id_old))
-        Ttn = use_random ? randn(eltype(T), dims_n...) : zeros(eltype(T), dims_n...)
-        view(Ttn, UnitRange.(1, dims_o)...) .= array(T)
-        return ITensor(Ttn, id_tu..., id_n)
-    end
-
-    # in case of qns we have to do more work
-    # first create a dummy Tensor with the correct sectors
-    Ttn = use_random ? randomITensor(eltype(T), flux(T), id_tu..., id_n) : ITensor(eltype(T), 0, flux(T), id_tu..., id_n)
-
-    # now we want to set the subtensor defined by T
-    # for this, we first build the combined left index
-    cl = combiner(id_tu...)
-    Tpt  = ITensors.tensor(cl*T)
-    Tnt = ITensors.tensor(cl*Ttn)
-    # Iterate through all blocks in Tpt and find the corresponding block in Tnt
-    itpt = inds(Tpt)
-    itnt = inds(Tnt)
-    
-    sp_tnt_l = space.(itnt[1])
-    sp_tnt_r = space.(itnt[2])
-
-    foreach(ITensors.eachnzblock(Tpt)) do bl
-        # qnnumbers
-        sp_l = ITensors.getblock(itpt[1], bl[1])
-        sp_r = ITensors.getblock(itpt[2], bl[2])
-        qn_l = first(sp_l)
-        qn_r = first(sp_r)
-
-        id_bl_tnt_l = findfirst(q -> isequal(q, qn_l), first.(sp_tnt_l))
-        id_bl_tnt_r = findfirst(q -> isequal(q, qn_r), first.(sp_tnt_r))
-        bl_tnt = Block(id_bl_tnt_l, id_bl_tnt_r)
-
-        Tntblv = ITensors.blockview(Tnt, bl_tnt)
-        # sanity check
-        @assert ITensors.last(sp_tnt_l[id_bl_tnt_l]) == last(sp_l)
-        view(Tntblv, 1:last(sp_l), 1:last(sp_r)) .= ITensors.blockview(Tpt, bl)
-    end
-
-    # now rebuild the ITensor and split the left indices
-    Tn = itensor(Tnt) * dag(cl)
-    =#
-
     return Tn
 end
 
@@ -233,7 +186,7 @@ end
 
 function _padding(j::Index{Int64}, jp::Index{Int64}, p::Real; tags = "Padded", kwargs...)
     @assert 0≤p≤1
-    jp_new = Index(round(Int, d*p))
+    jp_new = Index(round(Int, ITensors.dim(jp)*p))
     return directsum(j, jp_new; tags = tags)
 end
 function _padding(j::Index{Int64}, jp::Index{Int64}, p::Int; tags = "Padded", kwargs...)

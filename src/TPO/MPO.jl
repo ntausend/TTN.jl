@@ -79,7 +79,7 @@ function Hamiltonian(ampo::OpSum, type_str::AbstractString, lat::AbstractLattice
     return MPOWrapper{typeof(lat), typeof(data), TensorKitBackend}(lat, data, mapping)
 end
 
-#ITensors constracters
+#ITensors constructor
 # also include the mappings here
 
 function Hamiltonian(mpo::MPO, lat::L; mapping::Vector{Int} = collect(eachindex(lat))) where{L}

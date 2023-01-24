@@ -79,7 +79,7 @@ module TTNKit
     include("./contract_tensors.jl")
 
     # nodes
-    export TrivialNode, HardCoreBosonNode, SpinHalfNode, Node
+    export TrivialNode, HardCoreBosonNode, SpinHalfNode, Node, ITensorNode
     include("./Node/AbstractNode.jl")
     include("./Node/Node.jl")
     include("./Node/ITensorNode.jl")
@@ -88,20 +88,34 @@ module TTNKit
     include("./Node/SpinHalfNode.jl")
 
     # lattice class
+    export Rectangle, Square
     include("./Lattice/AbstractLattice.jl")
     include("./Lattice/SimpleLattice.jl")
 
     # including the Network classes
+    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
 
     
-    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork, increase_dim_tree_tensor_network_zeros, increase_dim_tree_tensor_network_randn
+
+    #=================================================================================#
+    # i rather not like to have these kind of functions to be exported...
+    export increase_dim_tree_tensor_network_zeros, increase_dim_tree_tensor_network_randn
+    #=================================================================================#
+
+    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
+    export move_ortho!, adjust_tree_tensor_dimensions, adjust_tree_tensor_dimensions!
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
 
-    export transverseIsingHamiltonian
+    #=================================================================================#
+    # Does this function still exists?
+    #=================================================================================#
+    #export transverseIsingHamiltonian
+    #=================================================================================#
+
     include("./TPO/AbstractTPO.jl")
     # MPO class
     include("./TPO/MPO.jl")
@@ -111,8 +125,8 @@ module TTNKit
     include("./TPO/utilsMPO.jl")
 
     # model implementations
-    include("./TPO/Models/TransverseFieldIsing.jl")
-    include("./TPO/Models/TrivialModel.jl")
+    include("./Models/TransverseFieldIsing.jl")
+    include("./Models/TrivialModel.jl")
 
 
     # dmrg/tdvp
@@ -123,12 +137,7 @@ module TTNKit
     include("./algorithms/sweeps.jl")
 
 
-    #= Currently deactivating all class objects, starting implementing ITensor support
-    export AbstractLattice, Chain, Rectangle, Square
-
-
-    
-    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
+    #=
 
     
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
