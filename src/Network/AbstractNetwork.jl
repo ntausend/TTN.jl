@@ -1,11 +1,10 @@
 
-#abstract type AbstractNetwork{D, S<:IndexSpace, I<:Sector} end
-abstract type AbstractNetwork{L<:AbstractLattice} end
+# Needs to have the same backend as the abstract latice
+abstract type AbstractNetwork{L<:AbstractLattice, B<:AbstractBackend} end
 
 # generic network type, needs the connectivity matrices for connecting layers
 # only allows for connectivity between adjacent layers...
-#struct Network{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D,S,I}
-struct Network{L<:AbstractLattice} <: AbstractNetwork{L}
+struct GenericNetwork{L<:AbstractLattice, B<:AbstractBackend} <: AbstractNetwork{L,B}
 	# adjacency matrix per layer, first is physical connectivity 
 	# to first TTN Layer
     connections::Vector{SparseMatrixCSC{Int, Int}}
@@ -17,6 +16,11 @@ end
 # dimensionality of network
 dimensionality(::Type{<:AbstractNetwork{L}}) where L  = dimensionality(L)
 dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
+backend(net::AbstractNetwork) = backend(typeof(net))
+backend(::Type{<:AbstractNetwork{L,B}}) where{L,B} = B
+
+# sitindices, only relevant for the ITensors case
+siteinds(net::AbstractNetwork) = siteinds(physical_lattice(net))
 
 # returning the lattices of the network, 1 is physical, and 2:n_layers are the virtuals
 lattices(net::AbstractNetwork) = net.lattices
@@ -49,6 +53,7 @@ dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
 
 # number of physical sites
 number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
+
 
 # length of the network == total number of sites included in the network
 #Base.length(net::AbstractNetwork) = sum(map(jj -> length(lattice(net,jj)), 0:number_of_layers(net)))
@@ -91,17 +96,10 @@ function internal_index_of_legs(net::AbstractNetwork, pos::Tuple{Int,Int})
 				return number_of_child_nodes(net, (ll,pp))
 			end
 		end
-
-	n_of_chds_t_layer_p = mapreduce(+, 1:pos[2]-1, init = 0) do (pp)
-			number_of_child_nodes(net, (pos[1], pp))
-		end
-	
-	n_of_chds_tn = number_of_child_nodes(net, pos)
-	n_shift_1 = number_of_childs_prev_layers + n_of_chds_t_layer_p
+	n_shift_1 = number_of_childs_prev_layers
 	n_shift_2 = length(lattice(net, pos[1]-1)) + number_of_childs_prev_layers
-
 	idx_parent = pos[2] + n_shift_2
-	return vcat([jj + n_shift_1 for jj in 1:n_of_chds_tn], idx_parent)
+	return vcat([jj + n_shift_1 for (_,jj) in child_nodes(net,pos)], idx_parent)
 end
 
 
@@ -247,42 +245,6 @@ function connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 end
 
 
-function Base.iterate(::AbstractNetwork)
-	pos = (1, 1)
-	return (pos, pos)
-end
-
-function Base.iterate(net::AbstractNetwork, state)
-	#state == n_layers && return nothing
-	state[1] == number_of_layers(net) && return nothing
-
-	if state[2] == number_of_tensors(net, state[1])
-		pos = (state[1] + 1, 1)
-	else
-		pos = (state[1], state[2] + 1)
-	end
-	return (pos, pos)
-end
-
-function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork})
-	pos = (number_of_layers(itr.itr), 1)
-	return (pos, pos)
-end
-
-function Base.iterate(itr::Iterators.Reverse{<:AbstractNetwork}, state)
-	state == (1,1) && return nothing	
-	
-	if(state[2] == 1)
-		n_l = state[1] - 1
-		n_t = number_of_tensors(itr.itr, n_l)
-		pos = (n_l, n_t)
-	else
-		pos = (state[1], state[2] - 1)
-	end
-
-	return (pos, pos)
-end
-
 eachlayer(net::AbstractNetwork) = 1:number_of_layers(net)
 eachindex(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))
 
@@ -298,7 +260,7 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
+function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int; backend = TensorKitBackend())
 	#bnddm = correct_bonddims(bonddims, n)
 	
 	#@assert length(bonddims) == n_layers-1
@@ -307,7 +269,7 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	lat_vec = Vector{SimpleLattice{1}}(undef, n_layers+1)
 	#bnddim_comp = vcat(local_dim, bonddims)
 
-	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim)
+	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim, backend = backend)
 	vnd_type = nodetype(lat_vec[1])
 
 	for jj in n_layers:-1:1
@@ -329,5 +291,47 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	lat_vec[end] = Chain(1,vnd_type)
 	
 	#return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
-	return Network{typeof(lat_vec[1])}(adjmats, lat_vec)
+	return GenericNetwork{typeof(lat_vec[1]), typeof(backend)}(adjmats, lat_vec)
+end
+
+struct NodeIterator
+	net::AbstractNetwork
+end
+
+Base.length(nit::NodeIterator) = mapreduce(l -> length(l), +, init = 0, lattices(nit.net)[2:end])
+
+function Base.iterate(::NodeIterator)
+	pos = (1, 1)
+	return (pos, pos)
+end
+
+function Base.iterate(nit::NodeIterator, state)
+	#state == n_layers && return nothing
+	state[1] == number_of_layers(nit.net) && return nothing
+
+	if state[2] == number_of_tensors(nit.net, state[1])
+		pos = (state[1] + 1, 1)
+	else
+		pos = (state[1], state[2] + 1)
+	end
+	return (pos, pos)
+end
+
+function Base.iterate(itr::Iterators.Reverse{<:NodeIterator})
+	pos = (number_of_layers(itr.itr.net), 1)
+	return (pos, pos)
+end
+
+function Base.iterate(itr::Iterators.Reverse{<:NodeIterator}, state)
+	state == (1,1) && return nothing	
+	
+	if(state[2] == 1)
+		n_l = state[1] - 1
+		n_t = number_of_tensors(itr.itr.net, n_l)
+		pos = (n_l, n_t)
+	else
+		pos = (state[1], state[2] - 1)
+	end
+
+	return (pos, pos)
 end

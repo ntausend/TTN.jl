@@ -1,7 +1,14 @@
 module TTNKit
     using SparseArrays
     using TensorKit
+    using ITensors
     using Distributions: Multinomial
+    using Parameters: @with_kw
+    using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
+    using MPSKitModels: LocalOperator, @mpoham
+    using KrylovKit
+    using LinearAlgebra
+    using Printf
 
     struct NotImplemented <: Exception
         fn::Symbol
@@ -24,29 +31,56 @@ module TTNKit
     end
     Base.showerror(io::IO, e::NotSupportedException) = print(io, "Functionality is not supported: "*e.msg)
 
+    struct QuantumNumberMissmatch <: Exception end
+    Base.showerror(io::IO, ::QuantumNumberMissmatch) = print(io, "Quantum number combination not allowed.")
+
+    struct IndexMissmatchException <: Exception 
+        idx::Index
+        desc::String
+    end
+    Base.showerror(io::IO, e::IndexMissmatchException) = print(io, "Index $(e.idx) not fullfill requirements: $(e.desc)") 
+
 
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import TensorKit: sectortype, spacetype
+    import ITensors: state, op, space, siteinds
+    import ITensors: expect
+    using ITensors:  dim as dim_it
+    using TensorKit: dim as dim_tk
+    using ITensors:  dims as dims_it
+    using TensorKit: dims as dims_tk
 
+    dim(ind::I) where{I} = I <: Index ? dim_it(ind) : dim_tk(ind) 
+
+    # fixing missing support for qn-sparse qr decomposition of ITensors, should
+    # be included in the future.. see pullrequest:
+    # https://github.com/ITensor/ITensors.jl/pull/1009
+    # This is also my code from 
+    # https://github.com/ntausend/variance_iTensor
+    # in slightly modified version of Jan Reimers
+    # just use the factorize for the moment... dont want to get nasty warnings
+    #include("./qn_qr_it/qr.jl")
+
+    include("./backends/backends.jl")
+
+    # contract_tensor ncon wrapper
+    include("./contract_tensors.jl")
 
     # nodes
     export TrivialNode, HardCoreBosonNode, SpinHalfNode, Node
     include("./Node/AbstractNode.jl")
     include("./Node/Node.jl")
+    include("./Node/ITensorNode.jl")
     include("./Node/HardCoreBosonNode.jl")
     include("./Node/SoftCoreBosonNode.jl")
     include("./Node/SpinHalfNode.jl")
 
     # lattice class
-    export AbstractLattice, Chain, Rectangle, Square
     include("./Lattice/AbstractLattice.jl")
     include("./Lattice/SimpleLattice.jl")
 
     # including the Network classes
-
-    
-    export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
 
@@ -67,17 +101,20 @@ module TTNKit
 
     # load the definition of special operator types for dispatching measuring functions
     include("./TPO/AbstractTensorDefinitions.jl")
-    include("./TreeTensorNetwork/algorithms/expect.jl")
 
     include("./TreeTensorNetwork/algorithms/correlation.jl")
     
+
+    #============================= TENSOR PRODUCT OPERATORS =========================#
+
+
+    =#
+
 
     #=
 
 
     # TPO TODO:Tests
-    include("./TPO/AbstractTPO.jl")
-    include("./TPO/ProjTPO.jl")
 
     include("./TPO/TPOSum/Interactions.jl")
     include("./TPO/TPOSum/TPOSum.jl")

@@ -18,7 +18,7 @@ struct HardCoreBosonNode{S<:IndexSpace,I<:Sector} <: PhysicalNode{S,I}
     end
 end
 
-function spaces(::HardCoreBosonNode{S,I}) where {S,I}
+function space(::HardCoreBosonNode{S,I}) where {S,I}
     if I == Trivial
         return 2
     else

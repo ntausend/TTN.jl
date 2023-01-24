@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - main
+      - TDVP
+      - backend_implementation
     tags: '*'
   pull_request:
 jobs:
@@ -38,6 +40,8 @@ jobs:
         run: |
           using Pkg;
           pkg"dev ."
+          Pkg.add(url="https://github.com/maartenvd/MPSKit.jl.git", rev="master")
+          Pkg.add(url="https://github.com/maartenvd/MPSKitModels.jl.git", rev="master")
       - name: Run the tests
         shell: julia --project=monorepo {0}
         run: |

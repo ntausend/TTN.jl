@@ -1,0 +1,4 @@
+[deps]
+ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
+TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
