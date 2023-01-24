@@ -20,17 +20,33 @@ function initialize!(sp::SimpleSweepHandler)
 
     net = network(ttn)
 
-    # now move everything to the starting point
-    ttn = move_ortho!(ttn, (1,1))
+    #adjust the tree dimension to the first bond dimension
+    oc = ortho_center(ttn)
+    
+    ttn = _adjust_tree_tensor_dimensions!(ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
 
-    # update the environments accordingly
-
-    pth = connecting_path(net, (number_of_layers(net),1), (1,1))
-    pth = vcat((number_of_layers(net),1), pth)
-    for (jj,p) in enumerate(pth[1:end-1])
-        ism = ttn[p]
-        pTPO = update_environments!(pTPO, ism, p, pth[jj+1])
+    # check if ttn was altered, this  can be seen by haveing new oc
+    if ortho_center(ttn) != oc
+        # reorthogonalize
+        ttn = move_ortho!(_reorthogonalize!(ttn), (1,1))
+        # rebuild the environments
+        pTPO = rebuild_environments!(pTPO, ttn)
+    else
+        # now move everything to the starting point
+        ttn = move_ortho!(ttn, (1,1))
+        # update the environments accordingly
+        pth = connecting_path(net, (number_of_layers(net),1), (1,1))
+        pth = vcat((number_of_layers(net),1), pth)
+        for (jj,p) in enumerate(pth[1:end-1])
+            ism = ttn[p]
+            pTPO = update_environments!(pTPO, ism, p, pth[jj+1])
+        end
     end
+    @show sp.ttn[number_of_layers(net), 1] == ttn[number_of_layers(net),1]
+    @show inds(ttn[number_of_layers(net), 1])
+
+    sp.ttn = ttn
+    sp.pTPO = pTPO
     sp.curtime = time()
     return sp
 end
@@ -46,24 +62,6 @@ function update_next_sweep!(sp::SimpleSweepHandler)
 
     sp.dir = :up
     sp.current_sweep += 1 
-    #update the bond_dimension of the ttn for the next sweep
-    oc = ortho_center(sp.ttn)
-    sp.ttn = _adjust_tree_tensor_dimensions!(sp.ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
-    
-    #nl = number_of_layers(network(sp.ttn))
-    #qnsp = map(x -> (space.(x)), inds(sp.ttn[nl,1]))
-    #qnsp1,qnsp2 = qnsp
-    #@show last.(qnsp1)
-    #@show last.(qnsp2)
-    #@show (last.(qnsp))
-    
-    # check if ttn was altered, this  can be seen by haveing new oc
-    if ortho_center(sp.ttn) != oc
-        # reorthogonalize
-        sp.ttn = move_ortho!(_reorthogonalize!(sp.ttn), oc)
-        # rebuild the environments
-        sp.pTPO = rebuild_environments!(sp.pTPO, sp.ttn)
-    end
     return sp
 end
 
