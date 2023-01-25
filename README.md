@@ -29,6 +29,7 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
      current structure is only working with MPO's and will fail representing other structures.
   3) Define a function wich updates the environments according to a internal state referencing the old orthogonality centrum
      and the new orthogonality centrum of the ttn.
+- More flexibility in choosing the lengths of the system -> allow for general dimensions
      
 ### Examples:
 
