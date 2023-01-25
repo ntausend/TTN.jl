@@ -29,3 +29,10 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
      current structure is only working with MPO's and will fail representing other structures.
   3) Define a function wich updates the environments according to a internal state referencing the old orthogonality centrum
      and the new orthogonality centrum of the ttn.
+     
+### Examples:
+
+- DMRG for one dimensional and two dimensional systems with and without QNS
+- TDVP in one and two dimensional systems
+- Preferable in ITensors and TensorKit
+- If implemented, also for different Hamiltonian realizations
