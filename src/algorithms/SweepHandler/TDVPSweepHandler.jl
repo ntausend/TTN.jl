@@ -2,7 +2,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork, T, B<:AbstractBackend} <: Ab
     const finaltime::Float64
     const timestep::Float64
     ttn::TreeTensorNetwork{N, T, B}
-    pTPO::ProjTensorProductOperator
+    pTPO::AbstractProjTPO
     func
     path::Vector{Tuple{Int,Int}}
 
@@ -25,7 +25,6 @@ function Base.copy(tdvp::TDVPSweepHandler)
     return TDVPSweepHandler(ttnc, pTPOc, timestepc, finaltimec, tdvp.func) 
 end
 
-# Why this? it is already in the same way as the abstract one, isn't it?
 function Base.iterate(sp::TDVPSweepHandler)
     pos = start_position(sp)
     return (pos, 1)

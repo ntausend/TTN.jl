@@ -31,6 +31,11 @@ function truncate_and_move!(ttn::TreeTensorNetwork, A::ITensor, pos::Tuple{Int,I
 
     ttn[pos] = Q
     ttn[posnext] = normalize!(ttn[posnext]*R)
+
+    # orhto direction become undefined here... need to figure out 
+    # the index.. however we are not using it anywayrs or?
+    #ttn.ortho_direction[pos[1]][pos[2]] 
+
     ttn.ortho_center .= posnext
     return move_ortho!(ttn, position_next)
 end

@@ -15,22 +15,17 @@ using Test
     states = fill("Up", TTNKit.number_of_sites(net))
     ttn = TTNKit.ProductTreeTensorNetwork(net, states, orthogonalize = true)
 
-    ptpo = TTNKit.ProjTensorProductOperator(ttn, tpo)
+    ptpo = TTNKit.ProjMPO(ttn, tpo)
     energy_expected = g*TTNKit.number_of_sites(net)
 
     
     
     for pos in TTNKit.NodeIterator(net)
         try
-            parent = TTNKit.parent_node(net, pos)
+            parent_nd = TTNKit.parent_node(net, pos)
             tenv = TTNKit.top_environment(ptpo, pos)
-            benv = TTNKit.bottom_environment(ptpo, parent)[1]
+            benv = TTNKit.bottom_environment(ptpo, parent_nd)[1]
 
-
-            #env = TTNKit.environment(ptpo, p)
-
-
-            #t = TensorKit.permute(ttn[pos], (1,2,3), ())
             @tensor energy = benv[1,2,3] * tenv[1,2,3]
             @test energy ≈ energy_expected
         catch

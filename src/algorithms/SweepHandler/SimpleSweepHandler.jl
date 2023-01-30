@@ -1,7 +1,7 @@
 mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     const number_of_sweeps::Int
     ttn::TreeTensorNetwork
-    pTPO::ProjTensorProductOperator
+    pTPO::AbstractProjTPO
     func
     expander::AbstractSubspaceExpander
         
@@ -74,6 +74,9 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     
     net = network(ttn)
 
+    # adjust the position of the projected operator, i.e. redefine the environemnts
+    pTPO = set_position!(pTPO, ttn)
+
     t = ttn[pos]
     pn = next_position(sp,pos)
     
@@ -89,6 +92,9 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
 
             ttn[pos]     = t
             ttn[posnext] = Aprime
+            # this does not change the orthogonality center of the pTPO, since
+            # we only updating the old isometry with the new one fitting to the
+            # expanded state
             pTPO = update_environments!(pTPO, Aprime, posnext, pos)
         else
             # top node, here we need some different kind of expansion, depending on the tree type.
@@ -101,6 +107,9 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
             ttn[chldnds[1]] = Al
             ttn[chldnds[2]] = Ar
 
+            # this does not change the orthogonality center of the pTPO, since
+            # we only updating the old isometry with the new one fitting to the
+            # expanded state
             pTPO = update_environments!(pTPO, Al, chldnds[1], pos)
             pTPO = update_environments!(pTPO, Ar, chldnds[2], pos)
         end
@@ -115,15 +124,6 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     # truncate the bond
     ttn = truncate_and_move!(ttn, tn, pos, pn, sp.expander; maxdim = sp.maxdims[sp.current_sweep])
     #; maxdim = sp.maxdims[sp.current_sweep])#, mindim = 1, cutoff = 1E-13)
-
-    
-    if !isnothing(pn)
-        pth = vcat(pos, pth)
-        for (jj,pk) in enumerate(pth[1:end-1])
-            ism = ttn[pk]
-            pTPO = update_environments!(pTPO, ism, pk, pth[jj+1])
-        end
-    end
 end
 
 

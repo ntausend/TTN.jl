@@ -1,75 +1,77 @@
 # make this abstract and derive from that the ProjMatrixProductOperator
-struct ProjTensorProductOperator{N<:AbstractNetwork, T, B<:AbstractBackend}
+struct ProjMPO{N<:AbstractNetwork, T, B<:AbstractBackend} <: AbstractProjTPO{N,T,B}
     net::N
     tpo::AbstractTensorProductOperator
+    ortho_center :: Vector{Int}
 
     bottom_envs::Vector{Vector{Vector{T}}}
     top_envs::Vector{Vector{T}}
-
 
     bottom_indices::Vector{Vector{Vector{Vector{Int64}}}}
     top_indices::Vector{Vector{Vector{Int64}}}
 end
 
-network(projTPO::ProjTensorProductOperator) = projTPO.net
-tensor_product_operator(projTPO::ProjTensorProductOperator) = projTPO.tpo
-bottom_environment(projTPO::ProjTensorProductOperator, pos::Tuple{Int,Int}) = projTPO.bottom_envs[pos[1]][pos[2]]
-bottom_environment(projTPO::ProjTensorProductOperator, pos::Tuple{Int,Int}, n_child::Int) = bottom_environment(projTPO, pos)[n_child]
-top_environment(projTPO::ProjTensorProductOperator, pos::Tuple{Int,Int}) = projTPO.top_envs[pos[1]][pos[2]]
+bottom_environment(projTPO::ProjMPO, pos::Tuple{Int,Int}) = projTPO.bottom_envs[pos[1]][pos[2]]
+bottom_environment(projTPO::ProjMPO, pos::Tuple{Int,Int}, n_child::Int) = bottom_environment(projTPO, pos)[n_child]
+top_environment(   projTPO::ProjMPO, pos::Tuple{Int,Int}) = projTPO.top_envs[pos[1]][pos[2]]
 
-bottom_indices(projTPO::ProjTensorProductOperator, pos::Tuple{Int, Int}) = projTPO.bottom_indices[pos[1]][pos[2]]
-bottom_indices(projTPO::ProjTensorProductOperator, pos::Tuple{Int, Int}, n_child::Int) = bottom_indices(projTPO,pos)[n_child]
-top_indices(projTPO::ProjTensorProductOperator, pos::Tuple{Int, Int}) = projTPO.top_indices[pos[1]][pos[2]]
+bottom_indices(projTPO::ProjMPO, pos::Tuple{Int, Int}) = projTPO.bottom_indices[pos[1]][pos[2]]
+bottom_indices(projTPO::ProjMPO, pos::Tuple{Int, Int}, n_child::Int) = bottom_indices(projTPO,pos)[n_child]
+top_indices(   projTPO::ProjMPO, pos::Tuple{Int, Int}) = projTPO.top_indices[pos[1]][pos[2]]
 
-backend(::Type{<:ProjTensorProductOperator{N, T, B}}) where{N, T, B} = B
-backend(projTPO::ProjTensorProductOperator) = backend(typeof(projTPO)) 
-
-
-include("./constructing_projtpo_from_mpo_tensorkit.jl")
-include("./constructing_projtpo_from_mpo_itensors.jl")
+# compact return of the environments of one tuple
+environments(projTPO::ProjMPO, pos::Tuple{Int, Int}) = vcat(bottom_environment(projTPO, pos)..., top_environment(projTPO, pos))
+# indices on that spot
+indices(projTPO::ProjMPO, pos::Tuple{Int, Int}) = vcat(bottom_indices(projTPO, pos)..., top_indices(projTPO, pos))
+ 
 
 
-function ProjTensorProductOperator(ttn::TreeTensorNetwork{N, T}, tpo::AbstractTensorProductOperator) where{N, T}
+include("./constructing_projmpo_from_mpo_tensorkit.jl")
+include("./constructing_projmpo_from_mpo_itensors.jl")
+
+
+function ProjMPO(ttn::TreeTensorNetwork{N, T}, tpo::AbstractTensorProductOperator) where{N, T}
     # sanity check if the physical setup is correct
     @assert physical_lattice(network(ttn)) == lattice(tpo)
 
     bInd, bEnv = _construct_bottom_environments(ttn, tpo)
-    tInd, tEnv    = _construct_top_environments(ttn, bEnv, bInd)
+    tInd, tEnv = _construct_top_environments(ttn, bEnv, bInd)
 
-    return ProjTensorProductOperator{N, T, backend(tpo)}(network(ttn), tpo, bEnv, tEnv, bInd, tInd)
+    return ProjMPO{N, T, backend(tpo)}(network(ttn), tpo, vcat(ortho_center(ttn)...), bEnv, tEnv, bInd, tInd)
 end
 
-function rebuild_environments!(projTPO::ProjTensorProductOperator, ttn::TreeTensorNetwork)
+function rebuild_environments!(projTPO::ProjMPO, ttn::TreeTensorNetwork)
     net = network(projTPO)
     @assert net == network(ttn)
 
     tpo = projTPO.tpo
     bInd, bEnv = _construct_bottom_environments(ttn, tpo)
-    tInd, tEnv    = _construct_top_environments(ttn, bEnv, bInd)
+    tInd, tEnv = _construct_top_environments(ttn, bEnv, bInd)
 
     projTPO.bottom_envs .= bEnv
     projTPO.top_envs    .= tEnv
 
     projTPO.bottom_indices .= bInd
     projTPO.top_indices    .= tInd
+    projTPO.ortho_center   .= ortho_center(ttn)
 
     return projTPO
 end
 
 
 
-function update_environments!(projTPO::ProjTensorProductOperator, isom, pos::Tuple{Int,Int}, pos_final::Tuple{Int, Int})
+function update_environments!(projTPO::ProjMPO, isom, pos::Tuple{Int,Int}, pos_final::Tuple{Int, Int})
     dir = pos_final .- pos
     if dir[1] == 1
-        _update_bottom_environment!(projTPO, isom, pos, pos_final)
+        return _update_bottom_environment!(projTPO, isom, pos, pos_final)
     else
         @assert dir[1] == -1
-        _update_top_environment!(projTPO, isom, pos, pos_final)
+        return _update_top_environment!(projTPO, isom, pos, pos_final)
     end
 end
 
 # how to do this abstractly for arbitrary networks??
-function _update_top_environment!(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap, pos::Tuple{Int,Int}, pos_final::Tuple{Int, Int}) where{N}
+function _update_top_environment!(projTPO::ProjMPO{N, TensorMap}, isom::TensorMap, pos::Tuple{Int,Int}, pos_final::Tuple{Int, Int}) where{N}
     net = network(projTPO)
     n_sites = number_of_sites(net)
     n_tensors = number_of_tensors(net) + n_sites
@@ -86,7 +88,7 @@ function _update_top_environment!(projTPO::ProjTensorProductOperator{N, TensorMa
     @assert new_inds == top_indices(projTPO, pos_final)
     return projTPO
 end
-function _update_bottom_environment!(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int}) where {N}
+function _update_bottom_environment!(projTPO::ProjMPO{N, TensorMap}, isom::TensorMap, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int}) where {N}
     net = network(projTPO)
     n_sites = number_of_sites(net)
     n_tensors = number_of_tensors(net) + n_sites
@@ -102,7 +104,7 @@ function _update_bottom_environment!(projTPO::ProjTensorProductOperator{N, Tenso
     return projTPO
 end
 
-function _update_top_environment!(projTPO::ProjTensorProductOperator{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int, Int}) where{N}
+function _update_top_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int, Int}) where{N}
     net = network(projTPO)
     tEnv = top_environment(projTPO, pos)
     b_collect = deleteat!(collect(1:number_of_child_nodes(net, pos)), index_of_child(net, pos_final))
@@ -111,7 +113,7 @@ function _update_top_environment!(projTPO::ProjTensorProductOperator{N, ITensor}
     projTPO.top_envs[pos_final[1]][pos_final[2]] = reduce(*, tensorListBottom, init = (tEnv * isom)) * dag(prime(isom))
     return projTPO
 end
-function _update_bottom_environment!(projTPO::ProjTensorProductOperator{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int}) where {N}
+function _update_bottom_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int}) where {N}
     net = network(projTPO)
 
     bEnvs = bottom_environment(projTPO, pos)
@@ -122,8 +124,8 @@ end
 
 # action of the TPO on the removed A tensor at position p
 
-function ∂A(projTPO::ProjTensorProductOperator{N, TensorMap}, pos::Tuple{Int,Int}) where{N}
-    tEnv = top_environment(projTPO, pos)
+function ∂A(projTPO::ProjMPO{N, TensorMap}, pos::Tuple{Int,Int}) where{N}
+    tEnv  = top_environment(projTPO, pos)
     bEnvs = bottom_environment(projTPO, pos)
     ttn_coord = internal_index_of_legs(network(projTPO), pos)
     tInds = top_indices(projTPO, pos)
@@ -142,33 +144,19 @@ end
 
 
 # T_in is needed for estimating the optimal contraction sequence
-function ∂A(projTPO::ProjTensorProductOperator{N, ITensor}, pos::Tuple{Int,Int}) where{N}
-    tEnv = top_environment(projTPO, pos)
-    bEnvs = bottom_environment(projTPO, pos)
-
+function ∂A(projTPO::ProjMPO{N, ITensor}, pos::Tuple{Int,Int}) where{N}
+    envs = projTPO[pos]
     function action(T::ITensor)
-        opt_seq = ITensors.optimal_contraction_sequence(T,tEnv, bEnvs...)
-        return noprime(contract(T, tEnv, bEnvs...; sequence = opt_seq))
+        tensor_list = vcat(T, envs)
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return noprime(contract(tensor_list; sequence = opt_seq))
     end
     return action
 end
 
-# this should be the same as above
-#=
-function ∂A(projTPO::ProjTensorProductOperator{<:BinaryNetwork, ITensor}, pos::Tuple{Int, Int}, T_in::ITensor)
-    tEnv  = top_environment(projTPO, pos)
-    bEnvl, bEnvr = bottom_environment(projTPO, pos)
-    @assert typeof(bEnvl) == typeof(bEnvr) == ITensor
-    opt_seq = ITensors.optimal_contraction_sequence(T_in, bEnvl, bEnvr, tEnv)
-    function action(T::ITensor)
-        return noprime(contract(T, bEnvl, bEnvr, tEnv; sequence = opt_seq))
-    end
-end
-=#
-
 
 # action of the TPO on the removed link tensor between positions posi (initial) and posf (final)
-function ∂A2(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
+function ∂A2(projTPO::ProjMPO{N, TensorMap}, isom::TensorMap, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
     net = network(projTPO)
     tEnv = top_environment(projTPO, posi)
     bEnvs = bottom_environment(projTPO, posi)
@@ -212,7 +200,7 @@ function ∂A2(projTPO::ProjTensorProductOperator{N, TensorMap}, isom::TensorMap
     return action
 end
 
-function ∂A2(projTPO::ProjTensorProductOperator{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
+function ∂A2(projTPO::ProjMPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
     net = network(projTPO)
     tEnv = top_environment(projTPO, posi)
     bEnvs = bottom_environment(projTPO, posi)
@@ -256,4 +244,3 @@ function ∂A(projTPO::ProjTensorProductOperator, net::BinaryNetwork, pos::Tuple
     end
 end
 =#
-

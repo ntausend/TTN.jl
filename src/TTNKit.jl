@@ -57,6 +57,8 @@ module TTNKit
     import TensorKit: sectortype, spacetype
     import ITensors: state, op, space, siteinds
     import ITensors: expect
+    using ITensors: terms, sortmergeterms, which_op, site, params, determineValType
+	using ITensors: argument, optimal_contraction_sequence
     using ITensors:  dim as dim_it
     using TensorKit: dim as dim_tk
     using ITensors:  dims as dims_it
@@ -116,13 +118,16 @@ module TTNKit
     #export transverseIsingHamiltonian
     #=================================================================================#
 
+    include("./TPO/AbstractProjectedTensorProductOperator.jl")
     include("./TPO/AbstractTPO.jl")
     # MPO class
-    include("./TPO/MPO.jl")
+    include("./TPO/ProjMPO/MPO.jl")
     # abstract TPO
-    include("./TPO/ProjTPO.jl")
+    include("./TPO/ProjMPO/ProjectedMatrixProductOperator.jl")
+    include("./TPO/ProjMPO/utilsMPO.jl")
 
-    include("./TPO/utilsMPO.jl")
+    # tensor product operator implementations
+    include("./TPO/ProjTPO/ProjectedTensorProductOperator.jl")
 
     # model implementations
     include("./Models/TransverseFieldIsing.jl")

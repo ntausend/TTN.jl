@@ -34,7 +34,29 @@ function dmrg(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; expan
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    pTPO = ProjTensorProductOperator(psic, mpo)
+    pTPO = ProjMPO(psic, mpo)
+    func = (action, T) -> eigsolve(action, T, 1,
+                        eigsolve_which_eigenvalue;
+                        ishermitian=ishermitian,
+                        tol=eigsolve_tol,
+                        krylovdim=eigsolve_krylovdim,
+                        maxiter=eigsolve_maxiter)
+    return sweep(psic, SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, expander); kwargs...)
+end
+
+function dmrg(psi0::TreeTensorNetwork, mpo::OpSum; expander = NoExpander(), kwargs...)
+    n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
+    maxdims::Union{Int64, Vector{Int64}}  = get(kwargs, :maxdims, 1)
+
+    if maxdims isa Int64
+        maxdims = [maxdims]
+    end
+    maxdims = vcat(maxdims, repeat([maxdims[end]], n_sweeps - length(maxdims)+1))
+
+    psic = copy(psi0)
+    psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
+
+    pTPO = ProjTPO(psic, mpo)
     func = (action, T) -> eigsolve(action, T, 1,
                         eigsolve_which_eigenvalue;
                         ishermitian=ishermitian,
@@ -50,7 +72,7 @@ function tdvp(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwarg
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    pTPO = ProjTensorProductOperator(psic, mpo)
+    pTPO = ProjMPO(psic, mpo)
     func = (action, dt, T) -> exponentiate(action, -1im*dt, T)
     return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...)
 end
