@@ -14,20 +14,24 @@ function _ampo_to_tpo(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend
 		#coef_list[jj] = coefficient(stm)
 		coef = coefficient(stm)
 		# extracting the product part
-		prod_op = map(enumerate(terms(stm))) do (pp, prt)
+		#prod_op = map(enumerate(terms(stm))) do (pp, prt)
+		prod_op = map(terms(stm)) do prt
 			_opstr = which_op(prt)
 			# convert the side index to an tuple to be compatible with 1D
 			idx = site(prt)
 			idx isa Int64 && (idx = Tuple(idx))
 			idx_lin = linear_ind(lat, idx)
 			_op = op(physidx[idx_lin], _opstr; params(prt)...)
-			return Op(_op, (0, idx_lin); sm = Tuple(jj), pd = Tuple(pp))
+			# do we need the product id here? propl. not
+			#return Op(_op, (0, idx_lin); sm = Tuple(jj), pd = Tuple(pp), op_length = length(stm), is_identity = false)
+			return Op(_op, (0, idx_lin); sm = Tuple(jj), op_length = length(stm), is_identity = false)
 		end
 		# now rescale the first operator in the list with the coefficient
 		prod_op[1] = Op(which_op(prod_op[1])*coef, site(prod_op[1]); params(prod_op[1])...)
 		tpo_sum[jj] = reduce(*, prod_op, init = Prod{Op}())
 	end
-	return tpo_sum
+	# collapse onsite operators acting on the same link
+	return _collapse_onsite(tpo_sum)
 end
 
 # calculate the up rg flow for all operator terms
@@ -60,7 +64,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::Vector{Prod{Op}}) 
 		chdnds = child_nodes(net, (1, pp))
 		map(1:number_of_child_nodes(net, (1, pp))) do nn
 			# do the mapping implemented by wladi here
-			tmp = filter(trm -> isequal(chdnds[nn], site(trm)), trms)
+			filter(trm -> isequal(chdnds[nn], site(trm)), trms)
 		end
 	end
 	id_rg[1] = map(eachindex(net,1)) do pp
@@ -95,6 +99,11 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::Vector{Prod{Op}}) 
 				# now we need to go through all terms calculating the upflow
 				# of these terms
 				rg_trms_new = map(rg_trms_chld) do trms
+					op_reduction = length(filter(p -> !p, getindex.(params.(trms), :is_identity)))
+					if op_reduction > 0
+						# if op_reduction == 0 we only have a flow of identities
+						op_reduction -= 1
+					end
 					# getting the interaction terms
 					_ops = which_op.(trms)
 					open_links = filter(s -> s ∉ site.(trms), child_nodes(net, chd))
@@ -113,11 +122,15 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::Vector{Prod{Op}}) 
 					prm   = params.(trms)
 					# summand index, should be the same for all
 					smt   = only(unique(getindex.(prm, :sm)))
-					pdtid = Tuple(vcat(map(p -> vcat(p...), getindex.(prm, :pd))...))
-					return Op(_rg_op, chd; sm = smt, pd = pdtid)
+					#pdtid = Tuple(vcat(map(p -> vcat(p...), getindex.(prm, :pd))...))
+					op_length = only(unique(getindex.(prm, :op_length))) - op_reduction
+					# these operators are always non-identity flows
+					# i.e. this should evaluate to false
+					is_identity = all(getindex.(prm, :is_identity))
+					return Op(_rg_op, chd; sm = smt, op_length = op_length, is_identity = is_identity)
 				end
 				# now collapse all pure onsite operators only on this node
-				rg_terms[ll][pp][index_of_child(net, chd)] = rg_trms_new
+				rg_terms[ll][pp][index_of_child(net, chd)] = _collapse_onsite(rg_trms_new)
 
 				# now we need to calculate the new rg_ids
 				#idx_up = commonind(ttn[(ll,pp)],Tn)
@@ -153,37 +166,25 @@ function _build_environments(ttn::TreeTensorNetwork{N, ITensor},
 	
 	# last layer is simple since it only has the components comming from below
 	environments[end] = Vector{Vector{Prod{Op}}}(undef, 1)
-	#trms = _collapse_onsite(_collect_sum_terms(vcat(rg_flow_trms[end][1]...)))
 	trms = _collect_sum_terms(vcat(rg_flow_trms[end][1]...))
 	environments[end][1] = map(trms) do smt
 		# get all rg_identites on the missing legs
 		open_legs = filter(s -> s ∉ site.(smt), child_nodes(net, (nlayers,1)))
 		ids = map(open_legs) do ol
 				ii = id_up_rg[nlayers][1][index_of_child(net, ol)]
-				Op(ii, ol; sm = getindex(params(smt[1]), :sm), pd = Tuple(-1))
+				smid = only(unique(getindex.(params.(smt), :sm)))
+				op_length = only(unique(getindex.(params.(smt), :op_length)))
+				Op(ii, ol; sm = smid, is_identity = true, op_length = op_length)
 		end
 		_ops = vcat(smt, ids)
 		reduce(*, _ops, init = Prod{Op}())
 	end
-
-    #=
-	T = ttn[nlayers,1]
-	id_prev_fl = map(1:number_of_child_nodes(net, (nlayers, 1))) do chd
-		# extract all rg identities from all other identites
-		idid = deleteat!(collect(1:number_of_child_nodes(net, (nlayers,1))), chd)
-		tensor_list = vcat(T, id_up_rg[nlayers][1][idid], dag(prime(T)))
-		opt_seq = optimal_contraction_sequence(tensor_list)
-		idn = contract(tensor_list; sequence = opt_seq)
-        return idn
-	end
-    =#
 
 	# now got backwards through the network and calculate the downflow
 	for ll in Iterators.drop(Iterators.reverse(eachlayer(net)), 1)
 		environments[ll] = Vector{Vector{Prod{Op}}}(undef, number_of_tensors(net,ll))
 		for pp in eachindex(net, ll)
 			prnt_nd = parent_node(net, (ll,pp))
-			#idx_chd = index_of_child(net, (ll, pp))
 			Tn = ttn[prnt_nd]
 			# From the enviroments, extract all terms except the
 			# current node of interest
@@ -191,57 +192,71 @@ function _build_environments(ttn::TreeTensorNetwork{N, ITensor},
 			
 			# collect all terms appearing in one sum
 			trms_filtered = _collect_sum_terms(filter(T -> site(T) != (ll,pp), trms))
-			
-			#==#
 
 			# calculate the rg flow of all terms
 			rg_trms = map(trms_filtered) do trm
-				
+				op_reduction = length(filter(p -> !p, getindex.(params.(trm), :is_identity)))
+				if op_reduction > 0
+					# if op_reduction == 0 we only have a flow of identities
+					op_reduction -= 1
+				end
 				_ops = which_op.(trm)
 				
 				tensor_list = [Tn, _ops..., dag(prime(Tn))]
             	opt_seq = optimal_contraction_sequence(tensor_list)
-				
 				_rg_op = contract(tensor_list; sequence = opt_seq)
 				
 				prm   = params.(trm)
 				# summand index, should be the same for all
 				smt   = only(unique(getindex.(prm, :sm)))
-				pdtid = Tuple(vcat(map(p -> vcat(p...), getindex.(prm, :pd))...))
-				Op(_rg_op, (prnt_nd); sm = smt, pd = pdtid)
+				op_length = only(unique(getindex.(prm, :op_length))) - op_reduction
+				is_identity = all(getindex.(prm, :is_identity))
+				#pdtid = Tuple(vcat(map(p -> vcat(p...), getindex.(prm, :pd))...))
+				Op(_rg_op, (prnt_nd); sm = smt, is_identity = is_identity, op_length = op_length)
 			end
 			
-
-			# identities comming from above needs to be splitted among
-			# their individual sumands. there should only be one
-			# identity coming from above
-			id_tn = filter(T -> all(getindex(params(T), :pd) .== -1), rg_trms)
-			
 			# some onsite potential collapsing possible here?
-			residual = filter(T -> any(getindex(params(T), :pd) .!= -1), rg_trms)
-			id_split = vcat(map(id_tn) do id
-						map(vcat(getindex(params(id), :sm)...)) do smid
-						pdid = getindex(params(id), :pd)
-						Op(which_op(id), site(id); sm = Tuple(smid), pd = (-1,))
-					end
-			end...)
-						
-			# now we need to collect all terms from below and eventually
-			# some identities on the open legs
-			# todo ->  collapse has to be done before padding with identites from
-			# above
-			trms_bl = _collapse_onsite(rg_flow_trms[ll][pp])
-			trms = _collect_sum_terms(vcat(id_split..., residual..., trms_bl...))
-			environments[ll][pp] = map(trms) do smt
-					# get all rg_identites on the missing legs
-					open_legs = filter(s -> s ∉ site.(smt), child_nodes(net, (ll,pp)))
-					ids = map(open_legs) do ol
-						ii = id_up_rg[ll][pp][index_of_child(net, ol)]
-						Op(ii, ol; sm = getindex(params(smt[1]), :sm), pd = Tuple(-1))
-					end
-					_ops = vcat(smt, ids)
-					reduce(*, _ops, init = Prod{Op}())
+			residual = filter(T -> !getindex(params(T), :is_identity), rg_trms)
+			trms_below = rg_flow_trms[ll][pp]
+			# identities comming from above needs to be splitted among
+			# their individual sumands as they appear from below. 
+			# there should only be one
+			# identity coming from above
+			id_tn = rg_trms[findfirst(T -> getindex(params(T), :is_identity), rg_trms)]
+			
+			
+			# fetch all together and collect terms corresponding to the same sumid
+			trms = _collect_sum_terms(vcat(trms_below..., residual...))
+			env_n = map(trms) do trm
+				# find all ids from above for each terms
+				smidtrm = only(unique(getindex.(params.(trm), :sm)))
+
+				op_length = maximum(unique(getindex.(params.(trm), :op_length)))
+				# correct all operator lengths of the terms, since operators flowing up
+				# loses one length
+				trm_cr = map(trm) do T
+					Op(which_op(T), site(T); sm = smidtrm, op_length = op_length, is_identity = getindex(params(T),:is_identity))
 				end
+
+				# now get all identities from below for the open legs
+				open_legs = filter(s -> s ∉ site.(trm_cr), child_nodes(net, (ll,pp)))
+				id_bl = map(open_legs) do ol
+					ii = id_up_rg[ll][pp][index_of_child(net, ol)]
+					Op(ii, ol; sm = smidtrm, is_identity = true, op_length = op_length)
+				end
+				# also pad the identity from above it is missing
+				if parent_node(net, (ll,pp)) ∉ site.(trm_cr)
+					id_up = Op(which_op(id_tn), site(id_tn); sm = smidtrm, is_identity = true, op_length = op_length)
+					_ops  = vcat(trm_cr, id_bl..., id_up)
+				else
+					_ops  = vcat(trm_cr, id_bl...)
+				end
+
+				#_ops = vcat(trm, id_up..., id_bl...)
+				
+				reduce(*, _ops, init = Prod{Op}())
+			end
+			environments[ll][pp] = _collapse_onsite(env_n)
 		end		
 	end
 	return environments

@@ -51,15 +51,21 @@ function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::
     
     
     # get the envrionments of the current position
-    envs = projTPO[pos]
+    envs_cur = projTPO[pos]
+    envs_target = projTPO[pos_final]
     # extract all components comming from below
-    terms_filtered = map(envs) do smt
-        filter(T -> ITensors.site(T) != pos_final, ITensors.terms(smt))
+    terms_filtered = map(envs_cur) do smt
+        filter(T -> site(T) != pos_final, terms(smt))
     end
 
     # do the rg flow of the terms w.r.t the isometry
     rg_flw = map(terms_filtered) do smt
         _ops = which_op.(smt)
+        op_reduction = length(filter(p -> !p, getindex.(params.(smt), :is_identity)))
+        if op_reduction > 0
+            # if op_reduction == 0 we only have a flow of identities
+            op_reduction -= 1
+        end
         tensor_list = [isom, _ops..., dag(prime(isom))]
         opt_seq = optimal_contraction_sequence(tensor_list)
 				
@@ -67,23 +73,52 @@ function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::
         prm   = params.(smt)
 		# summand index, should be the same for all
 		sid  = only(unique(getindex.(prm, :sm)))
-		pdtid = Tuple(vcat(map(p -> vcat(p...), getindex.(prm, :pd))...))
-		Op(_rg_op, pos; sm = sid, pd = pdtid)
+        op_length = only(unique(getindex.(prm, :op_length)))
+        is_identity = all(getindex.(prm, :is_identity))
+		Op(_rg_op, pos; sm = sid, op_length = op_length-op_reduction, is_identity = is_identity)
     end
     # collapse the onsite operators
-    # TODO currently disabled... need to restore the information wich operator is Local
-    # and which is shared...
+    rg_flw = _collapse_onsite(rg_flw)
 
-    envs_final = projTPO[pos_final]
-    # now rebuild the environments for the new node
-    projTPO.environments[pos_final[1]][pos_final[2]] = map(rg_flw) do trm
-        sid = getindex(params(trm), :sm)
-        idxsm = findfirst(envs_final) do smt_fin
-            sid == only(unique(extract_sm_id(terms(smt_fin))))
-        end
-
-        reduce(*, vcat(filter(T -> site(T) != pos, terms(envs_final[idxsm])), trm), init = Prod{Op}())
+    # now rebuild the environments for the new mode
+    # first split rg_flw terms according to identity, onsite and interaction term
+    rg_flw_id     = only(filter(T -> getindex(params(T), :is_identity), rg_flw))
+    rg_flw_nonid  = filter(T -> !getindex(params(T), :is_identity), rg_flw)
+    rg_flw_onsite = only(filter(T -> isone(getindex(params(T), :op_length)), rg_flw_nonid))
+    rg_flw_int    = filter(T -> !isone(getindex(params(T), :op_length)), rg_flw_nonid)
+    
+    # identity needs to be attached to the terms from below
+    env_n_id = filter(envs_target) do trm
+        trm_smid = only(unique(getindex.(params.(terms(trm)),:sm)))
+        all(s -> s ∈ getindex(params(rg_flw_id), :sm), trm_smid)
     end
+    # now replace the identity with the updated one
+    env_n_id = map(env_n_id) do trm
+        trm_t = terms(trm)
+        trm_smid  = only(unique(getindex.(params.(terms(trm)),:sm)))
+        op_length = only(unique(getindex.(params.(terms(trm)),:op_length)))
+        id_n  = Op(which_op(rg_flw_id), site(rg_flw_id); sm = trm_smid, is_identity = true, op_length = op_length)
+        reduce(*, vcat(filter(T -> site(T) != site(rg_flw_id), trm_t), id_n), init = Prod{Op}())
+    end
+
+    # the onsite operator needs to be padded with identities from below
+    env_onsite_old = only(filter(terms.(envs_target)) do trm
+        trm_smid = only(unique(getindex.(params.(trm),:sm)))
+        trm_smid == getindex(params(rg_flw_onsite),:sm)
+    end)
+    env_n_onsite = reduce(*, vcat(filter(T -> site(T) != site(rg_flw_onsite), env_onsite_old), rg_flw_onsite), init = Prod{Op}())
+    
+    # rest of the interaction terms are handled similar
+    env_n_int = map(rg_flw_int) do rg_trm
+        trms_old = only(filter(terms.(envs_target)) do trm
+            trm_smid = only(unique(getindex.(params.(trm),:sm)))
+            trm_smid == getindex(params(rg_trm), :sm)
+        end)
+        reduce(*, vcat(filter(T -> site(T) != site(rg_trm),trms_old), rg_trm), init = Prod{Op}())
+    end
+
+    # now rebuild the environments for the new node
+    projTPO.environments[pos_final[1]][pos_final[2]] = vcat(env_n_onsite, env_n_id..., env_n_int)
 
     return projTPO
 end
