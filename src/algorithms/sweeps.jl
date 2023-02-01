@@ -1,21 +1,36 @@
 function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
-    verbose_level = get(kwargs, :verbose_level, 1)
+    
+    obs = get(kwargs, :observer, NoObserver())
+
+    outputlevel = get(kwargs, :outputlevel, 1)
 
     # now start with the sweeping protocol
     initialize!(sp)
     #sp = SimpleSweepProtocol(net, n_sweeps)
     for sw in sweeps(sp)
-        if verbose_level ≥ 2 
+        if outputlevel ≥ 2 
             println("Start sweep number $(sw)")
             flush(stdout)
         end
+        t_p = time()
         for pos in sp
             update!(sp, pos)
+            measure!(
+                obs;
+                sweep_handler=sp,
+                pos=pos,
+                outputlevel=outputlevel
+            )
         end
-        if verbose_level ≥ 1
-            println(repeat("=", 50))
-            println("Finsihed sweep $(sw).")
-            println(repeat("=", 50))
+        t_f = time()
+        if outputlevel ≥ 1
+            #println(repeat("=", 50))
+            @printf("Finsihed sweep %i. Needed Time: %0.3fs\n", sw, t_f - t_p)
+            # additional info string provided by the sweephandler
+            info_string(sp, outputlevel)
+            @printf("\n")
+
+            #println(repeat("=", 50))
             flush(stdout)
         end
     end
@@ -23,6 +38,7 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
 end
 
 function dmrg(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
+
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
     maxdims::Union{Int64, Vector{Int64}}  = get(kwargs, :maxdims, 1)
 

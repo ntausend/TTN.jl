@@ -17,6 +17,8 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork, T, B<:AbstractBackend} <: Ab
     end
 end
 
+current_sweep(sh::TDVPSweepHandler) = sh.current_time
+
 function Base.copy(tdvp::TDVPSweepHandler)
     ttnc = deepcopy(tdvp.ttn)
     pTPOc = deepcopy(tdvp.pTPO)

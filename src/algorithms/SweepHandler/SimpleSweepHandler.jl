@@ -8,12 +8,23 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     maxdims::Vector{Int64}
     dir::Symbol
     current_sweep::Int
-    energies::Vector{Float64}
-    curtime::Float64
-    timings::Vector{Float64}
-    add_timings::Vector{Float64}
+    current_energy::Float64
+    current_spec::Spectrum
     SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, expander = NoExpander()) = 
-        new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, Float64[], 0.0, Float64[], Float64[])
+        new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, 0., Spectrum(nothing, 0.0))
+end
+
+current_sweep(sh::SimpleSweepHandler) = sh.current_sweep
+
+function info_string(sh::SimpleSweepHandler, output_level::Int)
+    e = sh.current_energy
+    trnc_wght = truncerror(sh.current_spec)
+    # todo ->  make a function for that .... which also can handle TensorKit
+    maxdim = maxlinkdim(sh.ttn)
+    output_level ≥ 1 && @printf("\tCurrent energy: %.3f.", e)
+    output_level ≥ 2 && @printf(" Truncated Weigth: %.3f. Maximal bond dim = %i", trnc_wght, maxdim)
+    output_level ≥ 1 && @printf("\n")
+    nothing
 end
 
 function initialize!(sp::SimpleSweepHandler)
@@ -44,23 +55,22 @@ function initialize!(sp::SimpleSweepHandler)
             pTPO = update_environments!(pTPO, ism, p, pth[jj+1])
         end
     end
-    #@show sp.ttn[number_of_layers(net), 1] == ttn[number_of_layers(net),1]
-    #@show inds(ttn[number_of_layers(net), 1])
 
     sp.ttn = ttn
     sp.pTPO = pTPO
-    sp.curtime = time()
+    # get starting energy
+    #sp.curtime = time()
     return sp
 end
 
 # simple reset the sweep Handler and update the current sweep number
 # current number still needed?
 function update_next_sweep!(sp::SimpleSweepHandler)
-    tn = time()
-    push!(sp.timings, tn - sp.curtime)
-    sp.curtime = tn
-    @printf("Finished Sweep %i. Energy: %.3f. Needed Time: %.3f s\n", sp.current_sweep, sp.energies[end], sp.timings[end])
-    flush(stdout)
+    #tn = time()
+    #push!(sp.timings, tn - sp.curtime)
+    #sp.curtime = tn
+    #@printf("Finished Sweep %i. Energy: %.3f. Needed Time: %.3f s\n", sp.current_sweep, sp.energies[end], sp.timings[end])
+    #flush(stdout)
 
     sp.dir = :up
     sp.current_sweep += 1 
@@ -118,12 +128,14 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     action  = ∂A(pTPO, pos)
     val, tn = sp.func(action, t)
     #@printf("Needed time for minimzation: %.3f\n", t2 - t1)
-    push!(sp.energies, real(val[1]))
+    sp.current_energy = real(val[1])
+    #push!(sp.energies, real(val[1]))
     tn = tn[1]
     #@show inds(tn)
     # truncate the bond
-    ttn = truncate_and_move!(ttn, tn, pos, pn, sp.expander; maxdim = sp.maxdims[sp.current_sweep])
-    #; maxdim = sp.maxdims[sp.current_sweep])#, mindim = 1, cutoff = 1E-13)
+    
+    ttn, spec = truncate_and_move!(ttn, tn, pos, pn, sp.expander; maxdim = sp.maxdims[sp.current_sweep])
+    sp.current_spec = spec
 end
 
 

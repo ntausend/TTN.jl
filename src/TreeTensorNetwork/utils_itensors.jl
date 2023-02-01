@@ -9,6 +9,12 @@ function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_rand
         view(Ttn, UnitRange.(1, dims_o)...) .= array(T)
         return ITensor(Ttn, id_n...)
     end
+    #@show flux(T)
+    #@show id_n[1]
+    #@show id_n[2]
+    #@show id_t[1]
+    #@show id_t[2]
+    
 
     # in case of qns we have to do more work
     # first create a dummy Tensor with the correct sectors
@@ -58,7 +64,6 @@ function _enlarge_tensor(T::ITensor, id_tu, id_old, id_n, use_random)
     Tn = _enlarge_two_leg_tensor(Tp, (combinedind(cl), id_n), use_random)
 
     return Tn*dag(cl)
-    return Tn
 end
 
 function complement(j1::Index, j2::Index; tags = "Complement", remove_trivial_blocks = false)
@@ -157,13 +162,13 @@ function Base.intersect(j1::Index{Int64}, j2::Index{Int64}; tags = "Intersect")
     return Index(min(ITensors.dim(j1),ITensors.dim(j2)); tags = tags)
 end
 
-function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int}}}, p::Real; tags = "Padded", kwargs...)
+function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int}}}, p::Real, min::Int; tags = "Padded", kwargs...)
     @assert 0≤p≤1
     dir(j) ≠ dir(jp) && error(
     "To pad two indices, they must have the same direction. Trying to pad indices $j and $jp.",
     )
     cmbblocks_pd = map(first(ITensors.combineblocks(space(jp)))) do (q, d)
-            return q => round(Int, d*p)
+            return q => max(round(Int, d*p), min)
     end
     jp_new = ITensors.Index(cmbblocks_pd; dir=dir(jp))
     
@@ -171,6 +176,7 @@ function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int
     
 end
 
+#=
 function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int}}}, p::Int; tags = "Padded", kwargs...)
     @assert 0≤p
     dir(j) ≠ dir(jp) && error(
@@ -183,14 +189,28 @@ function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int
     
     return directsum(j, jp_new; tags = tags)
 end
+=#
 
-function _padding(j::Index{Int64}, jp::Index{Int64}, p::Real; tags = "Padded", kwargs...)
+function _padding(j::Index{Int64}, jp::Index{Int64}, p::Real, min::Int; tags = "Padded", kwargs...)
     @assert 0≤p≤1
-    jp_new = Index(round(Int, ITensors.dim(jp)*p))
+    jp_new = Index(max(round(Int, ITensors.dim(jp)*p), min))
     return directsum(j, jp_new; tags = tags)
 end
+#=
 function _padding(j::Index{Int64}, jp::Index{Int64}, p::Int; tags = "Padded", kwargs...)
     @assert 0≤p
     jp_new = Index(min(ITensors.dim(jp), p))
     return directsum(j, jp_new; tags = tags)
+end
+=#
+
+
+shift_qn(j::Index{Int64}, ::Nothing) = j
+
+function shift_qn(j::Index{Vector{Pair{QN, Int}}}, q_shift::QN)
+    n_states = map(space(j)) do (qn, dd)
+        qn_n = qn - dir(j)*q_shift
+        qn_n => dd
+    end
+    return Index(n_states; tags = tags(j), dir = dir(j))
 end

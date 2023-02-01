@@ -11,14 +11,14 @@ function truncate_and_move!(ttn::TreeTensorNetwork, A::T, pos::Tuple{Int,Int}, p
                               ::AbstractSubspaceExpander; kwargs...) where{T}
     ttn[pos] = A
     !isnothing(position_next) && (ttn = move_ortho!(ttn, position_next))
-    return ttn
+    return ttn, Spectrum(nothing, 0.0)
 end
 
 function truncate_and_move!(ttn::TreeTensorNetwork, A::ITensor, pos::Tuple{Int,Int}, position_next::Union{Tuple{Int,Int}, Nothing},
                               ::NonTrivialExpander; kwargs...)
     if isnothing(position_next)
         ttn[pos] = A
-        return ttn
+        return ttn, Spectrum(nothing, 0.0)
     end
 
     net = network(ttn)    
@@ -37,14 +37,15 @@ function truncate_and_move!(ttn::TreeTensorNetwork, A::ITensor, pos::Tuple{Int,I
     #ttn.ortho_direction[pos[1]][pos[2]] 
 
     ttn.ortho_center .= posnext
-    return move_ortho!(ttn, position_next)
+    return move_ortho!(ttn, position_next), spec
 end
 
-struct DefaultExpander{T} <: NonTrivialExpander
-    p::T
-    function DefaultExpander(p::N) where {N<:Number}
+struct DefaultExpander <: NonTrivialExpander
+    p::Float64
+    min::Int64
+    function DefaultExpander(p::Real; min = 1)
         p ≈ 0 && (return NoExpander())
-        return new{N}(p)
+        return new(p, min)
     end
 end
 
@@ -56,34 +57,80 @@ function expand(_A::ITensor, _Chlds::Tuple{ITensor, ITensor}, expander::DefaultE
     Al,Ar = _Chlds
     id_shl = commonind(_A, Al)
     id_shr = commonind(_A, Ar)
+
     id_ual = uniqueinds(Al, id_shl)
     id_uar = uniqueinds(Ar, id_shr)
+
     A  = ITensors.permute(_A, id_shl, id_shr)
     Al = ITensors.permute(Al, id_ual..., id_shl)
     Ar = ITensors.permute(Ar, id_uar..., id_shr)
-    idfal = combinedind(combiner(id_ual))
-    idfar = combinedind(combiner(id_uar))
 
-    id_max  = intersect(idfal, idfar)
-    id_pdl  = _padding(id_shl, id_max, expander.p)
-    id_pdr  = _padding(id_shr, id_max, expander.p)
-    id_nl   = intersect(id_pdl, id_max; tags = tags(id_shl))
-    id_nr   = intersect(id_pdr, id_max; tags = tags(id_shr))
-    # now correct directions and enlarge the tensors
-    if (id_nl) != dir(inds(Al)[end])
-        id_nl = dag(id_nl)
+    flux_al = flux(Al)
+    flux_ar = flux(Ar)
+    flux_ac = flux(A)
+
+    # treat the flux as if Ac is contracted to Al
+    if !isnothing(flux_al)
+        flux_al = flux_ac * dir(id_shl) + flux_al
     end
-    if (id_nr) != dir(inds(Ar)[end])
-        id_nr = dag(id_nr)
+    
+    # again we want the indices to be outgoing
+    if hasqns(A)
+        id_ual_o = map(i -> sim(i; dir = ITensors.Out), id_ual)
+        id_uar_o = map(i -> sim(i; dir = ITensors.Out), id_uar)
+        id_shl_o = sim(id_shl; dir = ITensors.Out)
+        id_shr_o = sim(id_shr; dir = ITensors.Out)
+    else
+        id_ual_o = id_ual
+        id_uar_o = id_uar
+        id_shl_o = id_shl
+        id_shr_o = id_shr
     end
-    Aln = _enlarge_tensor(Al, id_ual, id_shl, id_nl, false)
-    Arn = _enlarge_tensor(Ar, id_uar, id_shr, id_nr, false)
-    if (id_nl) != dir(inds(A)[1])
-        id_nl = dag(id_nl)
+
+    # now tread id_shl as contracted and id_shr for the direction
+    #idfal = combinedind(combiner(id_ual; dir = dir(dag(id_shr))))
+    #idfar = combinedind(combiner(id_uar; dir = dir(id_shr)))
+    idfal = combinedind(combiner(id_ual_o))
+    idfar = combinedind(combiner(id_uar_o))
+
+    # now correct the indices to have the correct flux
+    #idfal = shift_qn(idfal, flux_al)
+    #idfar = shift_qn(idfar, flux_ar)
+    if hasqns(idfal)
+        idfal = shift_qn(idfal, -flux_al)
+        idfar = shift_qn(idfar, -flux_ar)
     end
-    if (id_nr) != dir(inds(A)[2])
-        id_nr = dag(id_nr)
+    # idfal has to be inverted since it build with the inverted direction originally
+    #id_maxr = intersect(dag(idfal), idfar)
+    id_maxr = intersect(idfal, idfar)
+    # the maximal hilbertspace for the left site has to be shifted by the flux of 
+    # the central tensor, i.e. redoing the shift of the begining
+    # however, this has to be done wiht an arrow inverted according to
+    # match our overall flowing scheme
+    #id_maxl = combinedind(combiner(id_maxr; dir = dir(dag(id_shr))))
+    # direction is inverted, so shift is correct in this way
+    #id_maxl = shift_qn(id_maxl, dir(id_shl)*flux_ac)
+    id_maxl = shift_qn(id_maxr, flux_ac)
+
+
+
+    #id_pdl  = _padding(id_shl, dag(id_maxl), expander.p, expander.min)
+    #id_pdr  = _padding(id_shr, id_maxr, expander.p, expander.min)
+    id_pdl  = _padding(id_shl_o, id_maxl, expander.p, expander.min)
+    id_pdr  = _padding(id_shr_o, id_maxr, expander.p, expander.min)
+
+    #id_nl   = intersect(id_pdl, dag(id_maxl); tags = tags(id_shl))
+    id_nl   = intersect(id_pdl, id_maxl; tags = tags(id_shl))
+    id_nr   = intersect(id_pdr, id_maxr; tags = tags(id_shr))
+    
+    if dir(id_nl) != dir(id_shl)
+        id_nl = dir(id_nl)
     end
+    if dir(id_nr) != dir(id_shr)
+        id_nl = dir(id_nr)
+    end
+    Aln = _enlarge_tensor(Al, id_ual, id_shl, dag(id_nl), false)
+    Arn = _enlarge_tensor(Ar, id_uar, id_shr, dag(id_nr), false)
     An = _enlarge_two_leg_tensor(A, (id_nl, id_nr), true)
 
     if reorthogonalize
@@ -97,42 +144,65 @@ end
 function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogonalize = true)
     @assert hasqns(_A) == hasqns(_B)
 
-
     id_sh = commonind(_A,_B)
     isnothing(id_sh) && error("A and B tensors do not share a link to expand.")
         
     id_au = uniqueinds(_A, id_sh)
     id_bu = uniqueinds(_B, id_sh)
+    # get the flux for identifying the different blocks later
+    flux_A = flux(_A)
+    flux_B = flux(_B)
         
     # permute the tensors to have correct arrangement of indices
     # last index should be the shared index to enlarge
     A = ITensors.permute(_A, id_au..., id_sh)
     B = ITensors.permute(_B, id_bu..., id_sh)
-    
-    idfa = combinedind(combiner(id_au))
-    idfb = combinedind(combiner(id_bu))
 
+    if hasqns(A)
+        # we want all indices to be outgoing for manipulation
+        id_au_o = map(i -> sim(i; dir = ITensors.Out), id_au)
+        id_bu_o = map(i -> sim(i; dir = ITensors.Out), id_bu)
+        id_sh_o = sim(id_sh; dir = ITensors.Out)
+    else
+        id_au_o = id_au
+        id_bu_o = id_bu
+        id_sh_o = id_sh
+    end
+    
+    # build the combined indices with the correct direction for hilbertspace arithmetic
+    #idfa = combinedind(combiner(id_au; dir = dir(dag(id_sh))))
+    #idfb = combinedind(combiner(id_bu; dir = dir(id_sh)))
+    idfa = combinedind(combiner(id_au_o))
+    idfb = combinedind(combiner(id_bu_o))
+
+
+    # now correct the indices to have the correct flux
+    #idfa = shift_qn(idfa, flux_A)
+    #idfb = shift_qn(idfb, flux_B)
+    
+    if hasqns(idfa)
+        idfa = shift_qn(idfa, -flux_A)
+        idfb = shift_qn(idfb, -flux_B)
+    end
+    #@show idfa
+    #@show idfb
+    #@show id_sh
+    # idfa has to be inverted since it build with the inverted direction originally
     id_max = intersect(idfa, idfb)
-    #id_max = directsum(idfa, idfb)
-    id_pd  = _padding(id_sh, id_max, expander.p)
+    #@show id_max
+
+    #id_pd  = _padding(id_sh, id_max, expander.p, expander.min)
+    id_pd  = _padding(id_sh_o, id_max, expander.p, expander.min)
 
     id_n   = intersect(id_pd, id_max; tags = tags(id_sh))
-    #@show id_sh
-    #@show id_n
 
-
-    # correct the direction for the A tensor
-    id_dir = dir(inds(A)[end])
-    if id_dir != dir(id_n)
+    # id_n should have the correct direction for the A tensor
+    if dir(id_n) != dir(id_sh)
         id_n = dag(id_n)
     end
     An = _enlarge_tensor(A, id_au, id_sh, id_n, true)
-    # correct the direction for the B tensor
-    id_dir = dir(inds(B)[end])
-    if id_dir != dir(id_n)
-        id_n = dag(id_n)
-    end
-    Bn = _enlarge_tensor(B, id_bu, id_sh, id_n, false)
+    # but the B tensor needs to be inverted
+    Bn = _enlarge_tensor(B, id_bu, id_sh, dag(id_n), false)
 
     if reorthogonalize
         Bn,R = factorize(Bn, id_bu; tags = tags(id_n))

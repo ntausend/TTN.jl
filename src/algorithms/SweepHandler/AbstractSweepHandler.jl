@@ -4,6 +4,9 @@ initialize!(::AbstractSweepHandler) = nothing
 
 start_position(::AbstractSweepHandler)  = (1,1)
 
+current_sweep(::AbstractSweepHandler) = nothing
+info_string(::AbstractSweepHandler, ::Int) = nothing
+
 # returning the next position based on the protocol (and the state of the protocol)
 # and the current position. Will be used in the iterator
 next_position(::AbstractSweepHandler, ::Tuple{Int, Int}) = nothing

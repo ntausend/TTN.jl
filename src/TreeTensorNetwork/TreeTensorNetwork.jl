@@ -25,6 +25,9 @@ backend(ttn::TreeTensorNetwork) = backend(typeof(ttn))
 include("./ttn_factory_tensorkit.jl")
 include("./ttn_factory_itensors.jl")
 
+ITensors.maxlinkdim(ttn::TreeTensorNetwork) = maximum(map(pos -> maximum(ITensors.dims(ttn[pos])), NodeIterator(network(ttn))))
+
+
 function _initialize_ortho_direction(net)
     ortho_direction = Vector{Vector{Int64}}(undef, number_of_layers(net))
     foreach(eachlayer(net)) do ll
@@ -426,9 +429,23 @@ function adjust_tree_tensor_dimensions!(ttn::TreeTensorNetwork{N,ITensor}, maxdi
         Tprnt = ITensors.permute(ttn[prnt_node], leftover_idx..., prnt_idx)
         
         # now we form the fused link of the childs to get the maximal possible hilbertspace
-        full_link = combinedind(combiner(chld_idx; tags = tags(prnt_idx), dir = dir(prnt_idx)))
+        # we want to have the correct flow in the indices. For this we need to have the
+        # combined index to have the same direction as the index attached to parent node
+        # currently it is with the direction attached to the child
+        # so we simply take all indices to be outgoing
+        if hasqns(prnt_idx)
+            prnt_idx_o = sim(prnt_idx; dir = ITensors.Out)
+            chld_idx_o = map(i -> sim(i; dir = ITensors.Out), chld_idx)
+        else
+            prnt_idx_o = prnt_idx
+            chld_idx_o = chld_idx
+        end
+
+        #full_link = combinedind(combiner(chld_idx; tags = tags(prnt_idx), dir = dir(dag(prnt_idx))))
+        full_link = combinedind(combiner(chld_idx_o))
         # getting the complement of the current parent link in the full link
-        link_complement = complement(full_link, prnt_idx)
+        #link_complement = complement(dag(full_link), prnt_idx)
+        link_complement = complement(full_link, prnt_idx_o)
 
         # if dimension of complement link is zero, we simply throw it away
         iszero(dim(link_complement)) && continue
@@ -436,13 +453,13 @@ function adjust_tree_tensor_dimensions!(ttn::TreeTensorNetwork{N,ITensor}, maxdi
         # now correct the space with the missing number of dimensions
         pssbl_dim = min(maxdim, dim_full) # maximal possible link dimension allowed
         link_padding = _correct_domain(link_complement, pssbl_dim-dim_prnt)
-        link_new     = combinedind(combiner(directsum(prnt_idx, link_padding); tags = tags(prnt_idx)))
-        # now correct the direction of the index to be aligned with the one in T
-        if !(dir(link_new) == dir(inds(T)[end]))
-            link_new = dag(link_new)
-        end
+        #link_new     = combinedind(combiner(directsum(prnt_idx, link_padding); tags = tags(prnt_idx)))
+        link_new     = combinedind(combiner(directsum(prnt_idx_o, link_padding); tags = tags(prnt_idx)))
 
         # now enlarge the tensors by using the padding function
+        if dir(link_new) != dir(prnt_idx)
+            link_new = dag(link_new)
+        end
         Tn     = _enlarge_tensor(T, chld_idx, prnt_idx, link_new, use_random)
         Tnprnt = _enlarge_tensor(Tprnt, leftover_idx, prnt_idx, dag(link_new), use_random)
 
