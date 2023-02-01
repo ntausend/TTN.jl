@@ -111,7 +111,7 @@ function _update_top_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, p
     tensorListBottom = map(jj -> bottom_environment(projTPO, pos, jj), b_collect)
 
     opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), tEnv, tensorListBottom...)
-    projTPO.top_envs[pos_final[1]][pos_final[2]] = noprime(contract(isom, dag(prime(isom)), tEnv, tensorListBottom...; sequence = opt_seq))
+    projTPO.top_envs[pos_final[1]][pos_final[2]] = contract(isom, dag(prime(isom)), tEnv, tensorListBottom...; sequence = opt_seq)
 
     #projTPO.top_envs[pos_final[1]][pos_final[2]] = reduce(*, tensorListBottom, init = (tEnv * isom)) * dag(prime(isom))
     return projTPO
@@ -121,7 +121,7 @@ function _update_bottom_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor
 
     bEnvs = bottom_environment(projTPO, pos)
     opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), bEnvs...)
-    projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = noprime(contract(isom, dag(prime(isom)), bEnvs...; sequence = opt_seq))
+    projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = contract(isom, dag(prime(isom)), bEnvs...; sequence = opt_seq)
     #projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = reduce(*, bEnvs, init = isom)*dag(prime(isom))
     return projTPO
 end
@@ -148,7 +148,6 @@ function ∂A(projTPO::ProjMPO{N, TensorMap}, pos::Tuple{Int,Int}) where{N}
 end
 
 
-# T_in is needed for estimating the optimal contraction sequence
 function ∂A(projTPO::ProjMPO{N, ITensor}, pos::Tuple{Int,Int}) where{N}
     envs = projTPO[pos]
     function action(T::ITensor)
@@ -205,51 +204,12 @@ function ∂A2(projTPO::ProjMPO{N, TensorMap}, isom::TensorMap, posi::Tuple{Int,
     return action
 end
 
-function ∂A2(projTPO::ProjMPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}, posf::Tuple{Int,Int}) where N
-    net = network(projTPO)
-    tEnv = top_environment(projTPO, posi)
-    bEnvs = bottom_environment(projTPO, posi)
-    ttn_coord = Vector{Float64}(internal_index_of_legs(net, posi))
-    tInds = top_indices(projTPO, posi)
-    bInds = bottom_indices(projTPO, posi)
-
-    if posf ∈ child_nodes(projTPO.net, posi)
-        idx = index_of_child(projTPO.net, posf)
-        r_coord = [ttn_coord[idx], ttn_coord[idx]+0.5]
-        ttn_coord[idx] += 0.5 
-    else 
-        idx = 1+number_of_child_nodes(projTPO.net, posi)
-        r_coord = [ttn_coord[idx]-0.5, ttn_coord[idx]]
-        ttn_coord[idx] -= 0.5 
-    end
-
+function ∂A2(projTPO::ProjMPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}) where N
+    envs = projTPO[posi]
     function action(link::ITensor)
-        if posf ∈ child_nodes(projTPO.net, posi)
-            idx = index_of_child(projTPO.net, posf)
-            n_chds = number_of_child_nodes(net, posi)
-
-            bEnvsSplit = map(chd_nd -> bEnvs[chd_nd], deleteat!(collect(1:n_chds), idx))
-            tensorList = [bEnvsSplit..., link]
-            opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), link, tEnv, bEnvs...)
-            return noprime(contract(isom, dag(prime(isom)), link, tEnv, bEnvs...; sequence = opt_seq))
-            #res = reduce(*, tensorList, init = (tEnv * isom))*  bEnvs[idx] * dag(prime(isom))
-	 else    
-            opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), link, tEnv, bEnvs...)
-            return noprime(contract(isom, dag(prime(isom)), link, tEnv, bEnvs...; sequence = opt_seq))
-            #res = reduce(*, vcat(bEnvs, [dag(prime(isom))]), init = (link * isom)) *tEnv
-        end
-        return noprime(res)
+        tensor_list = vcat(isom, dag(prime(isom)), link, envs...)
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return noprime(contract(tensor_list; sequence = opt_seq))
     end
     return action
 end
-#=
-# special case of simple binary network... this is easy
-function ∂A(projTPO::ProjTensorProductOperator, net::BinaryNetwork, pos::Tuple{Int,Int})
-    top_env = top_environment(projTPO, pos)
-    chld_envs = bottom_environment(projTPO, pos)
-    function action(isom::AbstractTensorMap)
-        # do stuff here -> need paper for considering the contractions
-        #@tensor 
-    end
-end
-=#

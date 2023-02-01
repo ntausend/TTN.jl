@@ -45,11 +45,10 @@ initialize!(::TDVPSweepHandler) = nothing
 update_next_sweep!(::TDVPSweepHandler) = nothing
 
 function _tdvp_path(net::AbstractNetwork)
-    path = Vector{Tuple{Int,Int}}([(TTNKit.number_of_layers(net), 1)])
+    path = Vector{Tuple{Int,Int}}([(number_of_layers(net), 1)])
 
-    #why using a function here? -> dont see the why this adds anything
     function gotochild(pos::Tuple{Int,Int})      
-        for chd_nd in TTNKit.child_nodes(net, pos)
+        for chd_nd in child_nodes(net, pos)
             if chd_nd[1] > 0
                 append!(path, [chd_nd])
                 gotochild(chd_nd)
@@ -93,10 +92,10 @@ function _tdvpforward!(sp::TDVPSweepHandler{N, ITensor}, pos::Tuple{Int,Int}) wh
         # QR-decompose time evolved tensor at pos
         idx_r = commonind(ttn[pos], ttn[nextpos])
         idx_l = uniqueinds(ttn[pos], idx_r)
-        Qn,R = qr(Tn, idx_l; tags = tags(idx_r))
+        Qn,R = factorize(Tn, idx_l; tags = tags(idx_r))
         
         # reverse time evolution for R tensor between pos and nextpos
-        action2 = ∂A2(pTPO, Qn, pos, nextpos)
+        action2 = ∂A2(pTPO, Qn, pos)
         (Rn,_) = sp.func(action2, -sp.timestep/2, R)
 
         # multiply new R tensor onto tensor at nextpos
@@ -202,7 +201,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler{N, ITensor}, pos::Tuple{Int,Int}) w
         ttn[pos] = Qn
 
         # reverse time evolution for R tensor between pos and nextpos
-        action = ∂A2(pTPO, Qn, pos, nextpos)
+        action = ∂A2(pTPO, Qn, pos)
         (Ln,_) = sp.func(action, -sp.timestep/2, L) 
 
         # multiply new L tensor on tensor at nextpos

@@ -137,3 +137,16 @@ function ∂A(projTPO::ProjTPO{N, ITensor}, pos::Tuple{Int,Int}) where{N}
         end
     end
 end
+
+
+function ∂A2(projTPO::ProjTPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}) where N
+    envs = projTPO[posi]
+    function action(link::ITensor)
+        mapreduce(+, envs) do trm 
+            tensor_list = vcat(isom, dag(prime(isom)), link, which_op.(trm))
+            opt_seq = optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list; sequence = opt_seq))
+        end
+    end
+    return action
+end
