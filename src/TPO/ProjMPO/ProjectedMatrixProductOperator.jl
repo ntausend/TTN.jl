@@ -110,14 +110,19 @@ function _update_top_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, p
     b_collect = deleteat!(collect(1:number_of_child_nodes(net, pos)), index_of_child(net, pos_final))
     tensorListBottom = map(jj -> bottom_environment(projTPO, pos, jj), b_collect)
 
-    projTPO.top_envs[pos_final[1]][pos_final[2]] = reduce(*, tensorListBottom, init = (tEnv * isom)) * dag(prime(isom))
+    opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), tEnv, tensorListBottom...)
+    projTPO.top_envs[pos_final[1]][pos_final[2]] = noprime(contract(isom, dag(prime(isom)), tEnv, tensorListBottom...; sequence = opt_seq))
+
+    #projTPO.top_envs[pos_final[1]][pos_final[2]] = reduce(*, tensorListBottom, init = (tEnv * isom)) * dag(prime(isom))
     return projTPO
 end
 function _update_bottom_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int}) where {N}
     net = network(projTPO)
 
     bEnvs = bottom_environment(projTPO, pos)
-    projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = reduce(*, bEnvs, init = isom)*dag(prime(isom))
+    opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), bEnvs...)
+    projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = noprime(contract(isom, dag(prime(isom)), bEnvs...; sequence = opt_seq))
+    #projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = reduce(*, bEnvs, init = isom)*dag(prime(isom))
     return projTPO
 end
 
@@ -224,10 +229,14 @@ function ∂A2(projTPO::ProjMPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}
             n_chds = number_of_child_nodes(net, posi)
 
             bEnvsSplit = map(chd_nd -> bEnvs[chd_nd], deleteat!(collect(1:n_chds), idx))
-            tensorList = [bEnvsSplit..., link, bEnvs[idx]]
-            res = reduce(*, tensorList, init = (tEnv * isom)) * dag(prime(isom))
-        else    
-            res = reduce(*, vcat(bEnvs, [dag(prime(isom))]), init = (link * isom)) *tEnv
+            tensorList = [bEnvsSplit..., link]
+            opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), link, tEnv, bEnvs...)
+            return noprime(contract(isom, dag(prime(isom)), link, tEnv, bEnvs...; sequence = opt_seq))
+            #res = reduce(*, tensorList, init = (tEnv * isom))*  bEnvs[idx] * dag(prime(isom))
+	 else    
+            opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), link, tEnv, bEnvs...)
+            return noprime(contract(isom, dag(prime(isom)), link, tEnv, bEnvs...; sequence = opt_seq))
+            #res = reduce(*, vcat(bEnvs, [dag(prime(isom))]), init = (link * isom)) *tEnv
         end
         return noprime(res)
     end

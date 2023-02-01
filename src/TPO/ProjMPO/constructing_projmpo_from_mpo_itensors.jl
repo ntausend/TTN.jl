@@ -75,7 +75,6 @@ end
 # make this more readable
 function _construct_top_environments(ttn::TreeTensorNetwork{N,T}, bEnv::Vector{Vector{Vector{T}}}, bInd::Vector{Vector{Vector{Vector{Int64}}}}) where{N,T<:ITensor}
 
-
     net = TTNKit.network(ttn)
     n_sites = number_of_sites(net)
     n_tensors = number_of_tensors(net) + n_sites

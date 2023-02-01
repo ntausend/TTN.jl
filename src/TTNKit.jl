@@ -2,6 +2,7 @@ module TTNKit
     using SparseArrays
     using TensorKit
     using ITensors
+    using ITensorGPU
     using Distributions: Multinomial
     using Parameters: @with_kw
     using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray

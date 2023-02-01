@@ -89,8 +89,6 @@ function _tdvpforward!(sp::TDVPSweepHandler{N, ITensor}, pos::Tuple{Int,Int}) wh
         # time evolve tensor at pos
         action = ∂A(pTPO, pos)
         (Tn,_) = sp.func(action, sp.timestep/2, T) 
-        # @show T
-        # @show Tn
 
         # QR-decompose time evolved tensor at pos
         idx_r = commonind(ttn[pos], ttn[nextpos])
