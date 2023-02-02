@@ -103,7 +103,7 @@ function Hamiltonian(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}
     # @assert isone(dimensionality(lat))
     @assert is_physical(lat)
     # idx_lat = siteinds(lat)
-    idx_lat = map(mapping) do pos
+    idx_lat = map(mapping) do pos #inverse_mapping(mapping)
         TTNKit.hilbertspace(lat[pos])
     end
 

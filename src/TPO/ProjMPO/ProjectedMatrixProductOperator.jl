@@ -113,7 +113,6 @@ function _update_top_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, p
     opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), tEnv, tensorListBottom...)
     projTPO.top_envs[pos_final[1]][pos_final[2]] = contract(isom, dag(prime(isom)), tEnv, tensorListBottom...; sequence = opt_seq)
 
-    #projTPO.top_envs[pos_final[1]][pos_final[2]] = reduce(*, tensorListBottom, init = (tEnv * isom)) * dag(prime(isom))
     return projTPO
 end
 function _update_bottom_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int}) where {N}
@@ -122,7 +121,6 @@ function _update_bottom_environment!(projTPO::ProjMPO{N, ITensor}, isom::ITensor
     bEnvs = bottom_environment(projTPO, pos)
     opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), bEnvs...)
     projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = contract(isom, dag(prime(isom)), bEnvs...; sequence = opt_seq)
-    #projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = reduce(*, bEnvs, init = isom)*dag(prime(isom))
     return projTPO
 end
 

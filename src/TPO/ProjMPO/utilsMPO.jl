@@ -29,7 +29,6 @@ end
 
 function lattice_sites(lat::SimpleLattice)
     prod_it = Iterators.product(UnitRange.(1, lat.dims)...)
-    #return vcat(vec(map(x -> x, prod_it) )...)
     return vec(collect(prod_it))
 end
 
@@ -58,7 +57,7 @@ function hilbert_curve(lat::SimpleLattice)
         error("hilbert curve not implemented for these lattice dimensions")
     end
     generate2d(0, 0, w, 0, 0, h, curve)
-    curve_lin = map(p -> _linear_ind_simple_lattice(p, lat.dims), curve)
+    curve_lin = map(p -> TTNKit._linear_ind_simple_lattice(p, lat.dims), curve)
 
     # need to invert the resulting curve
     # curve_inv = sort(collect(zip(curve_lin, eachindex(lat))), by = x -> x[1])

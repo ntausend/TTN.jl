@@ -22,22 +22,22 @@ The function returns as a first object a vector of all labels of the open indice
 defines the order of the legs in the resulting tensor. The second argument is the contracted tensor.
 
 """
-function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::Vector{Vector{K}}) where K
-    
+function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::Vector{Vector{K}}) where {K}
+
     #= why is this slower than the version of Wladi? Would expect to be similar...
     fl_index_list = Iterators.flatten(index_list)
     n_count = StatsBase.countmap(fl_index_list)
-    
+
     defects = findall(x -> x>2, n_count)
     isempty(defects) || error("Indices $(defects) occure more than twice.")
-    
+
     double_occurence = findall(x -> x == 2, n_count)
     single_occurence = findall(x -> x == 1, n_count)
     =#
     unique_indices = K[]
     double_indices = K[]
-    flatIndexList = collect(Iterators.flatten(index_list))#vcat(indexList...)  
-    
+    flatIndexList = collect(Iterators.flatten(index_list))#vcat(indexList...)
+
     while !(isempty(flatIndexList))
         el = popfirst!(flatIndexList)
         if !(el in flatIndexList) && !(el in double_indices)
@@ -52,20 +52,17 @@ function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::
             return pp in unique_indices ? -findall(isequal(pp), unique_indices)[1] : findall(isequal(pp), double_indices)[1]
         end
     end
-    # println(tensor_list)
-    # println(contract_list)
-    # println(unique_indices)
     return unique_indices, @ncon(tensor_list, contract_list)
 end
 
 # also return the unique_indices to have compatiblity with other methods... need to rethink about this
 # whole construct..., for ITensors it is useless, since contract_tensors simply contruct the already
 # equal legs
-function contract_tensors(tensor_list::Vector{<:ITensor}, index_list::Vector{Vector{K}}) where{K}
+function contract_tensors(tensor_list::Vector{<:ITensor}, index_list::Vector{Vector{K}}) where {K}
     unique_indices = K[]
     double_indices = K[]
-    flatIndexList = collect(Iterators.flatten(index_list))#vcat(indexList...)  
-    
+    flatIndexList = collect(Iterators.flatten(index_list))#vcat(indexList...)
+
     while !(isempty(flatIndexList))
         el = popfirst!(flatIndexList)
         if !(el in flatIndexList) && !(el in double_indices)
