@@ -196,7 +196,7 @@ end
 # that the layer of `pos1` is lower or equal than `pos2`
 function _connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
 	check_valid_position(net, pos1)
-	check_valid_position(net, pos1)
+	check_valid_position(net, pos2)
 	
 	# first assume l1 ≤ l2, p1 < p2 for simplicity
 	# later to the general thing
