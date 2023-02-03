@@ -9,16 +9,12 @@ function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_rand
         view(Ttn, UnitRange.(1, dims_o)...) .= array(T)
         return ITensor(Ttn, id_n...)
     end
-    #@show flux(T)
-    #@show id_n[1]
-    #@show id_n[2]
-    #@show id_t[1]
-    #@show id_t[2]
     
 
     # in case of qns we have to do more work
     # first create a dummy Tensor with the correct sectors
     Ttn = use_random ? randomITensor(eltype(T), flux(T), id_n...) : ITensor(eltype(T), 0, flux(T), id_n...)
+
 
     Tpt = ITensors.tensor(T)
     Tnt = ITensors.tensor(Ttn)
@@ -29,6 +25,7 @@ function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_rand
     sp_tnt_l = space.(itnt[1])
     sp_tnt_r = space.(itnt[2])
 
+
     foreach(ITensors.eachnzblock(Tpt)) do bl
         # qnnumbers
         sp_l = ITensors.getblock(itpt[1], bl[1])
@@ -36,6 +33,7 @@ function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_rand
         qn_l = first(sp_l)
         qn_r = first(sp_r)
 
+        
         id_bl_tnt_l = findfirst(q -> isequal(q, qn_l), first.(sp_tnt_l))
         id_bl_tnt_r = findfirst(q -> isequal(q, qn_r), first.(sp_tnt_r))
         bl_tnt = Block(id_bl_tnt_l, id_bl_tnt_r)

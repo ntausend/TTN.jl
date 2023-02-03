@@ -420,51 +420,53 @@ function adjust_tree_tensor_dimensions!(ttn::TreeTensorNetwork{N,ITensor}, maxdi
         dim_chlds = ITensors.dim.(chld_idx)
         dim_full = prod(dim_chlds)
         dim_prnt = ITensors.dim(prnt_idx)
-        
-        dim_prnt == min(dim_full, maxdim) && continue
+       
+        dim_prnt == dim_full || dim_prnt ≥ maxdim && continue
+        #dim_prnt == min(dim_full, maxdim) && continue
         
         # permute the indeces to have the enlarging link at the last position
         T = ITensors.permute(T, chld_idx..., prnt_idx)
         leftover_idx = uniqueinds(ttn[prnt_node], prnt_idx)
         Tprnt = ITensors.permute(ttn[prnt_node], leftover_idx..., prnt_idx)
         
-        # now we form the fused link of the childs to get the maximal possible hilbertspace
-        # we want to have the correct flow in the indices. For this we need to have the
-        # combined index to have the same direction as the index attached to parent node
-        # currently it is with the direction attached to the child
-        # so we simply take all indices to be outgoing
-        if hasqns(prnt_idx)
-            prnt_idx_o = sim(prnt_idx; dir = ITensors.Out)
-            chld_idx_o = map(i -> sim(i; dir = ITensors.Out), chld_idx)
+
+        if hasqns(T)
+            qn_link = Index([flux(T)=>1], "QNL"; dir = ITensors.In)
         else
-            prnt_idx_o = prnt_idx
-            chld_idx_o = chld_idx
+            qn_link = Index(1, "QNL")
         end
 
-        #full_link = combinedind(combiner(chld_idx; tags = tags(prnt_idx), dir = dir(dag(prnt_idx))))
-        full_link = combinedind(combiner(chld_idx_o))
+        # build the full link with possible flow of the qn numbers involved
+        # build it in the opposite direction of the parent node to have
+        # it formally aligned in terms of flows 
+        full_link = combinedind(combiner(chld_idx..., qn_link; dir = dir(dag(prnt_idx))))
         # getting the complement of the current parent link in the full link
-        #link_complement = complement(dag(full_link), prnt_idx)
-        link_complement = complement(full_link, prnt_idx_o)
-
+        link_complement = complement(dag(full_link), prnt_idx)
         # if dimension of complement link is zero, we simply throw it away
         iszero(dim(link_complement)) && continue
 
         # now correct the space with the missing number of dimensions
         pssbl_dim = min(maxdim, dim_full) # maximal possible link dimension allowed
+        # correct sectors appearing in link_complement but not appearing in the current link to at least one sector
         link_padding = _correct_domain(link_complement, pssbl_dim-dim_prnt)
-        #link_new     = combinedind(combiner(directsum(prnt_idx, link_padding); tags = tags(prnt_idx)))
-        link_new     = combinedind(combiner(directsum(prnt_idx_o, link_padding); tags = tags(prnt_idx)))
-
-        # now enlarge the tensors by using the padding function
-        if dir(link_new) != dir(prnt_idx)
-            link_new = dag(link_new)
+        if hasqns(T)
+            # how to do this more smart? now we increasing the qn larger than necessary...
+            link_missing = complement(link_complement, link_padding)
+            prnt_secs = first.(space(prnt_idx))
+            cmpl_sp = space(link_missing)
+            sp_n_or_missing = map(cmpl_sp) do (qn, dd)
+                qn ∉ prnt_secs && dd > 0 ? qn => 1 : missing
+            end
+            sp_n = vcat(collect(skipmissing(sp_n_or_missing)), space(link_padding))
+            link_padding = Index(sp_n; tags = tags(link_padding), dir = dir(link_padding))
         end
-        Tn     = _enlarge_tensor(T, chld_idx, prnt_idx, link_new, use_random)
-        Tnprnt = _enlarge_tensor(Tprnt, leftover_idx, prnt_idx, dag(link_new), use_random)
+        # link_new has now the same direction as prnt_idx, and therefore how it is attached to T
+        link_new     = combinedind(combiner(directsum(prnt_idx, link_padding); tags = tags(prnt_idx)))
 
-        # Tn and Tnprnt should now be correct enlarged, but not normalized/orhtogonal,
-        # so reset the orthogonality centrum to reference this
+        Tn     = _enlarge_tensor(T, chld_idx, prnt_idx, link_new, use_random)
+        # it has to be daggered for the parent_node to have it in the codomain
+        #Tnprnt = _enlarge_tensor(Tprnt, leftover_idx, prnt_idx, dag(link_new), use_random)
+        Tnprnt = _enlarge_tensor(Tprnt, leftover_idx, prnt_idx, dag(link_new), false)
 
         ttn[pos] = Tn
         ttn[prnt_node] = Tnprnt
@@ -473,6 +475,7 @@ function adjust_tree_tensor_dimensions!(ttn::TreeTensorNetwork{N,ITensor}, maxdi
     end
     # if ttn was orthogonal, restore the original oc center
     if reorthogonalize
+        @show reorthogonalize
         ttn = _reorthogonalize!(ttn)
         ttn = move_ortho!(ttn, oc)
     end

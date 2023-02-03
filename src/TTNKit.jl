@@ -12,14 +12,7 @@ module TTNKit
     using Printf
 
 
-    # Krylov Parameters
-    # todo ->  make them as kwargs arguments
-    eigsolve_tol = 1e-14
-    eigsolve_krylovdim = 5
-    eigsolve_maxiter = 3
-    eigsolve_verbosity = 0
-    ishermitian = true
-    eigsolve_which_eigenvalue = :SR
+    
 
 
     struct NotImplemented <: Exception
