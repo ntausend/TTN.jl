@@ -1,6 +1,6 @@
 struct ProjTPO{N<:TTNKit.AbstractNetwork, T, B<:AbstractBackend} <: AbstractProjTPO{N,T,B}
     net::N
-    tpo::Vector{Prod{Op}}
+    tpo::TPO
     ortho_center::Vector{Int64} # tracking the current ortho center
 
     rg_terms_upwards::Vector{Vector{Vector{Vector{Op}}}}
@@ -10,11 +10,11 @@ end
 
 # general constructor from a formal sum, depending on the case it will 
 # generate the itensor or tensormap version of this pTPO
-function ProjTPO(ttn::TreeTensorNetwork{N, T}, ampo::Sum{Scaled{C, Prod{Op}}}) where {N,T, C}
+function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO) where {N,T}
     net = network(ttn)
     # first construct the tpo, invovles some conversion and returns
     # a vector (representing the sum) of the product operators.
-    tpo = _ampo_to_tpo(ampo, physical_lattice(net))
+    #tpo = _ampo_to_tpo(ampo, physical_lattice(net))
     # calcualte the uprg flows of the operators and identities
     rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo)
     # build the environments
@@ -25,7 +25,7 @@ end
 environments(ptpo::ProjTPO, pos::Tuple{Int, Int}) = ptpo.environments[pos[1]][pos[2]]
 
 include("./general_utils.jl")
-include("./constructing_projtpo_from_ampo_itensors.jl")
+include("./construct_environments_itensors.jl")
 
 
 function rebuild_environments!(projTPO::ProjTPO, ttn::TreeTensorNetwork)

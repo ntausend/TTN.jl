@@ -1,41 +1,5 @@
-# transforming a formal ampo from ITensors to a vector of product operators
-# already performing the scaling and extracting the operators from the hilbertspaces
-function _ampo_to_tpo(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}) where{D,S,I}
-	physidx = siteinds(lat)	
-    # getting all non-zero terms
-    sm_terms = filter(t -> !isapprox(coefficient(t),0), terms(sortmergeterms(ampo)))
-    # assert correct qns in the case of qn indices -> todo
-	# do algebraic reduction for same tensors etc..
-	
-    tpo_sum   = Vector{Prod{Op}}(undef, length(sm_terms))
-
-	for (jj, stm) in enumerate(sm_terms)
-		# saving coefficient
-		#coef_list[jj] = coefficient(stm)
-		coef = coefficient(stm)
-		# extracting the product part
-		#prod_op = map(enumerate(terms(stm))) do (pp, prt)
-		prod_op = map(terms(stm)) do prt
-			_opstr = which_op(prt)
-			# convert the side index to an tuple to be compatible with 1D
-			idx = site(prt)
-			idx isa Int64 && (idx = Tuple(idx))
-			idx_lin = linear_ind(lat, idx)
-			_op = op(physidx[idx_lin], _opstr; params(prt)...)
-			# do we need the product id here? propl. not
-			#return Op(_op, (0, idx_lin); sm = Tuple(jj), pd = Tuple(pp), op_length = length(stm), is_identity = false)
-			return Op(_op, (0, idx_lin); sm = Tuple(jj), op_length = length(stm), is_identity = false)
-		end
-		# now rescale the first operator in the list with the coefficient
-		prod_op[1] = Op(which_op(prod_op[1])*coef, site(prod_op[1]); params(prod_op[1])...)
-		tpo_sum[jj] = reduce(*, prod_op, init = Prod{Op}())
-	end
-	# collapse onsite operators acting on the same link
-	return _collapse_onsite(tpo_sum)
-end
-
 # calculate the up rg flow for all operator terms
-function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::Vector{Prod{Op}}) where{N}
+function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::TPO) where{N}
 	net = network(ttn)
 
 	# now we want to calculate the upflow up to the ortho position
@@ -45,7 +9,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::Vector{Prod{Op}}) 
 	# forget every extra information stored in the structure of tpo and
 	# cast it to a flat array, we need to reconstruct every sum structure
 	# later on using the id saved in the tpo operators itself
-	trms = vcat(terms.(tpo)...)
+	trms = vcat(terms.(tpo.data)...)
 	# initialize the rg terms similiar to the bottom envs. i.e.
 	# for every layer we have a array for every node denoting the upflow of the link
 	# operators up to this point

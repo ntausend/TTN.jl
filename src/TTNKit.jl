@@ -121,6 +121,8 @@ module TTNKit
     include("./TPO/ProjMPO/utilsMPO.jl")
 
     # tensor product operator implementations
+    export TPO
+    include("./TPO/ProjTPO/TPO.jl")
     include("./TPO/ProjTPO/ProjectedTensorProductOperator.jl")
 
     # model implementations

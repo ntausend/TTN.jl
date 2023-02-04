@@ -53,7 +53,7 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
     return sp
 end
 
-function dmrg(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
+function dmrg(psi0::TreeTensorNetwork, mpo::MPOWrapper; expander = NoExpander(), kwargs...)
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
     maxdims::Union{Int64, Vector{Int64}}  = get(kwargs, :maxdims, 1)
@@ -83,7 +83,7 @@ function dmrg(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; expan
     return sweep(psic, SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, expander); kwargs...)
 end
 
-function dmrg(psi0::TreeTensorNetwork, mpo::OpSum; expander = NoExpander(), kwargs...)
+function dmrg(psi0::TreeTensorNetwork, tpo::TPO; expander = NoExpander(), kwargs...)
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
     maxdims::Union{Int64, Vector{Int64}}  = get(kwargs, :maxdims, 1)
 
@@ -102,7 +102,7 @@ function dmrg(psi0::TreeTensorNetwork, mpo::OpSum; expander = NoExpander(), kwar
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    pTPO = ProjTPO(psic, mpo)
+    pTPO = ProjTPO(psic, tpo)
     func = (action, T) -> eigsolve(action, T, 1,
                             eigsolve_which_eigenvalue;
                             ishermitian=ishermitian,
@@ -112,7 +112,7 @@ function dmrg(psi0::TreeTensorNetwork, mpo::OpSum; expander = NoExpander(), kwar
     return sweep(psic, SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, expander); kwargs...)
 end
 
-function tdvp(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwargs...)
+function tdvp(psi0::TreeTensorNetwork, mpo::MPOWrapper; kwargs...)
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_TDVP)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
@@ -135,7 +135,7 @@ function tdvp(psi0::TreeTensorNetwork, mpo::AbstractTensorProductOperator; kwarg
     return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...)
 end
 
-function tdvp(psi0::TreeTensorNetwork, mpo::OpSum; kwargs...)
+function tdvp(psi0::TreeTensorNetwork, tpo::TPO; kwargs...)
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_TDVP)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
@@ -147,7 +147,7 @@ function tdvp(psi0::TreeTensorNetwork, mpo::OpSum; kwargs...)
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    pTPO = ProjTPO(psic, mpo)
+    pTPO = ProjTPO(psic, tpo)
     
     func = (action, dt, T) -> exponentiate(action, -1im*dt, T, krylovdim = eigsolve_krylovdim,
                                                     tol = eigsolve_tol, 
@@ -157,35 +157,3 @@ function tdvp(psi0::TreeTensorNetwork, mpo::OpSum; kwargs...)
 
     return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...)
 end
-
-# get next step
-#if verbose_level ≥ 3
-#    println("\tFinished optimizing position $(pos)")
-#    flush(stdout)
-#end
-
-#=
-if !isnothing(pn)
-    if verbose_level ≥ 3
-        println("\tStart updating environments.")
-        flush(stdout)
-    end
-
-    move_ortho!(psic, pn)
-    pth = connecting_path(net, pos, pn)
-    pth = vcat(pos, pth)
-    for (jj,pk) in enumerate(pth[1:end-1])
-        ism = psic[pk]
-        pTPO = update_environments!(pTPO, ism, pk, pth[jj+1])
-    end
-    if verbose_level ≥ 3
-        println("\tFinished updating environments.")
-        flush(stdout)
-    end
-end
-            if verbose_level ≥ 3
-                println("\tOptimizing position $(pos)")
-                flush(stdout)
-            end
-
-=#

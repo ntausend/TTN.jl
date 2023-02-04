@@ -44,7 +44,10 @@ end
 sweeps(sp::TDVPSweepHandler) = 0:sp.timestep:sp.finaltime
 start_position(sp::TDVPSweepHandler) = (sp.path[1])
 initialize!(::TDVPSweepHandler) = nothing
-update_next_sweep!(::TDVPSweepHandler) = nothing
+function update_next_sweep!(sh::TDVPSweepHandler) 
+    sh.current_time += sh.timestep
+    sh
+end
 
 function _tdvp_path(net::AbstractNetwork)
     path = Vector{Tuple{Int,Int}}([(number_of_layers(net), 1)])
