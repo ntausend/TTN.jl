@@ -60,7 +60,7 @@ function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::
 
     # do the rg flow of the terms w.r.t the isometry
     rg_flw = map(terms_filtered) do smt
-        _ops = which_op.(smt)
+      _ops = convert_cu(which_op.(smt), isom) #which_op.(smt) #
         op_reduction = length(filter(p -> !p, getindex.(params.(smt), :is_identity)))
         if op_reduction > 0
             # if op_reduction == 0 we only have a flow of identities
@@ -69,7 +69,7 @@ function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::
         tensor_list = [isom, _ops..., dag(prime(isom))]
         opt_seq = optimal_contraction_sequence(tensor_list)
 				
-		_rg_op = contract(tensor_list; sequence = opt_seq)
+        _rg_op = contract(tensor_list; sequence = opt_seq)
         prm   = params.(smt)
 		# summand index, should be the same for all
 		sid  = only(unique(getindex.(prm, :sm)))
@@ -94,6 +94,7 @@ function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::
     end
     # now replace the identity with the updated one
     env_n_id = map(env_n_id) do trm
+        #trm_t = convert_cu(terms(trm), isom)
         trm_t = terms(trm)
         trm_smid  = only(unique(getindex.(params.(terms(trm)),:sm)))
         op_length = only(unique(getindex.(params.(terms(trm)),:op_length)))

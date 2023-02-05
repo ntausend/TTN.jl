@@ -52,7 +52,7 @@ module TTNKit
     import ITensors: state, op, space, siteinds
     import ITensors: expect
     using ITensors: terms, sortmergeterms, which_op, site, params, determineValType
-	using ITensors: argument, optimal_contraction_sequence
+	  using ITensors: argument, optimal_contraction_sequence
     using ITensors:  dim as dim_it
     using TensorKit: dim as dim_tk
     using ITensors:  dims as dims_it
@@ -105,6 +105,7 @@ module TTNKit
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
+    include("./TreeTensorNetwork/algorithms/correlation.jl")
 
     #=================================================================================#
     # Does this function still exists?
@@ -136,6 +137,9 @@ module TTNKit
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+
+    include("./gpu.jl")
+    include("./TreeTensorNetwork/algorithms/observables.jl")
 
 
     #=

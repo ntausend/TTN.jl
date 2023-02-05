@@ -202,10 +202,26 @@ function ∂A2(projTPO::ProjMPO{N, TensorMap}, isom::TensorMap, posi::Tuple{Int,
     return action
 end
 
-function ∂A2(projTPO::ProjMPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}) where N
-    envs = projTPO[posi]
+function ∂A2(projTPO::ProjMPO{N, ITensor}, isom::ITensor, pos::Tuple{Int,Int}) where N
+    envs = projTPO[pos]
     function action(link::ITensor)
         tensor_list = vcat(isom, dag(prime(isom)), link, envs...)
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return noprime(contract(tensor_list; sequence = opt_seq))
+    end
+    return action
+end
+
+function ∂A3(projTPO::ProjMPO{N, ITensor}, pos::Tuple{Int,Int}) where N
+    nextpos = parent_node(projTPO.net, pos)
+    bottomEnvs_chd = projTPO.bottom_envs[pos[1]][pos[2]] #bottom_environment(ProjMPO, pos)
+    idx = index_of_child(projTPO.net, pos)
+    n_chds = number_of_child_nodes(projTPO.net, nextpos)
+
+    envs_prnt = map(nd -> environments(projTPO, nextpos)[nd], deleteat!(collect(1:n_chds+1), idx))
+
+    function action(isom_chd::ITensor, isom_prnt::ITensor)
+        tensor_list = vcat(isom_chd, isom_prnt, bottomEnvs_chd..., envs_prnt...)
         opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
         return noprime(contract(tensor_list; sequence = opt_seq))
     end

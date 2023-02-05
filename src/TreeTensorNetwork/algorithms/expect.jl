@@ -53,8 +53,7 @@ function expect(ttn::TreeTensorNetwork{L,ITensor}, op_str::AbstractString, pos::
     ttnc = copy(ttn)
 
     idx = siteinds(net)[pos]
-    O   = op(op_str, idx)
-
+    O   = TTNKit.convert_cu(op(op_str, idx), ttn[(1,1)])
 
     # linear position in the D-dimensional lattice
     ch_pos = (0,pos)

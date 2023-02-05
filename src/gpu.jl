@@ -16,3 +16,11 @@ function gpu(mpo::TTNKit.MPOWrapper{L, M, TTNKit.ITensorsBackend}; type::Type = 
     latc = deepcopy(mpo.lat)
     return TTNKit.MPOWrapper{L, M, TTNKit.ITensorsBackend}(latc, datagpu, mappingc)
 end
+
+function convert_cu(T::ITensor, T_type::ITensor)
+    return ITensorGPU.is_cu(T_type) ? cu(T) : T
+end
+
+function convert_cu(T::Vector{ITensor}, T_type::ITensor)
+    return ITensorGPU.is_cu(T_type) ? cu.(T) : T
+end

@@ -13,6 +13,7 @@ global const DEFAULT_KRYLOVDIM_TDVP   = 30
 global const DEFAULT_MAXITER_TDVP     = 3
 global const DEFAULT_VERBOSITY_TDVP   = 0
 global const DEFAULT_ISHERMITIAN_TDVP = true
+global const DEFAULT_EAGER_TDVP       = true
 
 function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
     
@@ -118,6 +119,7 @@ function tdvp(psi0::TreeTensorNetwork, mpo::MPOWrapper; kwargs...)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
     #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_TDVP)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_TDVP)
+    eigsolve_eager = get(kwargs, :eager, DEFAULT_EAGER_TDVP)
 
     timestep = get(kwargs, :timestep, 1e-2)
     finaltime = get(kwargs, :finaltime, 1.)
@@ -126,13 +128,14 @@ function tdvp(psi0::TreeTensorNetwork, mpo::MPOWrapper; kwargs...)
 
     pTPO = ProjMPO(psic, mpo)
     
-    func = (action, dt, T) -> exponentiate(action, -1im*dt, T, krylovdim = eigsolve_krylovdim,
-                                                    tol = eigsolve_tol, 
-                                                    maxiter = eigsolve_maxiter,
-                                                    ishermitian = ishermitian,
-                                                    eager = true); 
+    func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                           krylovdim = eigsolve_krylovdim,
+                                           tol = eigsolve_tol, 
+                                           maxiter = eigsolve_maxiter,
+                                           ishermitian = ishermitian,
+                                           eager = eigsolve_eager);  
 
-    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...)
+    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...);
 end
 
 function tdvp(psi0::TreeTensorNetwork, tpo::TPO; kwargs...)
@@ -141,6 +144,7 @@ function tdvp(psi0::TreeTensorNetwork, tpo::TPO; kwargs...)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
     #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_TDVP)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_TDVP)
+    eigsolve_eager = get(kwargs, :eager, DEFAULT_EAGER_TDVP)
 
     timestep = get(kwargs, :timestep, 1e-2)
     finaltime = get(kwargs, :finaltime, 1.)
@@ -149,11 +153,12 @@ function tdvp(psi0::TreeTensorNetwork, tpo::TPO; kwargs...)
 
     pTPO = ProjTPO(psic, tpo)
     
-    func = (action, dt, T) -> exponentiate(action, -1im*dt, T, krylovdim = eigsolve_krylovdim,
-                                                    tol = eigsolve_tol, 
-                                                    maxiter = eigsolve_maxiter,
-                                                    ishermitian = ishermitian,
-                                                    eager = true); 
+    func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                           krylovdim = eigsolve_krylovdim,
+                                           tol = eigsolve_tol, 
+                                           maxiter = eigsolve_maxiter,
+                                           ishermitian = ishermitian,
+                                           eager = eigsolve_eager);  
 
     return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...)
 end
