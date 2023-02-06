@@ -10,6 +10,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::TPO) where{N}
 	# cast it to a flat array, we need to reconstruct every sum structure
 	# later on using the id saved in the tpo operators itself
 	trms = vcat(terms.(tpo.data)...)
+	trms = convert_cu(trms,ttn)
 	# initialize the rg terms similiar to the bottom envs. i.e.
 	# for every layer we have a array for every node denoting the upflow of the link
 	# operators up to this point
@@ -36,7 +37,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::TPO) where{N}
 		map(1:number_of_child_nodes(net, (1,pp))) do nn
 			pos = chdnds[nn][2]
 			idx = inds(ttn[(1,pp)], "Site,n=$(pos)")
-			delta(dag.(idx), prime.((idx)))
+			convert_cu(dense(delta(dag.(idx), prime.((idx)))), ttn)
+			#delta(dag.(idx), prime.((idx)))
 		end
 	end
 	
