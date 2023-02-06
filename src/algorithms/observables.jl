@@ -1,4 +1,15 @@
+# util function to save data in obs
+function savedata(name::String, obs::AbstractObserver)
+    name == "" && return
 
+    df = DataFrame()
+    # iterate through the fields of obs and append the data to the dataframe
+    for n in fieldnames(typeof(obs))
+        df[!, n] = getfield(obs,n)
+    end
+
+    CSV.write(name * ".csv", df);
+end
 #=================================================================================#
 #                                  ITensors                                       #
 #=================================================================================#
@@ -30,7 +41,7 @@ function entanglementEntropy(sw::TDVPSweepHandler{N, ITensor, ITensorsBackend}) 
     pos1 = (number_of_layers(network(sw.ttn)), 1)
     pos2 = (number_of_layers(network(sw.ttn)) - 1, 1)
     l_ind = ITensors.commonind(sw.ttn[pos1], sw.ttn[pos2])
-    (_,S,_) = ITensors.svd(sw.ttn[pos1], l_ind)
+    (_,S,_) = ITensors.svd(cpu(sw.ttn[pos1]), l_ind)
     α_sq = LinearAlgebra.diag(matrix(S)) .^ 2
     entropy = mapreduce(+, α_sq) do ev
         return -ev * log(ev)

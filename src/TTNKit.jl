@@ -10,7 +10,8 @@ module TTNKit
     using KrylovKit
     using LinearAlgebra
     using Printf
-
+    using DataFrames
+    using CSV
 
     
 
@@ -137,9 +138,10 @@ module TTNKit
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+    include("./algorithms/observables.jl")
 
+    # gpu helper functions
     include("./gpu.jl")
-    include("./TreeTensorNetwork/algorithms/observables.jl")
 
 
     #=

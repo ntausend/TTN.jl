@@ -38,7 +38,7 @@ mutable struct tdvpObserver <: AbstractObserver
     corrX::Vector{Vector{Float64}}
     dt::Vector{Float64}
 
-    tdvpObserver() = new(Float64[], Float64[], Any[], Any[], Float64[], Any[], Any[], Float64[]) #Float64[], Float64[], 
+    tdvpObserver() = new(Float64[], Float64[], Vector{Float64}([]), Any[], Float64[], Any[], Any[], Float64[]) #Float64[], Float64[], 
 end
 
 function ITensors.measure!(ob::tdvpObserver; kwargs...)
@@ -52,8 +52,8 @@ function ITensors.measure!(ob::tdvpObserver; kwargs...)
     push!(ob.entropy, entanglementEntropy(tdvp))
     # push!(ob.energyVariance, projectionErrorTest(tdvp) - energy(tdvp)^2)
     # push!(ob.projError, projectionErrorTest(tdvp))
-    push!(ob.corrZ, correlationMatrix(tdvp, "Z","Z", 28))
-    push!(ob.corrX, correlationMatrix(tdvp, "X","X", 28))
+    push!(ob.corrZ, correlationMatrix(tdvp, "Z","Z", 2))
+    push!(ob.corrX, correlationMatrix(tdvp, "X","X", 2))
     push!(ob.dt, dt)
 end
 
@@ -80,6 +80,7 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandler; kwargs...)
 
     # now start with the sweeping protocol
     initialize!(sp)
+    measure!(obs; sweep_handler=sp, dt = 0)
 
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
@@ -92,6 +93,7 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandler; kwargs...)
             update!(sp, pos)
         end
         t_f = time()
+        sp.current_time += sp.timestep
 
         measure!(obs; sweep_handler=sp, dt = t_f - t_p)
 
@@ -101,7 +103,6 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandler; kwargs...)
             flush(stdout)
         end
 
-        sp.current_time += sp.timestep
     end
     return sp
 end
@@ -134,8 +135,6 @@ sweeps(sp::TDVPSweepHandler) = 0:(sp.timestep):(sp.finaltime)
 start_position(sp::TDVPSweepHandler) = (sp.path[1])
 initialize!(::TDVPSweepHandler) = nothing
 function update_next_sweep!(sh::TDVPSweepHandler) 
-    sh.current_time += sh.timestep
-    sh
 end
 
 function _tdvp_path(net::AbstractNetwork)

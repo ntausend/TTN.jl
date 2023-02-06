@@ -85,7 +85,7 @@ function _construct_top_environments(ttn::TreeTensorNetwork{N,T}, bEnv::Vector{V
     tIndices = Vector{Vector{Vector{Int}}}(undef, number_of_layers(net)) 
     tIndices[number_of_layers(net)] = Vector{Vector{Int}}(undef, number_of_tensors(net, 1))
 
-    tEnvironment[number_of_layers(net)] = ITensorGPU.is_cu(ttn[(1,1)]) ? [cu(ITensor(1))] : [ITensor(1)]
+    tEnvironment[number_of_layers(net)] = [convert_cu(ITensor(eltype(ttn[(1,1)]), 1), ttn)]
     tIndices[number_of_layers(net)][1] = [n_tensors, 2*n_tensors] 
 
     for ll in Iterators.drop(Iterators.reverse(eachlayer(net)), 1)
