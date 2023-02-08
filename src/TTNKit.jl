@@ -103,7 +103,7 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
     include("./TreeTensorNetwork/algorithms/correlation.jl")
-    include("./TreeTensorNetwork/algorithms/observables.jl")
+    #include("./TreeTensorNetwork/algorithms/observables.jl")
 
     #=================================================================================#
     # Does this function still exists?
