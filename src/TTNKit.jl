@@ -103,6 +103,7 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
     include("./TreeTensorNetwork/algorithms/correlation.jl")
+    include("./TreeTensorNetwork/algorithms/entanglement_measures.jl")
     #include("./TreeTensorNetwork/algorithms/observables.jl")
 
     #=================================================================================#
@@ -111,8 +112,8 @@ module TTNKit
     #export transverseIsingHamiltonian
     #=================================================================================#
 
-    include("./TPO/AbstractProjectedTensorProductOperator.jl")
     include("./TPO/AbstractTPO.jl")
+    include("./TPO/AbstractProjectedTensorProductOperator.jl")
     # MPO class
     include("./TPO/ProjMPO/MPO.jl")
     # abstract TPO

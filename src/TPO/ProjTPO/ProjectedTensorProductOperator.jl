@@ -14,13 +14,14 @@ function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO) where {N,T}
     net = network(ttn)
     # first construct the tpo, invovles some conversion and returns
     # a vector (representing the sum) of the product operators.
-    #tpo = _ampo_to_tpo(ampo, physical_lattice(net))
     # calcualte the uprg flows of the operators and identities
     rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo)
     # build the environments
     envs = _build_environments(ttn, rg_flw_up, id_up_rg)
     return ProjTPO{N, T, backend(ttn)}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs)
 end
+
+ProjectedTensorProductOperator(ttn::TreeTensorNetwork, tpo::TPO) = ProjTPO(ttn, tpo)
 
 environments(ptpo::ProjTPO, pos::Tuple{Int, Int}) = ptpo.environments[pos[1]][pos[2]]
 

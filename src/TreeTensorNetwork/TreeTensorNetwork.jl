@@ -22,12 +22,12 @@ end
 backend(::Type{<:TreeTensorNetwork{N,T,B}}) where{N,T,B} = B
 backend(ttn::TreeTensorNetwork) = backend(typeof(ttn))
 
-function sites(ttn::TreeTensorNetwork{N,ITensor,ITensorsBackend}) where N
+
+function sites(ttn::TreeTensorNetwork{N,ITensor}) where N
     net = network(ttn)
     return map(eachindex(net, 0)) do pp
         prnt_nd = parent_node(net, (0,pp))
-        idx = index_of_child(net, (0,pp))
-        return inds(ttn[prnt_nd])[idx]
+        only(inds(ttn[prnt_nd]; tags = "Site,n=$pp"))
     end
 end
 

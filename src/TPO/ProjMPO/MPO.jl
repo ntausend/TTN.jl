@@ -1,4 +1,4 @@
-struct MPOWrapper{L, M, B} <: TTNKit.AbstractTensorProductOperator{L,B}
+struct MPOWrapper{L, M, B} <: AbstractTensorProductOperator{L,B}
     lat::L
     data::M
     mapping::Vector{Int}

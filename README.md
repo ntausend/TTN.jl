@@ -11,6 +11,7 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
 - Correlation functions (ITensors & TensorKit)
 - Subspace expansion (TensorKit)
 - Hamiltonians defined by sum over local terms as alternative to MPO's (TensorKit)
+- Extend measurements for TensorKit
 
 ### Tests:
 
@@ -18,6 +19,7 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
 - Subspace expansion
 - Simple DMRG/TDVP test (TFI vs exact)?
 - 2d mappings for MPO
+- Tests for Entanglement Measures
 
 ### Aditional:
 

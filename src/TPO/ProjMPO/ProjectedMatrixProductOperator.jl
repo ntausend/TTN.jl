@@ -1,7 +1,7 @@
 # make this abstract and derive from that the ProjMatrixProductOperator
 struct ProjMPO{N<:AbstractNetwork, T, B<:AbstractBackend} <: AbstractProjTPO{N,T,B}
     net::N
-    tpo::AbstractTensorProductOperator
+    tpo::MPOWrapper
     ortho_center :: Vector{Int}
 
     bottom_envs::Vector{Vector{Vector{T}}}
@@ -30,7 +30,7 @@ include("./constructing_projmpo_from_mpo_tensorkit.jl")
 include("./constructing_projmpo_from_mpo_itensors.jl")
 
 
-function ProjMPO(ttn::TreeTensorNetwork{N, T}, tpo::AbstractTensorProductOperator) where{N, T}
+function ProjMPO(ttn::TreeTensorNetwork{N, T}, tpo::MPOWrapper) where{N, T}
     # sanity check if the physical setup is correct
     @assert physical_lattice(network(ttn)) == lattice(tpo)
 
@@ -39,6 +39,7 @@ function ProjMPO(ttn::TreeTensorNetwork{N, T}, tpo::AbstractTensorProductOperato
 
     return ProjMPO{N, T, backend(tpo)}(network(ttn), tpo, vcat(ortho_center(ttn)...), bEnv, tEnv, bInd, tInd)
 end
+ProjectedTensorProductOperator(ttn::TreeTensorNetwork, tpo::MPOWrapper) = ProjMPO(ttn, tpo)
 
 function rebuild_environments!(projTPO::ProjMPO, ttn::TreeTensorNetwork)
     net = network(projTPO)

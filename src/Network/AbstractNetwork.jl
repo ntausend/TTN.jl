@@ -234,6 +234,37 @@ function _connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tup
 	return path
 end
 
+"""
+	connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
+
+Returns the path through the network connecting `pos1` and `pos2`, excluding `pos1`.
+If `pos1 == pos2`, the result is empty. I.e. if the network is a standart Binary tree
+with 
+```
+	       (3,1)
+	(2,1)        (2,2)
+(1,1), (1,2), (1,3), (1,4) 
+```
+
+the path connecting node `(1,1)` with node `(1,2)` would be:
+```
+(2,1) -> (1,2)
+```
+while `(1,1)` and `(1,3)` would result in 
+```
+(2,1) -> (3,1) -> (2,2) -> (1,3)
+```
+Instead, `(1,3)` to `(1,1)` would result in
+```
+(2,2) -> (3,1) -> (2,1) -> (1,1)
+```
+
+Inputs:
+- net: Network describing the architecture.
+- pos1: Initial node to start the path, will be **excluded** in the final result
+- pos2: Target node terminating the path, will be **included** in the final result
+
+"""
 function connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
 	if(pos1[1] < pos2[1])
 		path = _connecting_path(net, pos1, pos2)
@@ -247,8 +278,6 @@ end
 
 eachlayer(net::AbstractNetwork) = 1:number_of_layers(net)
 eachindex(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))
-
-
 
 
 """

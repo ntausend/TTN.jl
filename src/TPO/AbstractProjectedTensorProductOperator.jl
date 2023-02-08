@@ -7,6 +7,21 @@ ortho_center(projTPO::AbstractProjTPO) = Tuple(projTPO.ortho_center)
 backend(::Type{<:AbstractProjTPO{N, T, B}}) where{N, T, B} = B
 backend(projTPO::AbstractProjTPO) = backend(typeof(projTPO))
 
+function full_contraction(ttn::TreeTensorNetwork, tpo::AbstractTensorProductOperator)
+    ptpo = ProjectedTensorProductOperator(ttn, tpo)
+    return full_contraction(ttn, ptpo)
+end
+function full_contraction(ttn::TreeTensorNetwork, ptpo::AbstractProjTPO)
+    # set the ptpo to the correct position of the ttn
+    ptpo = set_position!(ptpo, ttn)
+    oc = ortho_center(ttn)
+
+    # get the action of the operator on the orthogonlity center
+    action = ∂A(ptpo, oc)
+    T = ttn[oc]
+    # build the contraction
+    return dot(T, action(T))
+end
 
 Base.getindex(projTPO::AbstractProjTPO, l::Int, p::Int) = getindex(projTPO, (l,p))
 Base.getindex(projTPO::AbstractProjTPO, pos::Tuple{Int, Int}) = environments(projTPO, pos)

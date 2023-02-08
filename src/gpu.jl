@@ -3,7 +3,7 @@ function convert_cu(T::ITensor, T_type::ITensor)
     return cu(eltype(T_type), T)
 end
 
-convert_cu(T::ITensor, ttn::TreeTensorNetwork{<:AbstractNetwork,ITensor, ITensorsBackend}) = convert_cu(T, ttn[(1,1)])
+convert_cu(T::ITensor, ttn::TreeTensorNetwork{<:AbstractNetwork,ITensor}) = convert_cu(T, ttn[(1,1)])
 
 function convert_cu(T::Vector{ITensor}, T_type::ITensor)
     return map(t -> convert_cu(t, T_type), T)
