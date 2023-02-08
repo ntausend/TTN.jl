@@ -26,96 +26,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
     end
 end
 
-mutable struct tdvpObserver <: AbstractObserver
-    time::Vector{Float64}
-    energy::Vector{Float64}
-    xPol::Vector{Vector{Float64}}
-    zPol::Vector{Vector{Float64}}
-    entropy::Vector{Float64}
-    # energyVariance::Vector{Float64}
-    # projError::Vector{Float64}
-    corrZ::Vector{Vector{Float64}}
-    corrX::Vector{Vector{Float64}}
-    dt::Vector{Float64}
-
-    tdvpObserver() = new(Float64[], Float64[], Vector{Float64}([]), Any[], Float64[], Any[], Any[], Float64[]) #Float64[], Float64[], 
-end
-
-function ITensors.measure!(ob::tdvpObserver; kwargs...)
-    tdvp = kwargs[:sweep_handler]
-    dt = kwargs[:dt]
-
-    push!(ob.time, tdvp.current_time)
-    push!(ob.energy, energy(tdvp))
-    push!(ob.xPol, xPol(tdvp))
-    push!(ob.zPol, zPol(tdvp))
-    push!(ob.entropy, entanglementEntropy(tdvp))
-    # push!(ob.energyVariance, projectionErrorTest(tdvp) - energy(tdvp)^2)
-    # push!(ob.projError, projectionErrorTest(tdvp))
-    push!(ob.corrZ, correlationMatrix(tdvp, "Z","Z", 2))
-    push!(ob.corrX, correlationMatrix(tdvp, "X","X", 2))
-    push!(ob.dt, dt)
-end
-
-function full_qr(T::ITensor, indices = NTuple{N,Index}) where N
-    comb = combiner(indices...; tags="temp")
-
-    rightinds = uniqueind(T,indices)
-    new_dim = prod(ITensors.dim.(indices)) - ITensors.dim(rightinds)
-    new_dim == 0 && return nothing
-
-    leftinds = uniqueind(comb, indices)
-    newind = Index(new_dim)
-
-    Q,_ = qr(matrix(T*comb, leftinds, rightinds))
-    
-    return dag(comb)*ITensor(Q[:,end-new_dim+1:end], leftinds, newind)
-end
-
-function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandler; kwargs...)
-    
-    obs = get(kwargs, :observer, NoObserver())
-
-    outputlevel = get(kwargs, :outputlevel, 1)
-
-    # now start with the sweeping protocol
-    initialize!(sp)
-    measure!(obs; sweep_handler=sp, dt = 0)
-
-    for sw in sweeps(sp)
-        if outputlevel ≥ 2 
-            println("Start sweep number $(sw)")
-            flush(stdout)
-        end
-
-        t_p = time()
-        for pos in sp
-            update!(sp, pos)
-        end
-        t_f = time()
-        sp.current_time += sp.timestep
-
-        measure!(obs; sweep_handler=sp, dt = t_f - t_p)
-
-        if outputlevel ≥ 1
-            @printf("Finsihed sweep at time %0.3f. Needed time: %0.3fs\n", sp.current_time, t_f - t_p)
-            println(repeat("=", 50))
-            flush(stdout)
-        end
-
-    end
-    return sp
-end
-
 current_sweep(sh::TDVPSweepHandler) = sh.current_time
-
-function Base.copy(tdvp::TDVPSweepHandler)
-    ttnc = deepcopy(tdvp.ttn)
-    pTPOc = deepcopy(tdvp.pTPO)
-    finaltimec = deepcopy(tdvp.finaltime)
-    timestepc = deepcopy(tdvp.timestep)
-    return TDVPSweepHandler(ttnc, pTPOc, timestepc, finaltimec, tdvp.func)
-end
 
 function Base.iterate(sp::TDVPSweepHandler)
     pos = start_position(sp)
@@ -134,8 +45,6 @@ end
 sweeps(sp::TDVPSweepHandler) = 0:(sp.timestep):(sp.finaltime)
 start_position(sp::TDVPSweepHandler) = (sp.path[1])
 initialize!(::TDVPSweepHandler) = nothing
-function update_next_sweep!(sh::TDVPSweepHandler) 
-end
 
 function _tdvp_path(net::AbstractNetwork)
     path = Vector{Tuple{Int,Int}}([(number_of_layers(net), 1)])

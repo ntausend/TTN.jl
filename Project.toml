@@ -4,9 +4,7 @@ authors = ["Niklas Tausendpfund <n.tausendpfund@fz-juelich.de>"]
 version = "0.1.0"
 
 [deps]
-CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 ITensorGPU = "d89171c1-af8f-46b3-badf-d2a472317c15"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"

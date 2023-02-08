@@ -22,6 +22,7 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
 ### Aditional:
 
 - More flexibility in choosing the lengths of the system -> allow for general dimensions
+- QR/factorize wrapper to collapse nearly identical code (TDVP sweeps, for example)
      
 ### Examples:
 
