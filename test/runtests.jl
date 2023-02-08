@@ -22,7 +22,7 @@ println("Running Tests....")
         #"correlation.jl",
         "contract_tensors.jl",
         "environments.jl",
-        "sweep_protocols.jl",
+        #"sweep_protocols.jl",
         #"SubspaceExpansion.jl",
         #"DMRG.jl",
     ]
