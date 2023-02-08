@@ -20,6 +20,8 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
 - Simple DMRG/TDVP test (TFI vs exact)?
 - 2d mappings for MPO
 - Tests for Entanglement Measures
+- Tests for correlation function measures
+- Test for full contration method
 
 ### Aditional:
 
@@ -31,4 +33,4 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
 - DMRG for one dimensional and two dimensional systems with and without QNS
 - TDVP in one and two dimensional systems
 - Preferable in ITensors and TensorKit
-- If implemented, also for different Hamiltonian realizations
+- If implemented, also for different Hamiltonian realizations (TPO/MPOWrapper/...)
