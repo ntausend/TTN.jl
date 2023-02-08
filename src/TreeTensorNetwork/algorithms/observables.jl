@@ -1,15 +1,3 @@
-# util function to save data in obs
-function savedata(name::String, obs::AbstractObserver)
-    name == "" && return
-
-    df = DataFrame()
-    # iterate through the fields of obs and append the data to the dataframe
-    for n in fieldnames(typeof(obs))
-        df[!, n] = getfield(obs,n)
-    end
-
-    CSV.write(name * ".csv", df);
-end
 #=================================================================================#
 #                                  ITensors                                       #
 #=================================================================================#

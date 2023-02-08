@@ -10,10 +10,6 @@ module TTNKit
     using KrylovKit
     using LinearAlgebra
     using Printf
-    using DataFrames
-    using CSV
-
-    
 
 
     struct NotImplemented <: Exception
@@ -107,6 +103,7 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
     include("./TreeTensorNetwork/algorithms/correlation.jl")
+    include("./TreeTensorNetwork/algorithms/observables.jl")
 
     #=================================================================================#
     # Does this function still exists?
@@ -138,7 +135,6 @@ module TTNKit
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
-    include("./algorithms/observables.jl")
 
     # gpu helper functions
     include("./gpu.jl")
