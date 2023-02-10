@@ -18,6 +18,7 @@ global const DEFAULT_EAGER_TDVP       = true
 function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
     
     obs = get(kwargs, :observer, NoObserver())
+    @show typeof(obs)
 
     outputlevel = get(kwargs, :outputlevel, 1)
 
@@ -29,17 +30,22 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
             println("Start sweep number $(sw)")
             flush(stdout)
         end
+        measure!(
+            obs;
+            sweep_handler=sp,
+            outputlevel=outputlevel
+        )
         t_p = time()
         for pos in sp
             update!(sp, pos)
-            measure!(
-                obs;
-                sweep_handler=sp,
-                pos=pos,
-                outputlevel=outputlevel
-            )
         end
         t_f = time()
+        measure!(
+            obs;
+            sweep_handler=sp,
+            outputlevel=outputlevel,
+            dt = t_f-t_p,
+        )
         if outputlevel ≥ 1
             print("Finsihed sweep $sw. ")
             @printf("Needed Time %.3fs\n", t_f - t_p)
@@ -95,8 +101,8 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    pTPO = ProjectedTensorProductOperator(psic, tpo)
-    
+    pTPO = ProjTPO(psic, tpo)
+
     func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
                                            krylovdim = eigsolve_krylovdim,
                                            tol = eigsolve_tol, 

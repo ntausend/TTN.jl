@@ -4,9 +4,12 @@ function correlations(ttn::TreeTensorNetwork, op1, op2, pos::NTuple)
     return correlations(ttn, op1, op2, pos_lin)
 end
 function correlations(ttn::TreeTensorNetwork, op1, op2, pos::Int)
-    return map(eachindex(physical_lattice(network(ttn)))) do pp
+    physlat = physical_lattice(network(ttn))
+    res = map(eachindex(physlat)) do pp
         correlation(ttn, op1, op2, pos, pp)
     end
+    dims = size(physlat)
+    return reshape(res, dims)
 end
 
 function correlation(ttn::TreeTensorNetwork, op1, op2, pos1::NTuple, pos2::NTuple)
