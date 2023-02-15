@@ -22,6 +22,7 @@ Package of handling one- and two- dimensional Tree Tensor Networks based on Tens
 - Tests for Entanglement Measures
 - Tests for correlation function measures
 - Test for full contration method
+- Test for noise terms
 
 ### Aditional:
 

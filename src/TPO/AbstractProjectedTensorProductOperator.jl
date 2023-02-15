@@ -48,3 +48,7 @@ function set_position!(pTPO::AbstractProjTPO{N,T}, ttn::TreeTensorNetwork{N,T}) 
     end
     return pTPO
 end
+
+
+# for general cases not defined, need to be specialized by the usecase
+noiseterm(::AbstractProjTPO{N,T}, ::T, ::Union{Nothing,Tuple{Int,Int}}) where{N,T} = nothing

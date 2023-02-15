@@ -28,7 +28,9 @@ function _construct_product_tree_tensor_network(net::AbstractNetwork{L, ITensors
             uplink = Index(1; tags = "Link,nl=1,np=$pp")
         end
         indices[1][pp] = uplink
-        ttn[1][pp] = state_vec[1] * state_vec[2] * state(uplink,1)
+        
+        ttn[1][pp] = reduce(*, state_vec; init = state(uplink, 1))
+        #ttn[1][pp] = state_vec[1] * state_vec[2] * state(uplink,1)
     end
 
     elT = promote_type(eltype(ttn[1][1]), _elT)

@@ -6,16 +6,28 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     expander::AbstractSubspaceExpander
         
     maxdims::Vector{Int64}
+    noise::Vector{Number}
+
     dir::Symbol
     current_sweep::Int
     current_energy::Float64
     current_spec::Spectrum
     current_max_truncerr::Float64
-    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, expander = NoExpander()) = 
-        new(n_sweeps, ttn, pTPO, func, expander, maxdims, :up, 1, 0., Spectrum(nothing, 0.0), 0.0)
+    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, noise, expander = NoExpander()) = 
+        new(n_sweeps, ttn, pTPO, func, expander, maxdims, noise, :up, 1, 0., Spectrum(nothing, 0.0), 0.0)
 end
 
 current_sweep(sh::SimpleSweepHandler) = sh.current_sweep
+
+function noise(sh::SimpleSweepHandler)
+    length(sh.noise) < current_sweep(sh) && return sh.noise[end]
+    return sh.noise[current_sweep(sh)]
+end
+
+function maxdim(sh::SimpleSweepHandler)
+    length(sh.maxdims) < current_sweep(sh) && return sh.maxdims[end]
+    return sh.maxdims[current_sweep(sh)]
+end
 
 function info_string(sh::SimpleSweepHandler, output_level::Int)
     e = sh.current_energy
@@ -32,53 +44,24 @@ function initialize!(sp::SimpleSweepHandler)
     ttn = sp.ttn
     pTPO = sp.pTPO
 
-    net = network(ttn)
-
     #adjust the tree dimension to the first bond dimension
-    oc = ortho_center(ttn)
-    
-    #if !(maxlinkdim(ttn) ≥ sp.maxdims[sp.current_sweep])
-        #ttn = adjust_tree_tensor_dimensions!(ttn, sp.maxdims[sp.current_sweep]; reorthogonalize = false)
-        ttn = adjust_tree_tensor_dimensions!(ttn, 2; reorthogonalize = false)
-    #end
 
-    # check if ttn was altered, this  can be seen by haveing new oc
-    if ortho_center(ttn) != oc
-        # reorthogonalize
-        ttn = move_ortho!(_reorthogonalize!(ttn), (1,1))
-        # rebuild the environments
-        pTPO = rebuild_environments!(pTPO, ttn)
-    else
-        # now move everything to the starting point
-        ttn = move_ortho!(ttn, (1,1))
-        # update the environments accordingly
-        pth = connecting_path(net, (number_of_layers(net),1), (1,1))
-        pth = vcat((number_of_layers(net),1), pth)
-        for (jj,p) in enumerate(pth[1:end-1])
-            ism = ttn[p]
-            pTPO = update_environments!(pTPO, ism, p, pth[jj+1])
-        end
-    end
+    # move to starting point of the sweep
+    ttn = move_ortho!(ttn, (1,1))
+    # update the environments accordingly
+    pTPO = set_position!(pTPO, ttn)
 
     sp.ttn = ttn
     sp.pTPO = pTPO
     # get starting energy
-    #sp.curtime = time()
     return sp
 end
 
 # simple reset the sweep Handler and update the current sweep number
 # current number still needed?
 function update_next_sweep!(sp::SimpleSweepHandler)
-    #tn = time()
-    #push!(sp.timings, tn - sp.curtime)
-    #sp.curtime = tn
-    #@printf("Finished Sweep %i. Energy: %.3f. Needed Time: %.3f s\n", sp.current_sweep, sp.energies[end], sp.timings[end])
-    #flush(stdout)
-
     sp.dir = :up
     sp.current_sweep += 1 
-    #sp.current_max_truncerr = 0.0
     return sp
 end
 
@@ -179,19 +162,25 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
 
     action  = ∂A(pTPO, pos)
     val, tn = sp.func(action, t)
-    #@printf("Needed time for minimzation: %.3f\n", t2 - t1)
     sp.current_energy = real(val[1])
-    #push!(sp.energies, real(val[1]))
     tn = tn[1]
-    #@show inds(tn)
-    # truncate the bond
 
-    ttn, spec = truncate_and_move!(ttn, tn, pos, pn, sp.expander; maxdim = sp.maxdims[sp.current_sweep])
-    #@show truncerror(spec), pos
+    # building the noise term
+    
+    drho = nothing
+    if noise(sp) > 0 && !isnothing(pth)
+        drho = noiseterm(pTPO, tn, pth[1])
+    end
+
+    # possible other arguments, which_decomp, svd_alg etc
+    ttn, spec = update_node_and_move!(ttn,tn, pn;
+                                      maxdim = maxdim(sp),
+                                      eigen_perturbation = drho,
+                                      normalize = true)
+
     sp.current_spec = spec
     trncerr = truncerror(spec)
     sp.current_max_truncerr = max(sp.current_max_truncerr, trncerr)
-    #$@show sp.current_max_truncerr
     return sp
 end
 

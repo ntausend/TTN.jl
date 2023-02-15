@@ -1,13 +1,3 @@
-function _dims_to_n_layer(dims::NTuple{D, Int}) where D
-    n_layer = 0
-    try
-        n_layer = sum(Int64.(log2.(dims)))
-    catch
-        throw(DimensionsException(dims))
-    end
-    return n_layer
-end
-
 function _linear_ind_simple_lattice(p::NTuple{D,Int}, dims::NTuple{D,Int}) where{D}
     res = mapreduce(+,enumerate(p[2:end]), init = p[1]) do (jj, pp)
         (pp-1)*prod(dims[1:jj])
@@ -58,7 +48,8 @@ function SimpleLattice(dims::NTuple{D, Int}, nd::Type{<:AbstractNode}; kwargs...
         error("Using node type ITensorNode needs specifying the type string for constructing the hilberspaces.")
     end
     # checking if dims are in the correct layout
-    _check_dimensions(dims)
+    # why including this here? any reason not to define the lattice on abitrary dimensions?
+    #_check_dimensions(dims)
 
     prod_it = Iterators.product(UnitRange.(1, dims)...)
     
@@ -84,7 +75,7 @@ end
 
 # factory from indices, and from ITensor node with type specifier
 function SimpleLattice(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
-    _check_dimensions(dims)
+    #_check_dimensions(dims)
     prod_it = Iterators.product(UnitRange.(1, dims)...)
     lin_inds = map(p -> _linear_ind_simple_lattice(p, dims), prod_it)
     @assert length(lin_inds) == length(indices)

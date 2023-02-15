@@ -164,6 +164,7 @@ number_of_layers(ttn::TreeTensorNetwork) = length(ttn.data)
 network(ttn::TreeTensorNetwork) = ttn.net
 # returning the current orthogonality center
 ortho_center(ttn::TreeTensorNetwork) = Tuple(ttn.ortho_center)
+is_orthogonalized(ttn::TreeTensorNetwork) = all(ortho_center(ttn) .!= (-1,-1))
 
 # returns the ortho_direction of a given position in the network.
 # this returns the INDEX inside the tensor at that position which is connected to the

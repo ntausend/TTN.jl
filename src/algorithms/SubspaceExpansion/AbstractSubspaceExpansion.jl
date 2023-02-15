@@ -6,37 +6,36 @@ expand(T::ITensor, A::ITensor, ::AbstractSubspaceExpander; kwargs...) = T, A
 expand(A::ITensor, Chlds::Tuple{ITensor, ITensor}, ::AbstractSubspaceExpander; kwargs...) = A, Chlds...
 
 
-
-function truncate_and_move!(ttn::TreeTensorNetwork, A::T, pos::Tuple{Int,Int}, position_next::Union{Tuple{Int,Int}, Nothing},
-                              ::AbstractSubspaceExpander; kwargs...) where{T}
-    ttn[pos] = A
-    !isnothing(position_next) && (ttn = move_ortho!(ttn, position_next))
-    return ttn, Spectrum(nothing, 0.0)
+function update_node_and_move!(ttn::TreeTensorNetwork{N,TensorMap}, A::TensorMap, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...) where{N}
+    error("Not Implemented..")
 end
+function update_node_and_move!(ttn::TreeTensorNetwork{N, ITensor}, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...) where{N}
+    @assert is_orthogonalized(ttn)
 
-function truncate_and_move!(ttn::TreeTensorNetwork, A::ITensor, pos::Tuple{Int,Int}, position_next::Union{Tuple{Int,Int}, Nothing},
-                              ::NonTrivialExpander; kwargs...)
+    pos = ortho_center(ttn)
+    # sweep is done, nothing to do
     if isnothing(position_next)
         ttn[pos] = A
         return ttn, Spectrum(nothing, 0.0)
     end
 
-    net = network(ttn)    
-    posnext = connecting_path(net, pos, position_next)[1]
+    normalize::Bool = get(kwargs, :normalize, false)
 
+    # otherwise, we need to perform a trunctation/qr decomposition
+    net = network(ttn)
+    # move towards next node..
+    posnext = connecting_path(net, pos, position_next)[1]
     idx_r = commonind(ttn[pos], ttn[posnext])
     idx_l = uniqueinds(A, idx_r)
-    Q,R, spec = factorize(A, idx_l; tags = tags(idx_r), kwargs...)
-    #println("Truncated weight: $(1 - sum(eigs(spec)))")
+
+    Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), kwargs...)
 
     ttn[pos] = Q
-    ttn[posnext] = normalize!(ttn[posnext]*R)
+    ttn[posnext] = ttn[posnext] * R
 
-    # orhto direction become undefined here... need to figure out 
-    # the index.. however we are not using it anywayrs or?
-    #ttn.ortho_direction[pos[1]][pos[2]] 
-
+    normalize && (ttn[posnext] ./= norm(ttn[posnext]))
     ttn.ortho_center .= posnext
+
     return move_ortho!(ttn, position_next), spec
 end
 
@@ -131,7 +130,6 @@ function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogona
     idfa = combinedind(combiner(id_au..., qn_link_a; dir = dir(dag(id_sh))))
     idfb = combinedind(combiner(id_bu..., qn_link_b; dir = dir(id_sh)))
     id_max = intersect(dag(idfa), idfb)
-
     
 
     id_pd  = _padding(id_sh, id_max, expander.p, expander.min)

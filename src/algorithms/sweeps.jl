@@ -6,8 +6,7 @@ global const DEFAULT_VERBOSITY_DMRG        = 0
 global const DEFAULT_ISHERMITIAN_DMRG      = true
 global const DEFAULT_WHICH_EIGENVALUE_DMRG = :SR
 
-
-
+# Krylov Parameters, TDVP
 global const DEFAULT_TOL_TDVP         = 1e-12
 global const DEFAULT_KRYLOVDIM_TDVP   = 30
 global const DEFAULT_MAXITER_TDVP     = 3
@@ -55,12 +54,17 @@ end
 function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
-    maxdims::Union{Int64, Vector{Int64}}  = get(kwargs, :maxdims, 1)
+    maxdims::Union{Int64, Vector{Int64}}   = get(kwargs, :maxdims, 1)
+    noise::Union{Float64, Vector{Float64}} = get(kwargs, :noise, 0.0)
 
     if maxdims isa Int64
         maxdims = [maxdims]
     end
-    maxdims = vcat(maxdims, repeat([maxdims[end]], n_sweeps - length(maxdims)+1))
+    #maxdims = vcat(maxdims, repeat(maxdims[end:end], n_sweeps - length(maxdims)+1))
+    if noise isa Float64
+        noise = [noise]
+    end
+    #noise = vcat(abs.(noise), repeat(noise[end:end], n_sweeps - length(noise)+1))
 
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_DMRG)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
@@ -74,12 +78,14 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
 
     pTPO = ProjectedTensorProductOperator(psic, tpo)
     func = (action, T) -> eigsolve(action, T, 1,
-                        eigsolve_which_eigenvalue;
-                        ishermitian=ishermitian,
-                        tol=eigsolve_tol,
-                        krylovdim=eigsolve_krylovdim,
-                        maxiter=eigsolve_maxiter)
-    return sweep(psic, SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, expander); kwargs...)
+                            eigsolve_which_eigenvalue;
+                            ishermitian=ishermitian,
+                            tol=eigsolve_tol,
+                            krylovdim=eigsolve_krylovdim,
+                            maxiter=eigsolve_maxiter)
+
+    sh = SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, noise, expander) 
+    return sweep(psic, sh; kwargs...)
 end
 
 function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
