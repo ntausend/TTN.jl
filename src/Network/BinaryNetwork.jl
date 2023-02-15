@@ -29,7 +29,7 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
 
     vnd_type = nodetype(lat_vec[1])
     for jj in 2:n_layer+1
-        D_actual = D - sum(dimensionsc[dimensionsc .== 1])
+        D_actual = D - sum(dimensionsc[2:end][dimensionsc[2:end] .== 1])
         pair_dir  = mod1(jj-1, D_actual)
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
         
@@ -62,7 +62,7 @@ function BinaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     vnd_type = nodetype(lat_vec[1])
 
     for jj in 2:n_layer+1
-        D_actual = D - sum(dimensionsc[dimensionsc .== 1])
+        D_actual = D - sum(dimensionsc[2:end][dimensionsc[2:end] .== 1])
         pair_dir  = mod1(jj-1, D_actual)
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
         dimensionsc[dimensionsc.==0] .= 1
