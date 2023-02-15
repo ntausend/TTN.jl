@@ -35,7 +35,7 @@ function TrenaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
         D_actual = D - sum(dimensionsc[dimensionsc .== 1])
         pair_dir  = mod1(jj-1, D_actual)
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],3)
-        dimensionsc[dimensionsc.==0] .= 1
+        #dimensionsc[dimensionsc.==0] .= 1
 
         lat = SimpleLattice(Tuple(dimensionsc), vnd_type)
         lat_vec[jj] = lat
