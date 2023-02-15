@@ -33,6 +33,20 @@ function update_node_and_move!(ttn::TreeTensorNetwork{N, ITensor}, A::ITensor, p
     ttn[pos] = Q
     ttn[posnext] = ttn[posnext] * R
 
+    # check if posnext operator only has two links, if yes, we need an additional splitting there
+    # somethings not right here.... I don't know but noise and subspace expansion is somehow not working
+    # hand in hand, but only for some models...
+    #=
+    if length(inds(ttn[posnext])) == 2
+        T = ttn[pos] * ttn[posnext]
+        idx_sh = commonind(ttn[pos], ttn[posnext])
+        idx_l = uniqueinds(ttn[pos], idx_sh)
+        Q,R = factorize(T, idx_l; tags = tags(idx_sh))
+        ttn[pos] = Q
+        ttn[posnext] = R
+    end
+    =#
+
     normalize && (ttn[posnext] ./= norm(ttn[posnext]))
     ttn.ortho_center .= posnext
 

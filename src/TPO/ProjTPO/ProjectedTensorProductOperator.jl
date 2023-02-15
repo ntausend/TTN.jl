@@ -226,8 +226,6 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
 
     # get all environments for this site
     envs = environments(ptpo, pos)
-
-
     
     # we want to filter the terms according to terms only accting to all other links than pos_next
     # interacting terms and total local terms acting on pos_next.
@@ -267,7 +265,6 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
         return smt_n
     end
 
-
     # filter the operator acting only onsite on pos_next, if it is present at all
     trm_id = filter(envs_trm) do smt
         sites = site.(smt)
@@ -292,7 +289,7 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
 
     trms_act = map([trms_lower, trms_int, trm_id]) do trms
         isempty(trms) && return missing
-        trm_tmp = mapreduce(+,trms_lower) do smt
+        trm_tmp = mapreduce(+,trms) do smt
             reduce(*, which_op.(smt), init = T)
         end
         return trm_tmp * dag(prime(noprime(trm_tmp), idx_next))
@@ -302,31 +299,4 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
     return nt
 
     # now we want to filter all terms which have the identity on the direction to pos_next
-
-
-
-
-    #@show envs[1]
-    trms_filtered = filter(terms.(envs)) do trms
-        sites = site.(trms)
-        is_id = getindex.(params.(trms), :is_identity)
-        idx_pos = findfirst(isequal(pos_next), sites) 
-        return is_id[idx_pos]
-    end
-
-    # now we need to calcualte the noiseterm for all of them and sum them up
-
-    trms_tmp = map(trms_filtered) do trms
-        tmp = reduce(*, which_op.(trms), init = T)
-        # now get the link pointing to the next index
-        #idx_next = 
-        return tmp #* dag(prime(noprime(tmp), idx_next))
-    end
-    nt = mapreduce(+,Iterators.product(trms_tmp, trms_tmp)) do (trm1, trm2)
-        trm1 * dag(prime(noprime(trm2), idx_next))
-    end
-
-    id_comp = prime(T, uniqueinds(T, idx_next)) * dag(T)
-
-    return nt + id_comp 
 end

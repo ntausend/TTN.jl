@@ -19,6 +19,13 @@ dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
 backend(net::AbstractNetwork) = backend(typeof(net))
 backend(::Type{<:AbstractNetwork{L,B}}) where{L,B} = B
 
+# calculates the dimensionality of a layer 
+function dimensionality_reduced(net::AbstractNetwork, l::Int)
+    dim_red = filter(isone, size(lattice(net, l)))
+    D = isempty(dim_red) ? dimensionality(net) : dimensionality(net) - sum(dim_red)
+	return D
+end
+
 # sitindices, only relevant for the ITensors case
 siteinds(net::AbstractNetwork) = siteinds(physical_lattice(net))
 
@@ -113,7 +120,7 @@ TensorKit.sectortype(net::AbstractNetwork) = sectortype(typeof(net))
 # checking if position is valid
 function check_valid_position(net::AbstractNetwork, pos::Tuple{Int, Int})
 	l, p = pos
-	if !(0 ≤ l ≤ number_of_layers(net)) && (0 < p ≤ number_of_tensors(net, l))
+	if !(0 ≤ l ≤ number_of_layers(net)) || !(0 < p ≤ number_of_tensors(net, l))
 		throw(BoundsError(net,pos))
 	end
 end
