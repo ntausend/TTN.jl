@@ -32,7 +32,8 @@ function TrenaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     vnd_type = nodetype(lat_vec[1])
     
     for jj in 2:n_layer+1
-        D_actual = D - sum(dimensionsc[2:end][dimensionsc[2:end] .== 1])
+        # not working
+        D_actual = D #- sum(dimensionsc[2:end][dimensionsc[2:end] .== 1])
         pair_dir  = mod1(jj-1, D_actual)
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],3)
         #dimensionsc[dimensionsc.==0] .= 1
@@ -132,7 +133,8 @@ function parent_node(net::TrenaryNetwork, pos::Tuple{Int, Int})
     check_valid_position(net, pos)
     pos[1] == number_of_layers(net) && (return nothing)
     # we need to be carefull if the layer is completely paired
-    D = dimensionality_reduced(net, pos[1])
+    # not working
+    D = dimensionality(net)#dimensionality_reduced(net, pos[1])
     # check if paring is along x or y direction in the next step
     # even layers are paired along the x direction, odd layers along the y direction
     pair_dir = mod(pos[1], D) + 1
@@ -162,7 +164,8 @@ function child_nodes(net::TrenaryNetwork, pos::Tuple{Int, Int})
     check_valid_position(net, pos)
     
     pos[1] == 0 && (return nothing)
-    D = dimensionality_reduced(net, pos[1] - 1)
+    # not working
+    D = dimensionality(net)#dimensionality_reduced(net, pos[1] - 1)
     # do the revert operation as for the parent nodes
     # pairing of this layer, given by the pairing direction of
     # the previous layer

@@ -20,11 +20,14 @@ backend(net::AbstractNetwork) = backend(typeof(net))
 backend(::Type{<:AbstractNetwork{L,B}}) where{L,B} = B
 
 # calculates the dimensionality of a layer 
+# this is not working...
+#=
 function dimensionality_reduced(net::AbstractNetwork, l::Int)
     dim_red = filter(isone, size(lattice(net, l)))
     D = isempty(dim_red) ? dimensionality(net) : dimensionality(net) - sum(dim_red)
 	return D
 end
+=#
 
 # sitindices, only relevant for the ITensors case
 siteinds(net::AbstractNetwork) = siteinds(physical_lattice(net))
