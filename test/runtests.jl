@@ -19,10 +19,10 @@ println("Running Tests....")
         "TreeTensorNetwork/inner.jl",
         "TreeTensorNetwork/expect_tensorkit.jl",
         "TreeTensorNetwork/expect_itensors.jl",
-        #"correlation.jl",
+        # "correlation.jl",
         "contract_tensors.jl",
         "environments.jl",
-        #"sweep_protocols.jl",
+        "sweep_protocols.jl",
         #"SubspaceExpansion.jl",
         #"DMRG.jl",
     ]

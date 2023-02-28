@@ -152,3 +152,29 @@ function ∂A2(projTPO::ProjTPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}
     end
     return action
 end
+#
+# function ∂A3(projTPO::ProjTPO{N, ITensor}, pos::Tuple{Int,Int}) where N
+#     nextpos = parent_node(projTPO.net, pos)
+#     envs_chd = projTPO[pos]
+#     envs_prnt = projTPO[nextpos]
+#
+#     # idx = index_of_child(projTPO.net, pos)
+#     # n_chds = number_of_child_nodes(projTPO.net, nextpos)
+#     function action(isom_chd::ITensor, isom_prnt::ITensor)
+#         T = isom_chd * isom_prnt
+#         res1 = mapreduce(+, envs_prnt) do trm 
+#             ops = [which_op(op) for op in trm if hascommoninds(which_op(op), T)]
+#             tensor_list = vcat(T, ops)
+#             opt_seq = optimal_contraction_sequence(tensor_list)
+#             return noprime(contract(tensor_list; sequence = opt_seq))
+#         end
+#
+#         return mapreduce(+, envs_chd) do trm 
+#             ops = [which_op(op) for op in trm if hascommoninds(which_op(op), res1)]
+#             tensor_list = vcat(res1, ops)
+#             opt_seq = optimal_contraction_sequence(tensor_list)
+#             return noprime(contract(tensor_list; sequence = opt_seq))
+#         end
+#     end
+#     return action
+# end

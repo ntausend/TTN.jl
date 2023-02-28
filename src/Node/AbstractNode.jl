@@ -121,3 +121,25 @@ end
 
 ==(nd1::AbstractNode, nd2::PhysicalNode) = false
 ==(nd1::PhysicalNode, nd2::AbstractNode) = false
+
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, node::TTNKit.AbstractNode)
+    g = create_group(parent, name)
+    g["s"] = node.s
+    g["desc"] = node.desc
+
+    if isa(node, TTNKit.PhysicalNode)
+        attributes(g)["type"] = "physical"
+        write(g, "hilbertspace", node.hilbertspace)
+    else
+        attributes(g)["type"] = "not-physical"
+    end
+end
+
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.AbstractNode})
+    g = open_group(parent, name)
+    s = read(g, "s")
+    desc = read(g, "desc")
+    read(attributes(g)["type"]) != "physical" && return Node(s, Int64, desc)
+    hilberstpace = read(g, "hilbertspace", Index)
+    return ITensorNode(s, hilberstpace)
+end

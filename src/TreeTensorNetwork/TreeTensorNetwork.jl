@@ -622,3 +622,61 @@ function Base.copy(ttn::TreeTensorNetwork)
     return TreeTensorNetwork(datac, ortho_directionc, ortho_centerc, netc)
 end
 
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ttn::TTNKit.TreeTensorNetwork)
+    ortho_center = ttn.ortho_center
+    ortho_direction = ttn.ortho_direction
+    net = ttn.net
+    data = ttn.data
+        
+    g = create_group(parent, name)
+
+    ### save ortho_center ###
+    write(g, "ortho_center", ortho_center)
+
+    ### save ortho_direction ###
+    group_ortho_center = create_group(g, "ortho_direction")
+    for (layer, od_layer) in enumerate(ortho_direction)
+        name_layer = "layer_"*string(layer)
+        write(group_ortho_center, name_layer, od_layer)
+    end
+
+    ### save net ###
+    write(g, "net", net)
+        
+    ### save data ###
+    group_data = create_group(g, "data")
+    for (layer, data_layer) in enumerate(data)
+        name_data_layer = "layer_"*string(layer)
+        group_data_layer = create_group(group_data, name_data_layer)
+        for (node, data_node) in enumerate(data_layer)
+            name_data_node = "node_"*string(node)
+            write(group_data_layer, name_data_node, data_node)
+        end
+    end
+end
+
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.TreeTensorNetwork})
+    g = open_group(parent, name)
+
+    ### read data ###
+    group_data = open_group(g, "data")
+    data = map(group_data) do group_data_ll
+        map(keys(group_data_ll)) do name_datapp
+            read(group_data_ll, name_datapp, ITensor)
+        end
+    end
+
+    ### read ortho_center ###
+    ortho_center = read(g, "ortho_center")
+
+    ### read ortho_direction ###
+    group_od = open_group(g, "ortho_direction")
+    ortho_direction = map(keys(group_od)) do layer
+        read(group_od, layer)
+    end
+
+    ### read net ###
+    net = read(g, "net", TTNKit.AbstractNetwork)
+
+    return TTNKit.TreeTensorNetwork(data, ortho_direction, ortho_center, net)
+end

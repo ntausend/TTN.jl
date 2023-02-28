@@ -364,3 +364,21 @@ function Base.iterate(itr::Iterators.Reverse{<:NodeIterator}, state)
 
 	return (pos, pos)
 end
+
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, net::TTNKit.AbstractNetwork)
+    g = create_group(parent, name)
+    for (num_lat,lat) in enumerate(net.lattices)
+        name_lat = "lattice_"*string(num_lat)
+        write(g, name_lat, lat)
+    end
+end
+
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.AbstractNetwork})
+    g = open_group(parent, name)
+
+    lattices = map(keys(g)) do name_lattice
+        read(g, name_lattice, TTNKit.AbstractLattice)
+    end
+    
+    return TTNKit.BinaryNetwork{typeof(lattices[1]), TTNKit.ITensorsBackend}(lattices)
+end

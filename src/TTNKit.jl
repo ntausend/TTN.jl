@@ -10,6 +10,7 @@ module TTNKit
     using KrylovKit
     using LinearAlgebra
     using Printf
+    using HDF5
 
 
     struct NotImplemented <: Exception

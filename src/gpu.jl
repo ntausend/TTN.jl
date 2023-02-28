@@ -1,4 +1,4 @@
-NDTensors.similar(D::NDTensors.Dense) = NDTensors.Dense(Base.similar(NDTensors.data(D)))
+#NDTensors.similar(D::NDTensors.Dense) = NDTensors.Dense(Base.similar(NDTensors.data(D)))
 
 function convert_cu(T::ITensor, T_type::ITensor)
     ITensorGPU.is_cu(T_type) || return T

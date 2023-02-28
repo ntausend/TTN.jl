@@ -82,8 +82,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::TPO) where{N}
 					# getting the up pointing index -> remove this by
 					# including the id rg flow?
 					tensor_list = [Tn, _ops..., dag(prime(Tn))]
-            		opt_seq = optimal_contraction_sequence(tensor_list)
-            		_rg_op = contract(tensor_list; sequence = opt_seq)
+          opt_seq = optimal_contraction_sequence(tensor_list)
+          _rg_op = contract(tensor_list; sequence = opt_seq)
 					# now build the new params list
 					prm   = params.(trms)
 					# summand index, should be the same for all
