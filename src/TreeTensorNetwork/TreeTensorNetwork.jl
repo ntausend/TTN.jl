@@ -27,6 +27,8 @@ function sites(ttn::TreeTensorNetwork{N,ITensor}) where N
     net = network(ttn)
     return map(eachindex(net, 0)) do pp
         prnt_nd = parent_node(net, (0,pp))
+        println(pp, ", ", prnt_nd)
+        println(inds(ttn[prnt_nd]))
         only(inds(ttn[prnt_nd]; tags = "Site,n=$pp"))
     end
 end
@@ -658,11 +660,17 @@ end
 function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.TreeTensorNetwork})
     g = open_group(parent, name)
 
+    ### read net ###
+    net = read(g, "net", TTNKit.AbstractNetwork)
+
     ### read data ###
     group_data = open_group(g, "data")
-    data = map(group_data) do group_data_ll
-        map(keys(group_data_ll)) do name_datapp
-            read(group_data_ll, name_datapp, ITensor)
+    data = map(1:number_of_layers(net)) do ll
+        name_layer = "layer_$(ll)"
+        group_data_layer = open_group(group_data, name_layer)
+        map(1:number_of_tensors(net,ll)) do pp
+            name_node = "node_$(pp)"
+            read(group_data_layer, name_node, ITensor)
         end
     end
 
@@ -674,9 +682,6 @@ function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::
     ortho_direction = map(keys(group_od)) do layer
         read(group_od, layer)
     end
-
-    ### read net ###
-    net = read(g, "net", TTNKit.AbstractNetwork)
 
     return TTNKit.TreeTensorNetwork(data, ortho_direction, ortho_center, net)
 end
