@@ -27,8 +27,6 @@ function sites(ttn::TreeTensorNetwork{N,ITensor}) where N
     net = network(ttn)
     return map(eachindex(net, 0)) do pp
         prnt_nd = parent_node(net, (0,pp))
-        println(pp, ", ", prnt_nd)
-        println(inds(ttn[prnt_nd]))
         only(inds(ttn[prnt_nd]; tags = "Site,n=$pp"))
     end
 end
