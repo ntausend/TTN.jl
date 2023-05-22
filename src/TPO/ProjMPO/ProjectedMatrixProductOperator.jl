@@ -23,7 +23,6 @@ top_indices(   projTPO::ProjMPO, pos::Tuple{Int, Int}) = projTPO.top_indices[pos
 environments(projTPO::ProjMPO, pos::Tuple{Int, Int}) = vcat(bottom_environment(projTPO, pos)..., top_environment(projTPO, pos))
 # indices on that spot
 indices(projTPO::ProjMPO, pos::Tuple{Int, Int}) = vcat(bottom_indices(projTPO, pos)..., top_indices(projTPO, pos))
- 
 
 
 include("./constructing_projmpo_from_mpo_tensorkit.jl")
@@ -227,4 +226,34 @@ function ∂A3(projTPO::ProjMPO{N, ITensor}, pos::Tuple{Int,Int}) where N
         return noprime(contract(tensor_list; sequence = opt_seq))
     end
     return action
+end
+
+
+function noiseterm(ptpo::ProjMPO{N, ITensor}, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}}) where{N}
+    isnothing(pos_next) && return nothing
+    pos = ortho_center(ptpo)
+
+    Δpos = pos_next .- pos
+    # get direction of the sweep
+    dir = Δpos[1]
+
+    # direction is upwards, get all bottom environemnts for the current node
+    if dir == 1
+        benvs = bottom_environment(ptpo, pos)
+        # now contract the envs with the tensor
+        tensor_list = vcat(T, benvs)
+    elseif dir == -1 && pos_next ∈ child_nodes(network(ptpo), pos)
+        # we need to go towards a child
+        # collect all environments, except for that one child node
+        b_collect = deleteat!(collect(1:number_of_child_nodes(network(ptpo), pos)), index_of_child(network(ptpo), pos_next))
+        benvs = map(jj -> bottom_environment(ptpo, pos, jj), b_collect)
+        tensor_list = vcat(T, benvs..., top_environment(ptpo, pos))
+    else
+        error("Next position is not valid for defining a noise term (needs to be neighbored): pos=$pos, next position=$(pos_next)")
+    end
+    opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+    nt = contract(tensor_list; sequence = opt_seq)
+
+    nt = nt * dag(noprime(nt))
+    return nt
 end

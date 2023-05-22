@@ -36,6 +36,8 @@ include("./ttn_factory_itensors.jl")
 
 ITensors.maxlinkdim(ttn::TreeTensorNetwork) = maximum(map(pos -> maximum(ITensors.dims(ttn[pos])), NodeIterator(network(ttn))))
 
+ITensors.siteinds(ttn::TreeTensorNetwork) = siteinds(physical_lattice(ttn))
+
 
 function _initialize_ortho_direction(net)
     ortho_direction = Vector{Vector{Int64}}(undef, number_of_layers(net))
@@ -164,6 +166,7 @@ number_of_layers(ttn::TreeTensorNetwork) = length(ttn.data)
 network(ttn::TreeTensorNetwork) = ttn.net
 # returning the current orthogonality center
 ortho_center(ttn::TreeTensorNetwork) = Tuple(ttn.ortho_center)
+is_orthogonalized(ttn::TreeTensorNetwork) = all(ortho_center(ttn) .!= (-1,-1))
 
 # returns the ortho_direction of a given position in the network.
 # this returns the INDEX inside the tensor at that position which is connected to the

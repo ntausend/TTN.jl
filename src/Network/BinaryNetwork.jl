@@ -1,10 +1,20 @@
+
+function _dims_to_n_layer_binary(dims::NTuple{D, Int}) where D
+    n_layer = 0
+    try
+        n_layer = sum(Int64.(log2.(dims)))
+    catch
+        throw(DimensionsException(dims))
+    end
+    return n_layer
+end
 #struct BinaryNetwork{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D, S, I}
 struct BinaryNetwork{L<:SimpleLattice, B<:AbstractBackend} <: AbstractNetwork{L, B}
     lattices::Vector{L}
 end
 
 function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwargs...) where{D}
-    n_layer = _dims_to_n_layer(dimensions)
+    n_layer = _dims_to_n_layer_binary(dimensions)
     lat_vec = Vector{SimpleLattice{D}}(undef, n_layer + 1)
 
     dimensionsc = vcat(dimensions...)
@@ -18,14 +28,16 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
     _backend = backend(lat_vec[1])
 
     vnd_type = nodetype(lat_vec[1])
-
     for jj in 2:n_layer+1
-        pair_dir  = mod1(jj-1, D)
+        # this is not working...
+        D_actual = D #- sum(dimensionsc[2:end][dimensionsc[2:end] .== 1])
+        pair_dir  = mod1(jj-1, D_actual)
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
-        dimensionsc[dimensionsc.==0] .= 1
-
+        
+        #dimensionsc[dimensionsc.==0] .= 1
         lat = SimpleLattice(Tuple(dimensionsc), vnd_type)
         lat_vec[jj] = lat
+        
         # pairing direction of the next layer
     end
     
@@ -37,7 +49,7 @@ BinaryNetwork(dimensions::NTuple; kwargs...) = BinaryNetwork(dimensions, Trivial
 # creation from indices, may be fused with above function?
 function BinaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     @assert prod(dims) == length(indices)
-    n_layer = _dims_to_n_layer(dims)
+    n_layer = _dims_to_n_layer_binary(dims)
     lat_vec = Vector{SimpleLattice{D}}(undef, n_layer + 1)
 
     dimensionsc = vcat(dims...)
@@ -96,7 +108,7 @@ end
 BinaryChainNetwork(number_of_layers::Int; kwargs...) = BinaryChainNetwork(number_of_layers, TrivialNode; kwargs...)
 
 function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:AbstractNode}; kwargs...)
-    n_layers = _dims_to_n_layer(Tuple(number_of_sites))
+    n_layers = _dims_to_n_layer_binary(Tuple(number_of_sites))
     return BinaryChainNetwork(n_layers, nd; kwargs...)
 end
 BinaryChainNetwork(number_of_sites::Tuple{Int}; kwargs...) = BinaryChainNetwork(number_of_sites, TrivialNode; kwargs...)
@@ -104,7 +116,7 @@ BinaryChainNetwork(number_of_sites::Tuple{Int}; kwargs...) = BinaryChainNetwork(
 
 
 function BinaryChainNetwork(indices::Vector{<:Index})
-    number_of_layers =  _dims_to_n_layer((length(indices),))
+    number_of_layers =  _dims_to_n_layer_binary((length(indices),))
     tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
     phys_lat = Chain(indices)
     nvd_type = nodetype(phys_lat)
@@ -118,7 +130,7 @@ function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:ITensorNode}, type
     return BinaryChainNetwork(indices)
 end
 function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:ITensorNode}, type::AbstractString; kwargs...)
-    n_layers = _dims_to_n_layer(Tuple(number_of_sites))
+    n_layers = _dims_to_n_layer_binary(Tuple(number_of_sites))
     return BinaryChainNetwork(n_layers, nd, type)
 end
 
@@ -149,6 +161,9 @@ BinaryRectangularNetwork(indices::Matrix{<:Index}) = BinaryNetwork(size(indices)
 function parent_node(net::BinaryNetwork, pos::Tuple{Int, Int})
     check_valid_position(net, pos)
     pos[1] == number_of_layers(net) && (return nothing)
+    # we need to be carefull if the layer is completely paired
+    # not working
+    D = dimensionality(net)#dimensionality_reduced(net, pos[1])
     # check if paring is along x or y direction in the next step
     # even layers are paired along the x direction, odd layers along the y direction
     pair_dir = mod(pos[1], dimensionality(net)) + 1
@@ -179,6 +194,10 @@ function child_nodes(net::BinaryNetwork, pos::Tuple{Int, Int})
     check_valid_position(net, pos)
     
     pos[1] == 0 && (return nothing)
+
+    # we need to be carefull if the layer is completely paired
+    # not working
+    D = dimensionality(net)#dimensionality_reduced(net, pos[1] - 1)
 
     # do the revert operation as for the parent nodes
     # pairing of this layer, given by the pairing direction of
