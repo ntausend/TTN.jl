@@ -36,7 +36,7 @@ include("./ttn_factory_itensors.jl")
 
 ITensors.maxlinkdim(ttn::TreeTensorNetwork) = maximum(map(pos -> maximum(ITensors.dims(ttn[pos])), NodeIterator(network(ttn))))
 
-ITensors.siteinds(ttn::TreeTensorNetwork) = siteinds(physical_lattice(ttn))
+ITensors.siteinds(ttn::TreeTensorNetwork) = siteinds(physical_lattice(network(ttn)))
 
 
 function _initialize_ortho_direction(net)
