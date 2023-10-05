@@ -202,8 +202,6 @@ function ∂A2(projTPO::ProjTPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}
     return action
 end
 
-
-
 function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}}) where{N}
 
     isnothing(pos_next) && return nothing

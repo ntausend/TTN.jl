@@ -3,15 +3,19 @@ function correlations(ttn::TreeTensorNetwork, op1, op2, pos::NTuple)
     pos_lin = linear_ind(physical_lattice(network(ttn)), pos)
     return correlations(ttn, op1, op2, pos_lin)
 end
+
 function correlations(ttn::TreeTensorNetwork, op1, op2, pos::Int)
-    return map(eachindex(physical_lattice(network(ttn)))) do pp
+    physlat = physical_lattice(network(ttn))
+    res = map(eachindex(physlat)) do pp
         correlation(ttn, op1, op2, pos, pp)
     end
+    dims = size(physlat)
+    return reshape(res, dims)
 end
 
 function correlation(ttn::TreeTensorNetwork, op1, op2, pos1::NTuple, pos2::NTuple)
-    pos1_lin = linear_lind(physical_lattice(network(ttn)), pos1)
-    pos2_lin = linear_lind(physical_lattice(network(ttn)), pos2)
+    pos1_lin = linear_ind(physical_lattice(network(ttn)), pos1)
+    pos2_lin = linear_ind(physical_lattice(network(ttn)), pos2)
     return correlation(ttn, op1, op2, pos1_lin, pos2_lin)
 end
 
@@ -89,3 +93,55 @@ function _correlation_pos1_le_pos2(ttn::TreeTensorNetwork{N, ITensor}, op1::Stri
     # operates on one leg
     return ITensors.scalar(((T*Opl) * Opr)*dag(prime(T, idx_shrl, idx_shrr)))
 end
+
+
+### general n point correlations ###
+function correlation(ttn::TTNKit.TreeTensorNetwork{N,ITensor}, ops::Vector{String}, pos::Vector{Tuple{Int,Int}}) where {N}
+    pos_lin = [linear_ind(physical_lattice(network(ttn)), posi) for posi in pos]
+    return correlation(ttn, ops, pos_lin)
+end
+
+function correlation(ttn::TTNKit.TreeTensorNetwork{N,ITensor}, ops::Vector{String}, pos::Vector{Int}) where N
+    net = TTNKit.network(ttn)
+    phys_sites = sites(ttn)
+
+    # find the top position
+    pos_parent = [parent_node(net, (0,posi)) for posi in pos]
+    paths = [vcat(pos_parent1, connecting_path(net, pos_parent1, pos_parent2)) for (pos_parent1, pos_parent2) in Iterators.product(pos_parent, pos_parent) if pos_parent1 != pos_parent2]
+
+    # finding the top node for the subtree
+    top_path_pos_idx = [findmax(first, path)[2] for path in paths]
+    top_path_pos = [path[top_path_pos_i] for (path,top_path_pos_i) in zip(paths, top_path_pos_idx)]
+    _,top_pos_idx = findmax(first, top_path_pos)
+    top_pos = top_path_pos[top_pos_idx]
+
+    ttnc = move_ortho!(copy(ttn), top_pos)
+
+    ops_pos = [(convert_cu(op(opsi, phys_sites[posi]), ttnc[(1,1)]), (0,posi)) for (opsi,posi) in zip(ops,pos)]
+
+    for ll in 1:top_pos[1]-1
+      temp_ops_pos = []
+
+      for pp in TTNKit.eachindex(net,ll)
+        idx = findall(x -> TTNKit.parent_node(net, x[2]) == (ll,pp), ops_pos)
+        isempty(idx) && continue
+
+        T = ttnc[(ll,pp)]
+        temp_ops = [ops_pos[i][1] for i in idx]
+
+        idx_shr = [commonind(T, temp_opsi) for temp_opsi in temp_ops]
+        idx_prnt = only(inds(T; tags = "nl=$(ll)"))
+        append!(temp_ops_pos, [(reduce(*, temp_ops, init = T) * dag(prime(T, idx_prnt, idx_shr...)), (ll,pp))])
+      end
+
+      ops_pos = temp_ops_pos
+
+    end
+
+    T = ttnc[top_pos]
+    idx = findall(x -> TTNKit.parent_node(net, x[2]) == top_pos, ops_pos)
+    temp_ops = [ops_pos[i][1] for i in idx]
+    idx_shr = [commonind(T, temp_opsi) for temp_opsi in temp_ops]
+
+    return ITensors.scalar(reduce(*, temp_ops, init = T) * dag(prime(T, idx_shr...)))
+end;

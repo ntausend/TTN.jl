@@ -13,9 +13,11 @@ function nearest_neighbours(lat::SimpleLattice, mapping::Vector{Int}; periodic::
 
         unit_vec = zeros(Int64, dimensionality(lat))
         unit_vec[dir] = 1
-        nextpos =  Tuple(map(pp -> mod(pp-1, dim)+1, pos .+ unit_vec))
+        nextpos = map(zip(pos .+ unit_vec, lat.dims)) do (pp,d)
+          return mod(pp-1, d)+1 
+        end
 
-        return (mapping[linear_ind(lat, pos)], mapping[linear_ind(lat, nextpos)]) 
+        return (mapping[linear_ind(lat, pos)], mapping[linear_ind(lat, Tuple(nextpos))]) 
       end
     end
 

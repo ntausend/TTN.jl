@@ -22,6 +22,12 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
 
     # now start with the sweeping protocol
     initialize!(sp)
+    # measure!(
+    #     obs;
+    #     sweep_handler=sp,
+    #     outputlevel=outputlevel,
+    #     dt = 0,
+    # )
     #sp = SimpleSweepProtocol(net, n_sweeps)
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
@@ -31,16 +37,22 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
         t_p = time()
         for pos in sp
             update!(sp, pos)
-            measure!(
-                obs;
-                sweep_handler=sp,
-                pos=pos,
-                outputlevel=outputlevel
-            )
+            # measure!(
+            #     obs;
+            #     sweep_handler=sp,
+            #     pos=pos,
+            #     outputlevel=outputlevel
+            # )
         end
         t_f = time()
+        measure!(
+            obs;
+            sweep_handler=sp,
+            outputlevel=outputlevel,
+            dt = t_f-t_p,
+        )
         if outputlevel ≥ 1
-            print("Finsihed sweep $sw. ")
+            print("Finished sweep $sw. ")
             @printf("Needed Time %.3fs\n", t_f - t_p)
             # additional info string provided by the sweephandler
             info_string(sp, outputlevel)
@@ -97,6 +109,7 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     eigsolve_eager = get(kwargs, :eager, DEFAULT_EAGER_TDVP)
 
     timestep = get(kwargs, :timestep, 1e-2)
+    initialtime = get(kwargs, :initialtime, 0.)
     finaltime = get(kwargs, :finaltime, 1.)
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
@@ -110,5 +123,5 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
                                            ishermitian = ishermitian,
                                            eager = eigsolve_eager);  
 
-    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, finaltime, func); kwargs...);
+    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func); kwargs...);
 end

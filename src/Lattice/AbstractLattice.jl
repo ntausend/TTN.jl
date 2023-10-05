@@ -80,3 +80,22 @@ function CreateChain(number_of_sites::Int; backend = TensorKitBackend())
     _check_dimensions((number_of_sites,))
     return GenericLattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1]), typeof(backend)}(lat_vec, (number_of_sites,))
 end
+
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, lattice::TTNKit.AbstractLattice)
+    g = create_group(parent, name)
+    g["dims"] = collect(lattice.dims)
+    for (num_node, node) in enumerate(lattice.lat)
+        name_node = "node_"*string(num_node)
+        write(g, name_node, node)
+    end
+end
+
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.AbstractLattice})
+    g = open_group(parent, name)
+    dims = Tuple(read(g, "dims"))
+    lat = map(1:prod(dims)) do i
+        name_node = "node_$(i)"
+        read(g, name_node, TTNKit.AbstractNode)
+    end
+    return TTNKit.SimpleLattice{length(dims),Index,Int64,TTNKit.ITensorsBackend}(lat, dims)
+end

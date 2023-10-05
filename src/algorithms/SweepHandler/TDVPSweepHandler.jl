@@ -1,5 +1,6 @@
 mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
                AbstractRegularSweepHandler
+    const initialtime::Float64
     const finaltime::Float64
     const timestep::Float64
     ttn::TreeTensorNetwork{N, T, B}
@@ -15,6 +16,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
         ttn::TreeTensorNetwork{N,T,B},
         pTPO,
         timestep,
+        initialtime,
         finaltime,
         func,
     ) where {N,T,B}
@@ -22,7 +24,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?
             index_of_child(network(ttn), path[2]) : 0
-        return new{N,T,B}(finaltime, timestep, ttn, pTPO, func, path, :forward, dir, 0)
+        return new{N,T,B}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
     end
 end
 
@@ -42,9 +44,14 @@ function Base.iterate(sp::TDVPSweepHandler, state)
     return (next_pos, next_state)
 end
 
-sweeps(sp::TDVPSweepHandler) = 0:(sp.timestep):(sp.finaltime)
+sweeps(sp::TDVPSweepHandler) = (sp.initialtime):(sp.timestep):(sp.finaltime)
 start_position(sp::TDVPSweepHandler) = (sp.path[1])
 initialize!(::TDVPSweepHandler) = nothing
+
+function update_next_sweep!(sp::TDVPSweepHandler)
+    sp.current_time += sp.timestep 
+    return sp
+end
 
 function _tdvp_path(net::AbstractNetwork)
     path = Vector{Tuple{Int,Int}}([(number_of_layers(net), 1)])

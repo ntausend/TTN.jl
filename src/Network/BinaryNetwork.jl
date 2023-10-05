@@ -63,9 +63,10 @@ function BinaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     vnd_type = nodetype(lat_vec[1])
 
     for jj in 2:n_layer+1
-        # this is not working
-        D_actual = D #- sum(dimensionsc[2:end][dimensionsc[2:end] .== 1])
-        pair_dir  = mod1(jj-1, D_actual)
+        pair_dir  = mod1(jj-1, D)
+        if dimensionsc[pair_dir] == 1
+          pair_dir = mod(pair_dir+1, 2) 
+        end
         dimensionsc[pair_dir] = div(dimensionsc[pair_dir],2)
         dimensionsc[dimensionsc.==0] .= 1
 
@@ -165,7 +166,10 @@ function parent_node(net::BinaryNetwork, pos::Tuple{Int, Int})
     D = dimensionality(net)#dimensionality_reduced(net, pos[1])
     # check if paring is along x or y direction in the next step
     # even layers are paired along the x direction, odd layers along the y direction
-    pair_dir = mod(pos[1], D) + 1
+    pair_dir = mod(pos[1], dimensionality(net)) + 1
+    if dimensions(net, pos[1])[pair_dir] == 1
+      pair_dir = mod(pair_dir+1, 2) 
+    end
     # unroll the linear index
     pos_vec = vcat(_coordinate_simple_lattice(pos[2], dimensions(net, pos[1]))...)
 
@@ -198,7 +202,10 @@ function child_nodes(net::BinaryNetwork, pos::Tuple{Int, Int})
     # do the revert operation as for the parent nodes
     # pairing of this layer, given by the pairing direction of
     # the previous layer
-    pair_dir = mod(pos[1] - 1, D) + 1
+    pair_dir = mod(pos[1] - 1, dimensionality(net)) + 1
+    if dimensions(net, pos[1]-1)[pair_dir] == 1
+      pair_dir = mod(pair_dir+1, 2) 
+    end
     
     # getting the coordinates inside the current layer
     pos_vec = vcat(_coordinate_simple_lattice(pos[2], dimensions(net, pos[1]))...)
