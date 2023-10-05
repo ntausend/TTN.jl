@@ -1,13 +1,12 @@
 module TTNKit
     using SparseArrays
-    using TensorKit
     using ITensors
     using ITensorGPU
     using Distributions: Multinomial
-    using Parameters: @with_kw
-    using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
-    using MPSKitModels: LocalOperator, @mpoham
-    using KrylovKit
+    #using Parameters: @with_kw
+    #using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
+    #using MPSKitModels: LocalOperator, @mpoham
+    using KrylovKit: exponentiate, eigsolve
     using LinearAlgebra
     using Printf
     using HDF5
@@ -46,17 +45,10 @@ module TTNKit
 
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
-    import TensorKit: sectortype, spacetype
     import ITensors: state, op, space, siteinds
     import ITensors: expect
     using ITensors: terms, sortmergeterms, which_op, site, params, determineValType
-	  using ITensors: argument, optimal_contraction_sequence
-    using ITensors:  dim as dim_it
-    using TensorKit: dim as dim_tk
-    using ITensors:  dims as dims_it
-    using TensorKit: dims as dims_tk
-
-    dim(ind::I) where{I} = I <: Index ? dim_it(ind) : dim_tk(ind) 
+	using ITensors: argument, optimal_contraction_sequence
 
     # fixing missing support for qn-sparse qr decomposition of ITensors, should
     # be included in the future.. see pullrequest:
@@ -67,19 +59,15 @@ module TTNKit
     # just use the factorize for the moment... dont want to get nasty warnings
     #include("./qn_qr_it/qr.jl")
 
-    include("./backends/backends.jl")
 
     # contract_tensor ncon wrapper
     include("./contract_tensors.jl")
 
     # nodes
-    export TrivialNode, HardCoreBosonNode, SpinHalfNode, Node, ITensorNode
+    #export TrivialNode, HardCoreBosonNode, SpinHalfNode, Node, ITensorNode
     include("./Node/AbstractNode.jl")
     include("./Node/Node.jl")
     include("./Node/ITensorNode.jl")
-    include("./Node/HardCoreBosonNode.jl")
-    include("./Node/SoftCoreBosonNode.jl")
-    include("./Node/SpinHalfNode.jl")
 
     # lattice class
     export Rectangle, Square
@@ -90,7 +78,7 @@ module TTNKit
     export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
-    include("./Network/TrenaryNetwork.jl")
+    #include("./Network/TrenaryNetwork.jl")
 
     
 
@@ -105,20 +93,17 @@ module TTNKit
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
     include("./TreeTensorNetwork/algorithms/correlation.jl")
+
     include("./TreeTensorNetwork/algorithms/entanglement_measures.jl")
     #include("./TreeTensorNetwork/algorithms/observables.jl")
 
-    #=================================================================================#
-    # Does this function still exists?
-    #=================================================================================#
-    #export transverseIsingHamiltonian
-    #=================================================================================#
-
     include("./TPO/AbstractTPO.jl")
     include("./TPO/AbstractProjectedTensorProductOperator.jl")
+
+    # gpu helper functions
+    include("./gpu.jl")
     # MPO class
     include("./TPO/ProjMPO/MPO.jl")
-    # abstract TPO
     include("./TPO/ProjMPO/ProjectedMatrixProductOperator.jl")
     include("./TPO/ProjMPO/utilsMPO.jl")
 
@@ -128,9 +113,7 @@ module TTNKit
     include("./TPO/ProjTPO/ProjectedTensorProductOperator.jl")
 
     # model implementations
-    include("./Models/TransverseFieldIsing.jl")
-    include("./Models/TrivialModel.jl")
-
+    #include("./Models/TransverseFieldIsing.jl")
 
     # dmrg/tdvp
     include("./algorithms/SubspaceExpansion/AbstractSubspaceExpansion.jl")
@@ -138,33 +121,5 @@ module TTNKit
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
-
-    # gpu helper functions
-    include("./gpu.jl")
-
-
-    #=
-
-    
-    export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
-    
-
-    # load the definition of special operator types for dispatching measuring functions
-    include("./TPO/AbstractTensorDefinitions.jl")
-
-    include("./TreeTensorNetwork/algorithms/correlation.jl")
-   =# 
-
-    #============================= TENSOR PRODUCT OPERATORS =========================#
-
-
-    #=
-
-
-    # TPO TODO:Tests
-
-    include("./TPO/TPOSum/Interactions.jl")
-    include("./TPO/TPOSum/TPOSum.jl")
-    =#
 
 end # module

@@ -1,4 +1,4 @@
-function _initialize_empty_ttn(net::AbstractNetwork{L, ITensorsBackend}) where{L}
+function _initialize_empty_ttn(net::AbstractNetwork)
     ttn = Vector{Vector{ITensor}}(undef, number_of_layers(net))
     foreach(eachlayer(net)) do ll
         ttn[ll] = Vector{ITensor}(undef, number_of_tensors(net, ll))
@@ -6,7 +6,7 @@ function _initialize_empty_ttn(net::AbstractNetwork{L, ITensorsBackend}) where{L
     return ttn
 end
 
-function _construct_product_tree_tensor_network(net::AbstractNetwork{L, ITensorsBackend}, states::Vector{<:AbstractString}, _elT::DataType) where {L}
+function _construct_product_tree_tensor_network(net::AbstractNetwork, states::Vector{<:AbstractString}, _elT::DataType)
     if length(states) != length(physical_lattice(net))
         throw(DimensionMismatch("Number of physical sites and and initial vals don't match"))
     end
@@ -60,7 +60,7 @@ function _construct_product_tree_tensor_network(net::AbstractNetwork{L, ITensors
 end
 
 
-function _construct_random_tree_tensor_network(net::AbstractNetwork{L, ITensorsBackend}, maxdim::Int, elT::DataType) where{L}
+function _construct_random_tree_tensor_network(net::AbstractNetwork, maxdim::Int, elT::DataType)
     ttn = _initialize_empty_ttn(net)
     domains, codomains = _build_domains_and_codomains(net,  maxdim)
     # we need to correct the last domain
@@ -82,8 +82,7 @@ function _construct_random_tree_tensor_network(net::AbstractNetwork{L, ITensorsB
     return ttn
 end
 
-function _construct_random_tree_tensor_network(net::AbstractNetwork{L, ITensorsBackend}, 
-                                               target_charge, maxdim::Int, elT::DataType, tries::Int) where{L} 
+function _construct_random_tree_tensor_network(net::AbstractNetwork, target_charge, maxdim::Int, elT::DataType, tries::Int)
     ttn = _initialize_empty_ttn(net)
     domains, codomains = _build_domains_and_codomains(net, target_charge, maxdim, tries)
 
@@ -128,7 +127,7 @@ function _correct_domain(domain_new::Index{I}, maxdim::Int) where{I}
     return Index(new_irreps; tags = tags(domain_new), dir = dir(domain_new))
 end
 
-function _build_domains_and_codomains(net::AbstractNetwork{L, ITensorsBackend}, maxdim::Int) where{L}
+function _build_domains_and_codomains(net::AbstractNetwork, maxdim::Int)
     phys_lat = physical_lattice(net)
 
     codomains = Vector{Vector{Vector{Index}}}(undef, number_of_layers(net))
@@ -156,8 +155,7 @@ function _build_domains_and_codomains(net::AbstractNetwork{L, ITensorsBackend}, 
     return domains, codomains
 end
 
-function _build_domains_and_codomains(net::AbstractNetwork{<:AbstractLattice{D,S,I, ITensorsBackend}}, 
-                                      target_charge, maxdim::Int, tries::Int) where{D,S, I}
+function _build_domains_and_codomains(net::AbstractNetwork{<:AbstractLattice{D,S,I}}, target_charge, maxdim::Int, tries::Int) where{D,S, I}
     if(I == Int64 || I == Nothing)
         target_sp = Index(1; tags = "Link,nl=$(number_of_layers(net)),np=1")
     else
@@ -199,8 +197,8 @@ end
 ===========================================================================================#
 
 
-function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork{N, ITensor, ITensorsBackend}; maxdim::Int = 1,
-    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn)) where N
+function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::Int = 1,
+    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn))
 
     net = network(ttn)
     elT = promote_type(_elT, eltype(ttn))
@@ -235,8 +233,8 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork{N, ITenso
     return ttnc
 end
 
-function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork{N, ITensor, ITensorsBackend}; maxdim::Int = 1,
-    orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, _elT = eltype(ttn)) where N
+function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::Int = 1,
+    orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, _elT = eltype(ttn))
 
     net = network(ttn)
     elT = promote_type(_elT, eltype(ttn))

@@ -1,9 +1,8 @@
-mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
-               AbstractRegularSweepHandler
+mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHandler
     const initialtime::Float64
     const finaltime::Float64
     const timestep::Float64
-    ttn::TreeTensorNetwork{N, T, B}
+    ttn::TreeTensorNetwork{N, T}
     pTPO::AbstractProjTPO
     func
     path::Vector{Tuple{Int,Int}}
@@ -13,7 +12,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
     current_time::Float64
 
     function TDVPSweepHandler(
-        ttn::TreeTensorNetwork{N,T,B},
+        ttn::TreeTensorNetwork{N,T},
         pTPO,
         timestep,
         initialtime,
@@ -24,7 +23,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T,B<:AbstractBackend} <:
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?
             index_of_child(network(ttn), path[2]) : 0
-        return new{N,T,B}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
+        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
     end
 end
 
@@ -71,7 +70,7 @@ function _tdvp_path(net::AbstractNetwork)
     return path
 end
 
-function _tdvpforward!(sp::TDVPSweepHandler{N,ITensor}, pos::Tuple{Int,Int}) where {N}
+function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 
     ttn = sp.ttn
     pTPO = sp.pTPO
@@ -125,63 +124,7 @@ function _tdvpforward!(sp::TDVPSweepHandler{N,ITensor}, pos::Tuple{Int,Int}) whe
     end
 end
 
-function _tdvpforward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
-
-    ttn = sp.ttn
-    pTPO = sp.pTPO
-    net = network(ttn)
-    T = ttn[pos]
-    nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
-
-    Δ = nextpos .- pos
-
-    if Δ[1] == -1
-        # orthogonalize to child
-        n_child = index_of_child(net, nextpos)
-        _orthogonalize_to_child!(ttn, pos, n_child)
-
-        #update environments
-        pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
-
-        ttn.ortho_center[1] = nextpos[1]
-        ttn.ortho_center[2] = nextpos[2]
-
-    elseif Δ[1] == 1
-
-        # time evolve tensor at pos
-        action = ∂A(pTPO, pos)
-        (Tn, _) = sp.func(action, sp.timestep / 2, T)
-
-        # QR-decompose time evolved tensor at pos
-        Qn, R = leftorth(Tn)
-
-        # reverse time evolution for R tensor between pos and nextpos
-        action2 = ∂A2(pTPO, Qn, pos, nextpos)
-        (Rn, _) = sp.func(action2, -sp.timestep / 2, R)
-
-        # multiply new R tensor onto tensor at nextpos
-        idx = index_of_child(net, pos)
-        idx_dom, idx_codom = split_index(net, nextpos, idx)
-        perm = vcat(idx_dom..., idx_codom...)
-        nextT = TensorKit.permute(ttn[nextpos], idx_dom, idx_codom)
-        nextTn = TensorKit.permute(Rn * nextT, Tuple(perm[1:(end - 1)]), (perm[end],))
-
-        # set new tensors
-        ttn[pos] = Qn
-        ttn[nextpos] = nextTn
-
-        # move orthocenter (just for consistency), update ttnc and environments
-        ttn.ortho_center[1] = nextpos[1]
-        ttn.ortho_center[2] = nextpos[2]
-
-        pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
-
-    else
-        error("Invalid direction for TDVP step: ", Δ)
-    end
-end
-
-function _tdvpbackward!(sp::TDVPSweepHandler{N,ITensor}, pos::Tuple{Int,Int}) where {N}
+function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 
     ttn = sp.ttn
     pTPO = sp.pTPO
@@ -212,58 +155,6 @@ function _tdvpbackward!(sp::TDVPSweepHandler{N,ITensor}, pos::Tuple{Int,Int}) wh
         # reverse time evolution for R tensor between pos and nextpos
         action = ∂A2(pTPO, Qn, pos)
         (Ln,_) = sp.func(action, -sp.timestep/2, L) 
-
-        # multiply new L tensor on tensor at nextpos
-        nextQ = ttn[nextpos] * Ln
-
-        # update environments & time evolve tensor at nextpos
-        pTPO = update_environments!(pTPO, Qn, pos, nextpos)
-        action2 = ∂A(pTPO, nextpos)
-        (nextTn, _) = sp.func(action2, sp.timestep / 2, nextQ)
-
-        # set new tensor and move orthocenter (just for consistency)
-        ttn[nextpos] = nextTn
-        ttn.ortho_center[1] = nextpos[1]
-        ttn.ortho_center[2] = nextpos[2]
-
-    else
-        error("Invalid direction for TDVP step: ", Δ[1])
-    end
-end
-
-function _tdvpbackward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
-
-    ttn = sp.ttn
-    pTPO = sp.pTPO
-    net = network(ttn)
-    T = ttn[pos]
-    nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
-
-    Δ = nextpos .- pos
-
-    if Δ[1] == 1
-        # orthogonalize to parent
-        _orthogonalize_to_parent!(ttn, pos)
-
-        #update environments
-        pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
-
-        ttn.ortho_center[1] = nextpos[1]
-        ttn.ortho_center[2] = nextpos[2]
-
-    elseif Δ[1] == -1
-
-        # QR decomposition in direction of the TDVP-step
-        idx_chd = index_of_child(net, nextpos)
-        idx_dom, idx_codom = TTNKit.split_index(net, pos, idx_chd)
-        perm = vcat(idx_dom..., idx_codom...)
-        L, Qn = rightorth(T, idx_dom, idx_codom)
-        Qn = TensorKit.permute(Qn, Tuple(perm[1:(end - 1)]), (perm[end],))
-        ttn[pos] = Qn
-
-        # reverse time evolution for R tensor between pos and nextpos
-        action = ∂A2(pTPO, Qn, pos, nextpos)
-        (Ln, _) = sp.func(action, -sp.timestep / 2, L)
 
         # multiply new L tensor on tensor at nextpos
         nextQ = ttn[nextpos] * Ln
@@ -338,3 +229,113 @@ function next_position(sp::TDVPSweepHandler, state::Int)
     end
     error("Invalid direction of the iterator: $(sp.dirloop)")
 end
+
+#=
+function _tdvpforward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
+
+    ttn = sp.ttn
+    pTPO = sp.pTPO
+    net = network(ttn)
+    T = ttn[pos]
+    nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
+
+    Δ = nextpos .- pos
+
+    if Δ[1] == -1
+        # orthogonalize to child
+        n_child = index_of_child(net, nextpos)
+        _orthogonalize_to_child!(ttn, pos, n_child)
+
+        #update environments
+        pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
+
+        ttn.ortho_center[1] = nextpos[1]
+        ttn.ortho_center[2] = nextpos[2]
+
+    elseif Δ[1] == 1
+
+        # time evolve tensor at pos
+        action = ∂A(pTPO, pos)
+        (Tn, _) = sp.func(action, sp.timestep / 2, T)
+
+        # QR-decompose time evolved tensor at pos
+        Qn, R = leftorth(Tn)
+
+        # reverse time evolution for R tensor between pos and nextpos
+        action2 = ∂A2(pTPO, Qn, pos, nextpos)
+        (Rn, _) = sp.func(action2, -sp.timestep / 2, R)
+
+        # multiply new R tensor onto tensor at nextpos
+        idx = index_of_child(net, pos)
+        idx_dom, idx_codom = split_index(net, nextpos, idx)
+        perm = vcat(idx_dom..., idx_codom...)
+        nextT = TensorKit.permute(ttn[nextpos], idx_dom, idx_codom)
+        nextTn = TensorKit.permute(Rn * nextT, Tuple(perm[1:(end - 1)]), (perm[end],))
+
+        # set new tensors
+        ttn[pos] = Qn
+        ttn[nextpos] = nextTn
+
+        # move orthocenter (just for consistency), update ttnc and environments
+        ttn.ortho_center[1] = nextpos[1]
+        ttn.ortho_center[2] = nextpos[2]
+
+        pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
+
+    else
+        error("Invalid direction for TDVP step: ", Δ)
+    end
+end
+
+function _tdvpbackward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
+
+    ttn = sp.ttn
+    pTPO = sp.pTPO
+    net = network(ttn)
+    T = ttn[pos]
+    nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
+
+    Δ = nextpos .- pos
+
+    if Δ[1] == 1
+        # orthogonalize to parent
+        _orthogonalize_to_parent!(ttn, pos)
+
+        #update environments
+        pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
+
+        ttn.ortho_center[1] = nextpos[1]
+        ttn.ortho_center[2] = nextpos[2]
+
+    elseif Δ[1] == -1
+
+        # QR decomposition in direction of the TDVP-step
+        idx_chd = index_of_child(net, nextpos)
+        idx_dom, idx_codom = TTNKit.split_index(net, pos, idx_chd)
+        perm = vcat(idx_dom..., idx_codom...)
+        L, Qn = rightorth(T, idx_dom, idx_codom)
+        Qn = TensorKit.permute(Qn, Tuple(perm[1:(end - 1)]), (perm[end],))
+        ttn[pos] = Qn
+
+        # reverse time evolution for R tensor between pos and nextpos
+        action = ∂A2(pTPO, Qn, pos, nextpos)
+        (Ln, _) = sp.func(action, -sp.timestep / 2, L)
+
+        # multiply new L tensor on tensor at nextpos
+        nextQ = ttn[nextpos] * Ln
+
+        # update environments & time evolve tensor at nextpos
+        pTPO = update_environments!(pTPO, Qn, pos, nextpos)
+        action2 = ∂A(pTPO, nextpos)
+        (nextTn, _) = sp.func(action2, sp.timestep / 2, nextQ)
+
+        # set new tensor and move orthocenter (just for consistency)
+        ttn[nextpos] = nextTn
+        ttn.ortho_center[1] = nextpos[1]
+        ttn.ortho_center[2] = nextpos[2]
+
+    else
+        error("Invalid direction for TDVP step: ", Δ[1])
+    end
+end
+=#

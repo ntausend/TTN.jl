@@ -1,10 +1,10 @@
 
 # Needs to have the same backend as the abstract latice
-abstract type AbstractNetwork{L<:AbstractLattice, B<:AbstractBackend} end
+abstract type AbstractNetwork{L<:AbstractLattice} end
 
 # generic network type, needs the connectivity matrices for connecting layers
 # only allows for connectivity between adjacent layers...
-struct GenericNetwork{L<:AbstractLattice, B<:AbstractBackend} <: AbstractNetwork{L,B}
+struct GenericNetwork{L<:AbstractLattice} <: AbstractNetwork{L}
 	# adjacency matrix per layer, first is physical connectivity 
 	# to first TTN Layer
     connections::Vector{SparseMatrixCSC{Int, Int}}
@@ -16,8 +16,6 @@ end
 # dimensionality of network
 dimensionality(::Type{<:AbstractNetwork{L}}) where L  = dimensionality(L)
 dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
-backend(net::AbstractNetwork) = backend(typeof(net))
-backend(::Type{<:AbstractNetwork{L,B}}) where{L,B} = B
 
 # calculates the dimensionality of a layer 
 # this is not working...
@@ -115,10 +113,10 @@ end
 
 physical_coordinates(net::AbstractNetwork) = coordinates(physical_lattice(net))
 
-TensorKit.spacetype( ::Type{<:AbstractNetwork{L}}) where{L} = spacetype(L)
-TensorKit.sectortype(::Type{<:AbstractNetwork{L}}) where{L} = sectortype(L)
-TensorKit.spacetype(net::AbstractNetwork)  = spacetype(typeof(net))
-TensorKit.sectortype(net::AbstractNetwork) = sectortype(typeof(net))
+spacetype( ::Type{<:AbstractNetwork{L}}) where{L} = spacetype(L)
+sectortype(::Type{<:AbstractNetwork{L}}) where{L} = sectortype(L)
+spacetype(net::AbstractNetwork)  = spacetype(typeof(net))
+sectortype(net::AbstractNetwork) = sectortype(typeof(net))
 
 # checking if position is valid
 function check_valid_position(net::AbstractNetwork, pos::Tuple{Int, Int})
@@ -299,7 +297,7 @@ odd 2j-1 and even site 2j for j≥1 are connected by the next layer tensor.
 - `n`: Defines the number of layers, the lowest layer then has ``2^{n-1}`` tensors.
 - `bonddims`: Defines the maximal bond dimension for connecting ajdacent layers. `bonddims[1]` then defines the connectivity between the lowest and the next layer, etc.
 """
-function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int; backend = TensorKitBackend())
+function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int)
 	#bnddm = correct_bonddims(bonddims, n)
 	
 	#@assert length(bonddims) == n_layers-1
@@ -308,7 +306,7 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int; backend = Tenso
 	lat_vec = Vector{SimpleLattice{1}}(undef, n_layers+1)
 	#bnddim_comp = vcat(local_dim, bonddims)
 
-	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim, backend = backend)
+	lat_vec[1] = Chain(2^(n_layers), TrivialNode; local_dim = local_dim)
 	vnd_type = nodetype(lat_vec[1])
 
 	for jj in n_layers:-1:1
@@ -330,7 +328,7 @@ function CreateBinaryChainNetwork(n_layers::Int, local_dim::Int; backend = Tenso
 	lat_vec[end] = Chain(1,vnd_type)
 	
 	#return Network{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(adjmats, lat_vec)
-	return GenericNetwork{typeof(lat_vec[1]), typeof(backend)}(adjmats, lat_vec)
+	return GenericNetwork{typeof(lat_vec[1])}(adjmats, lat_vec)
 end
 
 struct NodeIterator
@@ -390,5 +388,5 @@ function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::
         read(g, name_lattice, TTNKit.AbstractLattice)
     end
     
-    return TTNKit.BinaryNetwork{typeof(lattices[1]), TTNKit.ITensorsBackend}(lattices)
+    return TTNKit.BinaryNetwork{typeof(lattices[1])}(lattices)
 end

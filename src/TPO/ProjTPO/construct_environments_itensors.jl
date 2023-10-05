@@ -1,5 +1,5 @@
 # calculate the up rg flow for all operator terms
-function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::TPO) where{N}
+function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 	net = network(ttn)
 
 	# now we want to calculate the upflow up to the ortho position
@@ -113,8 +113,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork{N, ITensor}, tpo::TPO) where{N}
 end
 
 
-function _build_environments(ttn::TreeTensorNetwork{N, ITensor}, 
-            rg_flow_trms::Vector{Vector{Vector{Vector{Op}}}}, id_up_rg::Vector{Vector{Vector{ITensor}}}) where{N}
+function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector{Vector{Vector{Op}}}}, id_up_rg::Vector{Vector{Vector{ITensor}}})
 	net = network(ttn)
 	nlayers = number_of_layers(net)
 

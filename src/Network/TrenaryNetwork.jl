@@ -9,7 +9,7 @@ function _dims_to_n_layer_trenary(dims::NTuple{D, Int}) where{D}
 end
 
 
-struct TrenaryNetwork{L<:SimpleLattice, B<:AbstractBackend} <: AbstractNetwork{L,B}
+struct TrenaryNetwork{L<:SimpleLattice} <: AbstractNetwork{L}
     lattices::Vector{L}
 end
 
@@ -42,12 +42,16 @@ function TrenaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
         lat_vec[jj] = lat
         # pairing direction of the next layer
     end
-    return TrenaryNetwork{typeof(lat_vec[1]), ITensorsBackend}(lat_vec)
+    return TrenaryNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 
 
 # creation from ITensorNode with type specifier
 function TrenaryNetwork(dims::NTuple{D, Int}, nd::Type{<:ITensorNode}, type::AbstractString; kwargs...) where{D}
+    indices = siteinds(type, prod(dims); kwargs...)
+    return TrenaryNetwork(dims, indices)
+end
+function TrenaryNetwork(dims::NTuple{D, Int}, type::AbstractString; kwargs...) where{D}
     indices = siteinds(type, prod(dims); kwargs...)
     return TrenaryNetwork(dims, indices)
 end

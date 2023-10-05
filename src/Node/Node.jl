@@ -4,16 +4,10 @@ struct Node{S, I} <: AbstractNode{S, I}
 end
 
 # trivial node fast constructor.. may be depricated in the future
-Node(s::Int, desc=""; backend = TensorKitBackend()) = Node(s, desc, backend)
-function Node(s::Int, desc::AbstractString, backend::TensorKitBackend)
-    field = backend.field
-    hilb = field isa Field ? field^1 : field(1)
-    return Node(s, typeof(hilb), desc)
-end
-function Node(s::Int, desc::AbstractString, ::ITensorsBackend)
+Node(s::Int, desc="") = Node(s, desc)
+function Node(s::Int, desc::AbstractString)
     return Node(s, Int64, desc)
 end
-Node(ind::Int, S::Type{<:IndexSpace}, desc="") = Node{S, sectortype(S)}(ind, desc)
 Node(ind::Int, ::Type{Int64}, desc="") = Node{Index, Int64}(ind, desc)
 
 
@@ -37,16 +31,8 @@ struct TrivialNode{S, I} <: PhysicalNode{S,I}
     desc::AbstractString
 end
 TrivialNode(pos::Int, desc::AbstractString="";
-                    local_dim::Int = 2,
-                    backend = TensorKitBackend()) = TrivialNode(pos, desc, local_dim, backend)
-
-function TrivialNode(pos::Int, desc::AbstractString, local_dim::Int, backend::TensorKitBackend)
-    field = backend.field
-    hilb = field isa Field ? field^local_dim : field(local_dim)
-    return TrivialNode{typeof(hilb), Trivial}(pos, hilb, desc) 
-    #new{typeof(hilb), Trivial}(pos, hilb, desc)
-end
-function TrivialNode(pos::Int, desc::AbstractString, local_dim::Int, ::ITensorsBackend)
+                    local_dim::Int = 2) = TrivialNode(pos, desc, local_dim)
+function TrivialNode(pos::Int, desc::AbstractString, local_dim::Int)
     idx = Index(local_dim, "Site, $desc, n=$pos")
     return TrivialNode{Index, Int64}(pos, idx, desc)
 end
@@ -54,3 +40,12 @@ function TrivialNode(pos::Int, idx::Index{Int64}, additional_desc = "")
     desc = string(tags(idx)) * string(additional_desc)
     return TrivialNode{Index, Int64}(pos, idx, desc)
 end
+#=
+
+function TrivialNode(pos::Int, desc::AbstractString, local_dim::Int, backend::TensorKitBackend)
+    field = backend.field
+    hilb = field isa Field ? field^local_dim : field(local_dim)
+    return TrivialNode{typeof(hilb), Trivial}(pos, hilb, desc) 
+    #new{typeof(hilb), Trivial}(pos, hilb, desc)
+end
+=#

@@ -1,4 +1,4 @@
-struct ProjTPO{N<:TTNKit.AbstractNetwork, T, B<:AbstractBackend} <: AbstractProjTPO{N,T,B}
+struct ProjTPO{N<:TTNKit.AbstractNetwork, T} <: AbstractProjTPO{N,T}
     net::N
     tpo::TPO
     ortho_center::Vector{Int64} # tracking the current ortho center
@@ -18,7 +18,7 @@ function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO) where {N,T}
     rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo)
     # build the environments
     envs = _build_environments(ttn, rg_flw_up, id_up_rg)
-    return ProjTPO{N, T, backend(ttn)}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs)
+    return ProjTPO{N, T}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs)
 end
 
 ProjectedTensorProductOperator(ttn::TreeTensorNetwork, tpo::TPO) = ProjTPO(ttn, tpo)
@@ -49,7 +49,7 @@ function rebuild_environments!(projTPO::ProjTPO, ttn::TreeTensorNetwork)
 end
 
 
-function update_environments_future!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int}) where{N}
+function update_environments_future!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
     
@@ -94,7 +94,7 @@ function update_environments_future!(projTPO::ProjTPO{N, ITensor}, isom::ITensor
 end
 
 
-function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int}) where{N}
+function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
 
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
@@ -175,7 +175,7 @@ function update_environments!(projTPO::ProjTPO{N, ITensor}, isom::ITensor, pos::
 end
 
 
-function ∂A(projTPO::ProjTPO{N, ITensor}, pos::Tuple{Int,Int}) where{N}
+function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
     # getting the enviornments of the current position
     envs = projTPO[pos]
 
@@ -190,7 +190,7 @@ function ∂A(projTPO::ProjTPO{N, ITensor}, pos::Tuple{Int,Int}) where{N}
 end
 
 
-function ∂A2(projTPO::ProjTPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}) where N
+function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
     envs = projTPO[posi]
     function action(link::ITensor)
         mapreduce(+, envs) do trm 
@@ -202,7 +202,7 @@ function ∂A2(projTPO::ProjTPO{N, ITensor}, isom::ITensor, posi::Tuple{Int,Int}
     return action
 end
 
-function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}}) where{N}
+function noiseterm(ptpo::ProjTPO, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}})
 
     isnothing(pos_next) && return nothing
     pos = ortho_center(ptpo)

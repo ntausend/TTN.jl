@@ -1,56 +1,130 @@
-using TTNKit, TensorKit
+using TTNKit
 using Test
 
-@testset "Projected TPO, no qn conservation" begin
+@testset "Projected MPO, no qn conservation" begin
+    conserve_qns = false
     n_layers = 3
-    ndtyp = TTNKit.SpinHalfNode
-    net = TTNKit.BinaryChainNetwork(n_layers, ndtyp)
+    net = TTNKit.BinaryChainNetwork(n_layers, "S=1/2"; conserve_szparity = conserve_qns)
     lat = TTNKit.physical_lattice(net)
     maxBondDim = 4
 
     J = -1.
     g = -2.
-    tpo = TTNKit.Hamiltonian(TTNKit.TransverseFieldIsing(J = J, g = g), lat)
+    
+    ampo = OpSum()
+    for j in eachindex(lat)
+        j<length(lat) && (ampo += (J, "X", j, "X", j+1))
+        ampo += (g, "Z", j)
+    end
+    
+    
+    tpo = TTNKit.Hamiltonian(ampo, lat)
 
     states = fill("Up", TTNKit.number_of_sites(net))
     ttn = TTNKit.ProductTreeTensorNetwork(net, states, orthogonalize = true)
 
     ptpo = TTNKit.ProjMPO(ttn, tpo)
     energy_expected = g*TTNKit.number_of_sites(net)
-
-    
     
     for pos in TTNKit.NodeIterator(net)
-        try
-            parent_nd = TTNKit.parent_node(net, pos)
-            tenv = TTNKit.top_environment(ptpo, pos)
-            benv = TTNKit.bottom_environment(ptpo, parent_nd)[1]
 
-            @tensor energy = benv[1,2,3] * tenv[1,2,3]
-            @test energy ≈ energy_expected
-        catch
-            @test_broken false
-        end
+        action = TTNKit.∂A(ptpo, pos)
+        energy = dot(ttn[pos], action(ttn[pos]))
+        @test energy ≈ energy_expected
     end
-        
-
-
-    #=
-    statesUp = fill("Up", TTNKit.number_of_sites(net))
-    ttnUp = ProductTreeTensorNetwork(net, statesUp, orthogonalize = false)
-    ttnUp = increase_dim_tree_tensor_network_randn(ttnUp, maxdim = maxBondDim, factor = 10e-12)
-
-    ptpoUp = ProjTensorProductOperator(ttnUp, tpo)
-    energy_test_Up = J*(TTNKit.number_of_sites(net)-1)
-
-    @test TTNKit.number_of_layers(ttnUp) == n_layers
-    for ll in TTNKit.eachlayer(net)
-        for pp in TTNKit.eachindex(net,ll)
-            env = environment(ptpoUp, (ll,pp))
-            t = copy(TensorKit.permute(ttnUp[(ll,pp)], (1,2,3), ()))
-            energy = (adjoint(t)*env*t)[1]
-            @test energy ≈ energy_test_Up
-        end
-    end
-    =#
 end        
+
+@testset "Projected MPO, qn conservation" begin
+    conserve_qns = true
+    n_layers = 3
+    net = TTNKit.BinaryChainNetwork(n_layers, "S=1/2"; conserve_szparity = conserve_qns)
+    lat = TTNKit.physical_lattice(net)
+    maxBondDim = 4
+
+    J = -1.
+    g = -2.
+    
+    ampo = OpSum()
+    for j in eachindex(lat)
+        j<length(lat) && (ampo += (J, "X", j, "X", j+1))
+        ampo += (g, "Z", j)
+    end
+    
+    
+    tpo = TTNKit.Hamiltonian(ampo, lat)
+
+    states = fill("Up", TTNKit.number_of_sites(net))
+    ttn = TTNKit.ProductTreeTensorNetwork(net, states, orthogonalize = true)
+
+    ptpo = TTNKit.ProjMPO(ttn, tpo)
+    energy_expected = g*TTNKit.number_of_sites(net)
+    
+    for pos in TTNKit.NodeIterator(net)
+
+        action = TTNKit.∂A(ptpo, pos)
+        energy = dot(ttn[pos], action(ttn[pos]))
+        @test energy ≈ energy_expected
+    end
+end
+
+@testset "Projected TPO, no qn conservation" begin
+    n_layers = 3
+    net = TTNKit.BinaryChainNetwork(n_layers, "S=1/2"; conserve_szparity = false)
+    lat = TTNKit.physical_lattice(net)
+    maxBondDim = 4
+
+    J = -1.
+    g = -2.
+    
+    ampo = OpSum()
+    for j in eachindex(lat)
+        j<length(lat) && (ampo += (J, "X", j, "X", j+1))
+        ampo += (g, "Z", j)
+    end
+    
+    tpo = TTNKit.TPO(ampo, lat)
+
+    states = fill("Up", TTNKit.number_of_sites(net))
+    ttn = TTNKit.ProductTreeTensorNetwork(net, states, orthogonalize = true)
+
+    ptpo = TTNKit.ProjTPO(ttn, tpo)
+    energy_expected = g*TTNKit.number_of_sites(net)
+    
+    for pos in TTNKit.NodeIterator(net)
+        action = TTNKit.∂A(ptpo, pos)
+        energy = dot(ttn[pos], action(ttn[pos]))
+        @test energy ≈ energy_expected
+    end
+end
+
+@testset "Projected TPO, qn conservation" begin
+    n_layers = 3
+    net = TTNKit.BinaryChainNetwork(n_layers, "S=1/2"; conserve_szparity = true)
+    lat = TTNKit.physical_lattice(net)
+    maxBondDim = 4
+
+    J = -1.
+    g = -2.
+    
+    ampo = OpSum()
+    for j in eachindex(lat)
+        j<length(lat) && (ampo += (J, "X", j, "X", j+1))
+        ampo += (g, "Z", j)
+    end
+    
+    tpo = TTNKit.TPO(ampo, lat)
+
+    states = fill("Up", TTNKit.number_of_sites(net))
+    ttn = TTNKit.ProductTreeTensorNetwork(net, states, orthogonalize = true)
+
+    ptpo = TTNKit.ProjTPO(ttn, tpo)
+    energy_expected = g*TTNKit.number_of_sites(net)
+    
+    for pos in TTNKit.NodeIterator(net)
+        
+        action = TTNKit.∂A(ptpo, pos)
+
+        energy = dot(ttn[pos], action(ttn[pos]))
+        @test energy ≈ energy_expected
+    end
+end

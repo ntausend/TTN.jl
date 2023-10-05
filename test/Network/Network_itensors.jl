@@ -5,20 +5,18 @@ using Test
 
 @testset "Binary Networks, ITensors" begin
     n_layers = 2
-    backend = TTNKit.ITensorsBackend()
     
-    @test_throws TTNKit.DimensionsException TTNKit.BinaryNetwork((2,3), TTNKit.TrivialNode; backend = backend)
+    @test_throws TTNKit.DimensionsException TTNKit.BinaryNetwork((2,3), TTNKit.TrivialNode)
 
     n_x = 2
     n_y = 4
-    @test_throws TTNKit.NotSupportedException TTNKit.BinaryNetwork((n_x, n_y), TTNKit.TrivialNode; backend = backend)
+    @test_throws TTNKit.NotSupportedException TTNKit.BinaryNetwork((n_x, n_y), TTNKit.TrivialNode)
 
 end
 
 @testset "Trivial Constructer, ITensors" begin
     n_layers = 2
-    backend = TTNKit.ITensorsBackend()
-    net = TTNKit.BinaryNetwork((2,); backend = backend)
+    net = TTNKit.BinaryNetwork((2,))
 
     # warum schlaegt der fehl?
     #@test net == BinaryNetwork((2,),TrivialNode)
@@ -29,14 +27,13 @@ end
     end
     @test TTNKit.number_of_tensors(net) == total_tens
 
-    @test TTNKit.backend(net) == typeof(backend)
 end
     
 @testset "D = 1, ITensors" begin
     n_layers = 2
     D = 1
 
-    net = TTNKit.BinaryChainNetwork(n_layers, TTNKit.ITensorNode, "SpinHalf", conserve_qns = true)
+    net = TTNKit.BinaryChainNetwork(n_layers, "SpinHalf", conserve_qns = true)
 
     @test TTNKit.internal_index_of_legs(net, (1,1)) == [1,2,5]
     @test TTNKit.internal_index_of_legs(net, (1,2)) == [3,4,6]
@@ -78,18 +75,15 @@ end
     @test TTNKit.number_of_layers(net3) == n_layers
     @test TTNKit.number_of_sites(net3)  == n_sites
 
-
-    @test TTNKit.backend(net) == TTNKit.ITensorsBackend
 end
     
 @testset "D = 2" begin
-    backend = TTNKit.ITensorsBackend()
     n_layers = 2
 
     n_x = 2^(div(n_layers + 1, 2))
     n_y = 2^(div(n_layers, 2))
 
-    net = TTNKit.BinaryRectangularNetwork(n_layers; backend = backend)
+    net = TTNKit.BinaryRectangularNetwork(n_layers)
     
     @test size(TTNKit.physical_lattice(net)) == (n_x, n_y)
     
@@ -105,5 +99,4 @@ end
     
     @test Matrix(TTNKit.adjacency_matrix(net, 1)) == [1 1]
 
-    @test TTNKit.backend(net) == typeof(backend)
 end

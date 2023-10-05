@@ -6,19 +6,13 @@ function _check_dimensions(dims::NTuple{D, Int}) where D
     end
 end
 
-abstract type AbstractLattice{D, S, I, B<:AbstractBackend} end
+abstract type AbstractLattice{D, S, I} end
 
 dimensionality(::Type{<:AbstractLattice{D}}) where D = D
 dimensionality(lat::AbstractLattice) = dimensionality(typeof(lat))
-backend(lat::AbstractLattice) = backend(typeof(lat))
-backend(::Type{<:AbstractLattice{D,S,I,B}}) where{D,S,I,B} = B
 
 # extracting indices, only necessary for ITensors backend
 function ITensors.siteinds(lat::AbstractLattice)
-    is_physical(lat) || error("Site indices only meaningful for physical lattices")
-    return collect(1:number_of_sites(lat))
-end
-function ITensors.siteinds(lat::AbstractLattice{D,S,I,ITensorsBackend}) where{D,S,I}
     is_physical(lat) || error("Site indices only meaningful for physical lattices")
     return map(hilbertspace, lat)
 end
@@ -41,11 +35,10 @@ is_physical(lat::AbstractLattice) = all(map(x-> x isa PhysicalNode, lat))
 # pass through node copy method, assumes all nodes to be the same -> may change in the future?
 nodetype(lat::AbstractLattice) = nodetype((node(lat,1)))
 
-
-TensorKit.sectortype(::Type{<:AbstractLattice{D,S,I}}) where{D,S,I} = I
-TensorKit.sectortype(lat::AbstractLattice) = sectortype(typeof(lat))
-TensorKit.spacetype(::Type{<:AbstractLattice{D,S}}) where{D,S} = S
-TensorKit.spacetype(lat::AbstractLattice) = spacetype(typeof(lat)) 
+sectortype(::Type{<:AbstractLattice{D,S,I}}) where{D,S,I} = I
+sectortype(lat::AbstractLattice) = sectortype(typeof(lat))
+spacetype(::Type{<:AbstractLattice{D,S}}) where{D,S} = S
+spacetype(lat::AbstractLattice) = spacetype(typeof(lat)) 
 
 function coordinates(lat::AbstractLattice)
     coord = map(x-> coordinate(lat, x), eachindex(lat))
@@ -67,18 +60,19 @@ end
 
 Base.eachindex(la::AbstractLattice) = 1:number_of_sites(la)
 
+
 # general lattice -> Maybe removed in the future?
-struct GenericLattice{D, S, I,B<:AbstractBackend} <: AbstractLattice{D, S, I,B}
+struct GenericLattice{D, S, I} <: AbstractLattice{D, S, I}
     lat::Vector{Node{S,I}}
     dims::NTuple{D, Int}
 end
 Base.size(lat::GenericLattice) = lat.dims
 
 # only for homogenous hilberstapces with trivial sectors currently
-function CreateChain(number_of_sites::Int; backend = TensorKitBackend()) 
+function CreateChain(number_of_sites::Int) 
     lat_vec = [Node(n, "$n", backend) for n in 1:number_of_sites]
     _check_dimensions((number_of_sites,))
-    return GenericLattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1]), typeof(backend)}(lat_vec, (number_of_sites,))
+    return GenericLattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, (number_of_sites,))
 end
 
 function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, lattice::TTNKit.AbstractLattice)
@@ -95,7 +89,7 @@ function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::
     dims = Tuple(read(g, "dims"))
     lat = map(1:prod(dims)) do i
         name_node = "node_$(i)"
-        read(g, name_node, TTNKit.AbstractNode)
+        read(g, name_node, AbstractNode)
     end
-    return TTNKit.SimpleLattice{length(dims),Index,Int64,TTNKit.ITensorsBackend}(lat, dims)
+    return TTNKit.SimpleLattice{length(dims),Index,Int64}(lat, dims)
 end

@@ -1,10 +1,11 @@
-struct MPOWrapper{L, M, B} <: AbstractTensorProductOperator{L,B}
+struct MPOWrapper{L, M} <: AbstractTensorProductOperator{L}
     lat::L
     data::M
     mapping::Vector{Int}
 end
 
 
+#=
 function MPOWrapper(lat::L, mpo::MPOHamiltonian, mapping::Vector{Int}) where L
     data = _wrapper_mpskit_mpo(mpo)
 
@@ -35,7 +36,9 @@ function MPOWrapper(lat::L, mpo::MPOHamiltonian, mapping::Vector{Int}) where L
 
     return MPOWrapper{L, typeof(data), TensorKitBackend}(lat, data, mapping)
 end
+=#
 
+#=
 function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
     s = convert(SparseMPO,mpo.data)
     embeds = PeriodicArray(_embedders.([s[i].domspaces for i in 1:length(s)]))
@@ -47,7 +50,9 @@ function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
     end
     DenseMPO(data)
 end
+=#
 
+#=
 #TODO: Make this also for symmetry states
 function _wrapper_itensors_mpo(ampo::OpSum, sites::Vector{<:Index{Int64}})
     ham = ITensors.MPO(ampo, sites)
@@ -71,13 +76,16 @@ function _wrapper_itensors_mpo(ampo::OpSum, sites::Vector{<:Index{Int64}})
 
     return Vector{TensorMap}(data)
 end
+=#
 
-function Hamiltonian(ampo::OpSum, type_str::AbstractString, lat::AbstractLattice{D, S, I, TensorKitBackend}; 
+#=
+function Hamiltonian(ampo::OpSum, type_str::AbstractString, lat::AbstractLattice{D, S, I}; 
             mapping::Vector{Int} = collect(eachindex(lat)), kwargs...) where {D, S, I}
     sites= siteinds(type_str, number_of_sites(lat); kwargs...)
     data = _wrapper_itensors_mpo(ampo, sites)
     return MPOWrapper{typeof(lat), typeof(data), TensorKitBackend}(lat, data, mapping)
 end
+=#
 
 #ITensors constructor
 # also include the mappings here
@@ -96,10 +104,10 @@ function Hamiltonian(mpo::MPO, lat::L; mapping::Vector{Int} = collect(eachindex(
         sj_mpo = idx_mpo[jj]
         mpoc[jj] = replaceinds!(mpoc[jj], sj_mpo => sj_lat, prime(sj_mpo) => prime(sj_lat))
     end
-    return MPOWrapper{L, MPO, ITensorsBackend}(lat, mpoc, mapping)
+    return MPOWrapper{L, MPO}(lat, mpoc, mapping)
 end
 
-function Hamiltonian(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}; mapping::Vector{Int} = collect(eachindex(lat))) where{D, S, I}
+function Hamiltonian(ampo::OpSum, lat::AbstractLattice; mapping::Vector{Int} = collect(eachindex(lat)))
     # @assert isone(dimensionality(lat))
     @assert is_physical(lat)
     # idx_lat = siteinds(lat)
@@ -108,5 +116,5 @@ function Hamiltonian(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}
     end
 
     mpo = MPO(ampo, idx_lat)
-    return MPOWrapper{typeof(lat), MPO, ITensorsBackend}(lat, mpo, mapping)
+    return MPOWrapper{typeof(lat), MPO}(lat, mpo, mapping)
 end

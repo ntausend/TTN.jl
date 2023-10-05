@@ -26,15 +26,15 @@ end
 
     @test TTNKit.position(nd_sh) == 1
     @test TTNKit.description(nd_sh) == "SpinHalf"
-    @test sectortype(nd_sh) == Vector{Pair{QN, Int64}}
-    @test spacetype(nd_sh) == Index
+    @test TTNKit.sectortype(nd_sh) == Vector{Pair{QN, Int64}}
+    @test TTNKit.spacetype(nd_sh) == Index
 
     nd_2 = TTNKit.nodetype(nd_sh)
     @test nd_2 == TTNKit.Node{Index, Vector{Pair{QN, Int64}}}
     @test !(nd_2 == nd_sh)
 
     for (st, st_name) in zip([[1,0], [0,1]], ["Up", "Dn"])
-        @test state(nd_sh, st_name) == state(TTNKit.index(nd_sh), st_name)
+        @test TTNKit.state(nd_sh, st_name) == TTNKit.state(TTNKit.index(nd_sh), st_name)
     end
     it_spaces = [QN("Sz", 1) => 1, QN("Sz",-1) => 1]
     @test TTNKit.space(nd_sh) == it_spaces

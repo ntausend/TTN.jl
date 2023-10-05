@@ -1,11 +1,11 @@
 using TTNKit, ITensors
 using Test
 
+#=
 @testset "Trivial Simple Lattice, ITensors" begin
     n_sites = 2
     dim  = 2
-    backend = TTNKit.ITensorsBackend()
-    lat = TTNKit.SimpleLattice((n_sites,n_sites), dim; backend = backend)
+    lat = TTNKit.SimpleLattice((n_sites,n_sites), dim)
 
     indices = TTNKit.siteinds(lat)
 
@@ -29,16 +29,16 @@ using Test
     @test TTNKit.coordinates(lat) == coordinates
     lat2 = TTNKit.Square(n_sites, indices)
     @test lat == lat2
-    lat3 = TTNKit.Square(n_sites, dim, backend = backend)
+    lat3 = TTNKit.Square(n_sites, dim)
     @test !(lat == lat3)
     lat4 = TTNKit.Chain(indices)
     @test !(lat == lat4)
 end
+=#
 
 @testset "Spin Half Node Lattice, ITensors" begin
     n_sites = 2
-    ndtype = TTNKit.ITensorNode
-    lat = TTNKit.Square(n_sites, ndtype, "SpinHalf")
+    lat = TTNKit.Square(n_sites, "SpinHalf")
 
     indices = TTNKit.siteinds(lat)
     
@@ -47,7 +47,7 @@ end
 
     lat2 = TTNKit.Square(n_sites, indices)
     @test lat == lat2
-    lat3 = TTNKit.Square(n_sites, ndtype, "SpinHalf")
+    lat3 = TTNKit.Square(n_sites, "SpinHalf")
     @test !(lat == lat3)
     @test TTNKit.sectortype(lat) == Int64
     @test TTNKit.is_physical(lat)

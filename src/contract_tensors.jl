@@ -22,6 +22,7 @@ The function returns as a first object a vector of all labels of the open indice
 defines the order of the legs in the resulting tensor. The second argument is the contracted tensor.
 
 """
+#=
 function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::Vector{Vector{K}}) where {K}
 
     #= why is this slower than the version of Wladi? Would expect to be similar...
@@ -54,6 +55,7 @@ function contract_tensors(tensor_list::Vector{<:AbstractTensorMap}, index_list::
     end
     return unique_indices, @ncon(tensor_list, contract_list)
 end
+=#
 
 # also return the unique_indices to have compatiblity with other methods... need to rethink about this
 # whole construct..., for ITensors it is useless, since contract_tensors simply contruct the already

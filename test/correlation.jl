@@ -1,4 +1,4 @@
-using TensorKit, TTNKit
+using TTNKit
 using Test
 
 function n_non_sym()
@@ -18,21 +18,41 @@ end
 n_op(;conserve_qns = true) = conserve_qns ? n_sym() : n_non_sym()
 
 @testset "Product TTN Correlation functions" begin
+
     n_sites = 16
     conserve_qns = false
     dims = Tuple(n_sites)
-    net = TTNKit.BinaryNetwork(dims, TTNKit.HardCoreBosonNode; conserve_qns = conserve_qns)
-
-    states = repeat(["Occ","Emp"], n_sites÷2)
-
+    net = TTNKit.BinaryNetwork(dims, "S=1/2"; conserve_qns = conserve_qns)
+    
+    states = repeat(["↑", "↓"], n_sites÷2)
     ttn = TTNKit.ProductTreeTensorNetwork(net, states)
-
-    op = n_op(;conserve_qns = conserve_qns)
-
+    
+    op = "Z"
+    
     expected_corr = map(states) do s
-        s == "Occ" ? 1 : 0
+        s == "↑" ? 1 : -1
     end
+    corr_measured = map(1:n_sites) do jj
+        TTNKit.correlation(ttn, op, op, 1,jj)
+    end
+    @test all(corr_measured .== expected_corr)
+end
 
+@testset "Product TTN Correlation functions, QN conserved" begin
+
+    n_sites = 16
+    conserve_qns = true
+    dims = Tuple(n_sites)
+    net = TTNKit.BinaryNetwork(dims, "S=1/2"; conserve_qns = conserve_qns)
+    
+    states = repeat(["↑", "↓"], n_sites÷2)
+    ttn = TTNKit.ProductTreeTensorNetwork(net, states)
+    
+    op = "Z"
+    
+    expected_corr = map(states) do s
+        s == "↑" ? 1 : -1
+    end
     corr_measured = map(1:n_sites) do jj
         TTNKit.correlation(ttn, op, op, 1,jj)
     end

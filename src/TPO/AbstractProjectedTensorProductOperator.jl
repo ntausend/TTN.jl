@@ -1,11 +1,8 @@
-abstract type AbstractProjTPO{N<:AbstractNetwork, T, B<:AbstractBackend} end
+abstract type AbstractProjTPO{N<:AbstractNetwork, T} end
 
 network(projTPO::AbstractProjTPO) = projTPO.net
 tensor_product_operator(projTPO::AbstractProjTPO) = projTPO.tpo
 ortho_center(projTPO::AbstractProjTPO) = Tuple(projTPO.ortho_center)
-
-backend(::Type{<:AbstractProjTPO{N, T, B}}) where{N, T, B} = B
-backend(projTPO::AbstractProjTPO) = backend(typeof(projTPO))
 
 function full_contraction(ttn::TreeTensorNetwork, tpo::AbstractTensorProductOperator)
     ptpo = ProjectedTensorProductOperator(ttn, tpo)

@@ -9,7 +9,7 @@ function _dims_to_n_layer_binary(dims::NTuple{D, Int}) where D
     return n_layer
 end
 #struct BinaryNetwork{D, S<:IndexSpace, I<:Sector} <: AbstractNetwork{D, S, I}
-struct BinaryNetwork{L<:SimpleLattice, B<:AbstractBackend} <: AbstractNetwork{L, B}
+struct BinaryNetwork{L<:SimpleLattice} <: AbstractNetwork{L}
     lattices::Vector{L}
 end
 
@@ -25,7 +25,6 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
         throw(NotSupportedException(msg))
     end
     lat_vec[1] = SimpleLattice(dimensions, nd; kwargs...)
-    _backend = backend(lat_vec[1])
 
     vnd_type = nodetype(lat_vec[1])
     for jj in 2:n_layer+1
@@ -42,7 +41,7 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
     end
     
     #return BinaryNetwork{D, spacetype(vnd_type), sectortype(vnd_type)}(lat_vec)
-    return BinaryNetwork{typeof(lat_vec[1]), _backend}(lat_vec)
+    return BinaryNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 BinaryNetwork(dimensions::NTuple; kwargs...) = BinaryNetwork(dimensions, TrivialNode; kwargs...)
 
@@ -76,13 +75,14 @@ function BinaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     end
     
     #return BinaryNetwork{D, spacetype(vnd_type), sectortype(vnd_type)}(lat_vec)
-    return BinaryNetwork{typeof(lat_vec[1]), ITensorsBackend}(lat_vec)
+    return BinaryNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 # creation from ITensorNode with type specifier
 function BinaryNetwork(dims::NTuple{D, Int}, nd::Type{<:ITensorNode}, type::AbstractString; kwargs...) where{D}
     indices = siteinds(type, prod(dims); kwargs...)
     return BinaryNetwork(dims, indices)
 end
+BinaryNetwork(dims, type; kwargs...) = BinaryNetwork(dims, ITensorNode, type; kwargs...)
 
 
 # number of child nodes of position. For binary networks this is a constant of 2
@@ -92,18 +92,18 @@ number_of_tensors(net::BinaryNetwork) = 2^(number_of_layers(net)) - 1
 
 
 #const BinaryChainNetwork{S<:IndexSpace, I<:Sector} = BinaryNetwork{1, S, I}
-const BinaryChainNetwork{L<:SimpleLattice{1}, B} = BinaryNetwork{L,B}
+const BinaryChainNetwork{L<:SimpleLattice{1}} = BinaryNetwork{L}
+
 function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwargs...)
     tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
     phys_lat = Chain(tensors_per_layer[1], nd; kwargs...)
-    _backend = backend(phys_lat) 
     
     nvd_type = nodetype(phys_lat)
     lat_vec = map(nn -> Chain(nn, nvd_type), tensors_per_layer)
     lat_vec[1] = phys_lat
     
     #return BinaryChainNetwork{spacetype(nvd_type), sectortype(nvd_type)}(lat_vec)
-    return BinaryChainNetwork{typeof(lat_vec[1]), _backend}(lat_vec)
+    return BinaryChainNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 BinaryChainNetwork(number_of_layers::Int; kwargs...) = BinaryChainNetwork(number_of_layers, TrivialNode; kwargs...)
 
@@ -113,8 +113,6 @@ function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:AbstractNode
 end
 BinaryChainNetwork(number_of_sites::Tuple{Int}; kwargs...) = BinaryChainNetwork(number_of_sites, TrivialNode; kwargs...)
 
-
-
 function BinaryChainNetwork(indices::Vector{<:Index})
     number_of_layers =  _dims_to_n_layer_binary((length(indices),))
     tensors_per_layer = [2^(number_of_layers - jj) for jj in 0:number_of_layers]
@@ -122,7 +120,7 @@ function BinaryChainNetwork(indices::Vector{<:Index})
     nvd_type = nodetype(phys_lat)
     lat_vec = map(nn -> Chain(nn,nvd_type), tensors_per_layer) 
     lat_vec[1] = phys_lat
-    return BinaryChainNetwork{typeof(lat_vec[1]), backend(phys_lat)}(lat_vec)
+    return BinaryChainNetwork{typeof(lat_vec[1])}(lat_vec)
 end
 
 function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:ITensorNode}, type::AbstractString; kwargs...)
@@ -133,6 +131,7 @@ function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:ITensorNode}
     n_layers = _dims_to_n_layer_binary(Tuple(number_of_sites))
     return BinaryChainNetwork(n_layers, nd, type)
 end
+BinaryChainNetwork(number_of_sites, type::AbstractString; kwargs...) = BinaryChainNetwork(number_of_sites, ITensorNode, type; kwargs...) 
 
 
 function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}, args...; kwargs...)
@@ -150,8 +149,10 @@ function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode
     return BinaryNetwork((n_x, n_y), nd, args...; kwargs...)
 end
 BinaryRectangularNetwork(number_of_layers::Int; kwargs...) = BinaryRectangularNetwork(number_of_layers, TrivialNode; kwargs...)
+BinaryRectangularNetwork(number_of_layers, type::AbstractString, kwargs...) = BinaryRectangularNetwork(number_of_layers, ITensorNode, type; kwargs...)
 
-BinaryRectangularNetwork(dims::Tuple{Int,Int}, nd::Type{<:AbstractNode}, args...; kwargs...) = BinaryNetwork(dims, nd; kwargs...)
+#BinaryRectangularNetwork(dims::Tuple{Int,Int}, nd::Type{<:AbstractNode}, args...; kwargs...) = BinaryNetwork(dims, nd; kwargs...)
+BinaryRectangularNetwork(dims::Tuple{Int,Int}, type::AbstractString; kwargs...) = BinaryNetwork(dims, ITensorNode, type; kwargs...)
 BinaryRectangularNetwork(dims::Tuple{Int,Int}; kwargs...) = BinaryNetwork(dims, TrivialNode; kwargs...)
 
 BinaryRectangularNetwork(dims::Tuple{Int,Int}, indices::Vector{<:Index}) = BinaryNetwork(dims, indices)

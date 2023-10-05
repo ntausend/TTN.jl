@@ -12,7 +12,7 @@ Inputs:
       be used for decomposition
     - pos_left: position in the network defining the left part of the partionining. 
 """
-function entanglement_entropy(ttn::TreeTensorNetwork{N, ITensor}, pos_right::Tuple{Int, Int}, pos_left::Tuple{Int, Int}) where{N}
+function entanglement_entropy(ttn::TreeTensorNetwork, pos_right::Tuple{Int, Int}, pos_left::Tuple{Int, Int})
     net = network(ttn)
     # checking if pos_right is contained in the network
     check_valid_position(net, pos_right)

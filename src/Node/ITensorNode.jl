@@ -20,6 +20,18 @@ struct ITensorNode{I} <: PhysicalNode{Index, I}
     end
 end
 
+function ITensorNode(pos::Int, type::AbstractString; kwargs...)
+    idx = addtags(siteind(type; kwargs...), "n=$pos")
+    return ITensorNode(pos, idx)
+end
+
+index(nd::ITensorNode) = hilbertspace(nd)
+state(nd::ITensorNode, st::Union{AbstractString, Integer}) = state(index(nd), st)
+space(nd::ITensorNode) = space(index(nd))
+
+#struct ITensorNodeConverstionError <: Exception end
+#Base.showerror(io::IO, ::ITensorNodeConverstionError) = print(io, "Tried to converted a Node to ITensor node which is not compatible.")
+#ITensorNode(nd::TrivialNode{S,I}) where{S,I} = throw(ITensorNodeConverstionError())
 
 #=
 function TrivialNode_it(pos::Int, desc::AbstractString="", local_dim::Int = 2)
@@ -27,19 +39,8 @@ function TrivialNode_it(pos::Int, desc::AbstractString="", local_dim::Int = 2)
     return ITensorNode(pos, idx)
 end
 =#
-
-function ITensorNode(pos::Int, type::AbstractString; kwargs...)
-    idx = addtags(siteind(type; kwargs...), "n=$pos")
-    return ITensorNode(pos, idx)
-end
-
-index(nd::ITensorNode) = hilbertspace(nd)
-state(nd::ITensorNode, st::AbstractString) = state(index(nd), st)
-space(nd::ITensorNode) = space(index(nd))
-
+#=
 # convert from Trivial node to ITensor node if requirements are there
 ITensorNode(nd::TrivialNode{Index, Int64}) = ITensorNode(nd.s,nd.hilbertspace)
 
-struct ITensorNodeConverstionError <: Exception end
-Base.showerror(io::IO, ::ITensorNodeConverstionError) = print(io, "Tried to converted a Node to ITensor node which is not compatible.")
-ITensorNode(nd::TrivialNode{S,I}) where{S,I} = throw(ITensorNodeConverstionError())
+=#

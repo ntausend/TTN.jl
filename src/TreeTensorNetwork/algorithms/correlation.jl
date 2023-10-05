@@ -19,7 +19,7 @@ function correlation(ttn::TreeTensorNetwork, op1, op2, pos1::NTuple, pos2::NTupl
     return correlation(ttn, op1, op2, pos1_lin, pos2_lin)
 end
 
-function correlation(ttn::TreeTensorNetwork{N, ITensor}, op1::AbstractString, op2::AbstractString, pos1::Int, pos2::Int) where {N}
+function correlation(ttn::TreeTensorNetwork, op1::AbstractString, op2::AbstractString, pos1::Int, pos2::Int)
     if pos1 == pos2
         # fast exit using the expectation value
         op_new = "$op1 * $op2"
@@ -34,7 +34,7 @@ end
 
 # function for positions not being equal
 # otherwise it is the expectation value of the product of operators
-function _correlation_pos1_le_pos2(ttn::TreeTensorNetwork{N, ITensor}, op1::String, op2::String, pos1::Int, pos2::Int) where N
+function _correlation_pos1_le_pos2(ttn::TreeTensorNetwork, op1::String, op2::String, pos1::Int, pos2::Int)
     @assert pos1 < pos2
 
     net = network(ttn)
@@ -96,12 +96,12 @@ end
 
 
 ### general n point correlations ###
-function correlation(ttn::TTNKit.TreeTensorNetwork{N,ITensor}, ops::Vector{String}, pos::Vector{Tuple{Int,Int}}) where {N}
+function correlation(ttn::TTNKit.TreeTensorNetwork, ops::Vector{String}, pos::Vector{Tuple{Int,Int}})
     pos_lin = [linear_ind(physical_lattice(network(ttn)), posi) for posi in pos]
     return correlation(ttn, ops, pos_lin)
 end
 
-function correlation(ttn::TTNKit.TreeTensorNetwork{N,ITensor}, ops::Vector{String}, pos::Vector{Int}) where N
+function correlation(ttn::TTNKit.TreeTensorNetwork, ops::Vector{String}, pos::Vector{Int})
     net = TTNKit.network(ttn)
     phys_sites = sites(ttn)
 

@@ -1,11 +1,11 @@
-struct TPO{L, B} <: TTNKit.AbstractTensorProductOperator{L,B}
+struct TPO{L} <: TTNKit.AbstractTensorProductOperator{L}
     lat::L
     data::Vector{Prod{Op}}
 end
 
 # transforming a formal ampo from ITensors to a vector of product operators
 # already performing the scaling and extracting the operators from the hilbertspaces
-function TPO(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}) where{D,S,I}
+function TPO(ampo::OpSum, lat::AbstractLattice)
 	physidx = siteinds(lat)	
   # getting all non-zero terms
   sm_terms = filter(t -> !isapprox(coefficient(t),0), terms(sortmergeterms(ampo)))
@@ -36,5 +36,5 @@ function TPO(ampo::OpSum, lat::AbstractLattice{D, S, I, ITensorsBackend}) where{
 		tpo_sum[jj] = reduce(*, prod_op, init = Prod{Op}())
 	end
 	# collapse onsite operators acting on the same link
-	return TPO{typeof(lat), ITensorsBackend}(lat, _collapse_onsite(tpo_sum))
+	return TPO{typeof(lat)}(lat, _collapse_onsite(tpo_sum))
 end

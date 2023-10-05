@@ -1,5 +1,5 @@
 #### TODO: Consider directly environments with only isometric tensors to the left/right? This would be the standart i guess..
-function _construct_bottom_environments(ttn::TreeTensorNetwork{N,T}, tpo::MPOWrapper{L, M, ITensorsBackend}) where{N, L, M, T<:ITensor}
+function _construct_bottom_environments(ttn::TreeTensorNetwork{N,T}, tpo::MPOWrapper{L, M}) where{N, L, M, T<:ITensor}
 
     net = network(ttn)
 
@@ -45,7 +45,7 @@ function _construct_bottom_environments(ttn::TreeTensorNetwork{N,T}, tpo::MPOWra
 
         for pp in eachindex(net, ll)
             n_chds = number_of_child_nodes(net, (ll,pp))
-            bEnvironment[ll][pp] = Vector{AbstractTensorMap}(undef, n_chds)
+            bEnvironment[ll][pp] = Vector{T}(undef, n_chds)
             bIndices[ll][pp] = Vector{Vector{Int}}(undef, n_chds)
 
             for chd in child_nodes(net, (ll,pp))

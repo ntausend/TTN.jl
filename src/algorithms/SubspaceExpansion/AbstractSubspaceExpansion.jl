@@ -6,10 +6,7 @@ expand(T::ITensor, A::ITensor, ::AbstractSubspaceExpander; kwargs...) = T, A
 expand(A::ITensor, Chlds::Tuple{ITensor, ITensor}, ::AbstractSubspaceExpander; kwargs...) = A, Chlds...
 
 
-function update_node_and_move!(ttn::TreeTensorNetwork{N,TensorMap}, A::TensorMap, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...) where{N}
-    error("Not Implemented..")
-end
-function update_node_and_move!(ttn::TreeTensorNetwork{N, ITensor}, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...) where{N}
+function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...)
     @assert is_orthogonalized(ttn)
 
     pos = ortho_center(ttn)

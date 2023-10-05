@@ -1,16 +1,13 @@
+
 abstract type AbstractNode{S, I} end
 
-# overload TTNKit functions
-TTNKit.spacetype(::Type{<:AbstractNode{S}}) where S = S
-TTNKit.spacetype(nd::AbstractNode) = spacetype(typeof(nd))
-TensorKit.sectortype(::Type{<:AbstractNode{S,I}}) where {S,I} = I
-TensorKit.sectortype(nd::AbstractNode) = sectortype(typeof(nd))
 
-backend(::AbstractNode{Index, I}) where{I} = ITensorsBackend
-backend(::AbstractNode{S, I}) where{S,I}   = TensorKitBackend
+spacetype(::Type{<:AbstractNode{S}}) where S = S
+spacetype(nd::AbstractNode) = spacetype(typeof(nd))
+sectortype(::Type{<:AbstractNode{S,I}}) where {S,I} = I
+sectortype(nd::AbstractNode) = sectortype(typeof(nd))
 
 # getter functions
-
 # defining a hilbertspace by the node space type. may be depricated in future
 hilbertspace(nd::AbstractNode, sectors, args...; kwargs...) = spacetype(nd)(sectors, args...; kwargs...)
 
@@ -44,6 +41,7 @@ end
 # associated to them
 hilbertspace(nd::PhysicalNode) = nd.hilbertspace
 
+#=
 function _reorder_state(st::Vector, sp::Vector{Pair{Int, Int}})
     perm = sortperm(sp, lt = (x,y) -> isless(x[1],y[1]))
 
@@ -85,6 +83,7 @@ end
 function ITensors.op(nd::PhysicalNode, op_str::AbstractString)
     return op(nd, Val(Symbol(op_str)))
 end
+=#
 
 #=
 function state(nd::PhysicalNode, state_str::AbstractString; elT::DataType = ComplexF64)

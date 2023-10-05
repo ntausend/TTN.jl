@@ -1,4 +1,4 @@
-using TensorKit, TTNKit
+using TTNKit
 using ITensors
 using Test
 
@@ -63,13 +63,7 @@ using Test
           actionT = action(T)
 
           push!(ob.energy, real(ITensors.scalar(dag(T)*actionT)))
-          if TTNKit.backend(tdvp.ttn) <: TTNKit.ITensorsBackend 
-            push!(ob.pol, real(sum(TTNKit.expect(tdvp.ttn, "Z"))/n_sites))
-          else
-            @assert TTNKit.backend(tdvp.ttn) <: TTNKit.TensorKitBackend
-            σ_z = TensorMap([1 0; 0 -1], ℂ^2 ← ℂ^2) 
-            push!(ob.pol, real(sum(TTNKit.expect(tdvp.ttn, σ_z))/n_sites))
-          end
+          push!(ob.pol, real(sum(TTNKit.expect(tdvp.ttn, "Z"))/n_sites))
 
         end
 
