@@ -18,7 +18,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHan
         initialtime,
         finaltime,
         func,
-    ) where {N,T,B}
+    ) where {N,T}
         path = _tdvp_path(network(ttn))
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?

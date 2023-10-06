@@ -1,7 +1,8 @@
 module TTNKit
     using SparseArrays
     using ITensors
-    using ITensorGPU
+    #using ITensorGPU
+    using CUDA
     using Distributions: Multinomial
     #using Parameters: @with_kw
     #using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray

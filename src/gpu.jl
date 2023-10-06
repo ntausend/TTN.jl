@@ -1,7 +1,17 @@
 #NDTensors.similar(D::NDTensors.Dense) = NDTensors.Dense(Base.similar(NDTensors.data(D)))
 
+is_cu(::Type{<:Array}) = false
+is_cu(::Type{<:CuArray}) = true
+is_cu(X::Type{<:NDTensors.TensorStorage}) = is_cu(NDTensors.datatype(X))
+is_cu(X::Type{<:NDTensors.Tensor}) = is_cu(NDTensors.storagetype(X))
+
+is_cu(x::NDTensors.TensorStorage) = is_cu(typeof(x))
+is_cu(x::NDTensors.Tensor) = is_cu(typeof(x))
+is_cu(x::ITensor) = is_cu(typeof(NDTensors.tensor(x)))
+
 function convert_cu(T::ITensor, T_type::ITensor)
-    ITensorGPU.is_cu(T_type) || return T
+    #ITensorGPU.is_cu(T_type) || return T
+    is_cu(T_type) || return T
     return cu(eltype(T_type), T)
 end
 
@@ -12,7 +22,7 @@ function convert_cu(T::Vector{ITensor}, T_type::ITensor)
 end
 
 function convert_cu(T::Op, T_type::ITensor)
-    ITensorGPU.is_cu(T_type) || return T
+    is_cu(T_type) || return T
     return Op(cu(eltype(T_type), which_op(T)), T.sites...; T.params...)
 end
 

@@ -4,9 +4,9 @@ authors = ["Niklas Tausendpfund <n.tausendpfund@fz-juelich.de>"]
 version = "0.1.0"
 
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
-ITensorGPU = "d89171c1-af8f-46b3-badf-d2a472317c15"
 ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -14,7 +14,3 @@ NDTensors = "23ae76d9-e61a-49c4-8f12-3f1a16adf9cf"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
-[compat]
-ITensorGPU = "=0.1.1"
-ITensors = "=0.3.27"
-NDTensors = "=0.1.47"
