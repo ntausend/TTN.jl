@@ -67,7 +67,9 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
     maxdims::Union{Int64, Vector{Int64}}   = get(kwargs, :maxdims, 1)
-    noise::Union{Float64, Vector{Float64}} = get(kwargs, :noise, 0.0)
+    noise::Union{<:Real, Vector{<:Real}} = get(kwargs, :noise, 0.0)
+
+    outputlevel = get(kwargs, :outputlevel, 1)
 
     if maxdims isa Int64
         maxdims = [maxdims]
@@ -96,7 +98,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
                             krylovdim=eigsolve_krylovdim,
                             maxiter=eigsolve_maxiter)
 
-    sh = SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, noise, expander) 
+    sh = SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, noise, expander, outputlevel)
     return sweep(psic, sh; kwargs...)
 end
 

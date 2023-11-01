@@ -13,8 +13,9 @@ mutable struct SimpleSweepHandler <: AbstractRegularSweepHandler
     current_energy::Float64
     current_spec::Spectrum
     current_max_truncerr::Float64
-    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, noise, expander = NoExpander()) = 
-        new(n_sweeps, ttn, pTPO, func, expander, maxdims, noise, :up, 1, 0., Spectrum(nothing, 0.0), 0.0)
+    outputlevel::Int
+    SimpleSweepHandler(ttn, pTPO, func, n_sweeps, maxdims, noise, expander = NoExpander(), outputlevel = 0) = 
+        new(n_sweeps, ttn, pTPO, func, expander, maxdims, noise, :up, 1, 0., Spectrum(nothing, 0.0), 0.0, outputlevel)
 end
 
 current_sweep(sh::SimpleSweepHandler) = sh.current_sweep
@@ -164,12 +165,99 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     val, tn = sp.func(action, t)
     sp.current_energy = real(val[1])
     tn = tn[1]
+    
+    ttn[pos] = tn
+    
+
+    # if we did expansion, perform iteration over the expanded leg till convergence
+    if sp.expander isa NonTrivialExpander && !isnothing(pth)
+        
+        # getting next tensor in the direction of the path -> enlarged tensor
+        #posnext = first(connecting_path(net, pos, pn))
+        posnext = first(pth)
+        Tnext = ttn[posnext] 
+        # move orthogonality center to Tnext
+        id_sh = commonind(tn, Tnext)
+        Q,R, spec, id_sh = factorize(tn, uniqueinds(tn, id_sh); tags = tags(id_sh))
+        Tnext = R*Tnext
+        tn = Q
+        # update environments for minimizing w.r.t. Tnext
+        pTPO = update_environments!(pTPO, Q, pos, posnext)
+        
+        # find the optimal Tnext tensor
+        action = ∂A(pTPO, posnext)
+        val, Tnext′ = sp.func(action, Tnext)
+        sp.current_energy = real(first(val))
+        Tnext′ = first(Tnext′)
+        # difference to the prev iteration (norm of the two site tensor -> removes gauge degrees of freedom
+        T2T = tn * Tnext′
+        ϵ = norm(T2T - tn * Tnext)
+        
+        Tnext = Tnext′
+        # move orthogonality center to tn again for new optimization
+        #id_sh = commonind(Tnext, tn)
+        Q,R, spec, id_sh = factorize(Tnext, uniqueinds(Tnext, id_sh); tags = tags(id_sh))
+        Tnext = Q
+        tn = tn * R
+        pTPO = update_environments!(pTPO, Q, posnext, pos)
+
+        ttn[pos] = tn
+        ttn[posnext] = Tnext
+
+        # now perform iterations till reaching convergence or max iteration number is reached
+        curiter = 1
+        while (curiter < maxiter(sp.expander)) && (ϵ > tol(sp.expander))
+            
+            action = ∂A(pTPO, pos)
+            val, tn = sp.func(action, tn)
+            sp.current_energy = real(first(val))
+            tn = first(tn)
+            
+            Q,R, spec, id_sh = factorize(tn, uniqueinds(tn, id_sh); tags = tags(id_sh))
+            Tnext = R * Tnext
+            tn = Q
+            # update environments for minimizing w.r.t. Tnext
+            pTPO = update_environments!(pTPO, Q, pos, posnext)
+            
+            # find the optimal Tnext tensor
+            action = ∂A(pTPO, posnext)
+            val, Tnext = sp.func(action, Tnext)
+            sp.current_energy = real(first(val))
+            Tnext = first(Tnext)
+            
+            # difference to the prev iteration (norm of the two site tensor -> removes gauge degrees of freedom
+            T2Tn = tn * Tnext
+            ϵ = norm(T2T - T2Tn)
+            T2T = T2Tn
+            
+            # move orthogonality center to tn again for new optimization
+            #id_sh = commonind(Tnext, tn)
+            Q,R, spec, id_sh = factorize(Tnext, uniqueinds(Tnext, id_sh); tags = tags(id_sh))
+            Tnext = Q
+            tn = tn * R
+            pTPO = update_environments!(pTPO, Q, posnext, pos)
+
+            curiter += 1
+            if sp.outputlevel > 3
+                println("\t\t\t Current iter $(curiter) of $(maxiter(sp.expander)). Current error: $(ϵ)")
+            end
+
+            ttn[pos] = tn
+            ttn[posnext] = Tnext
+        end
+        if sp.outputlevel > 2
+            println("\t\tStopped expansion loop after $(curiter) iterations of $(maxiter(sp.expander)). Final error: $(ϵ)")
+        end
+
+    end
 
     # building the noise term
     
     drho = nothing
     if noise(sp) > 0 && !isnothing(pth)
         drho = noiseterm(pTPO, tn, pth[1])
+        #@info inds(drho)
+        #@info inds(tn)
     end
 
     # possible other arguments, which_decomp, svd_alg etc

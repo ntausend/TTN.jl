@@ -7,12 +7,12 @@ end
 # already performing the scaling and extracting the operators from the hilbertspaces
 function TPO(ampo::OpSum, lat::AbstractLattice)
 	physidx = siteinds(lat)	
-  # getting all non-zero terms
-  sm_terms = filter(t -> !isapprox(coefficient(t),0), terms(sortmergeterms(ampo)))
-  # assert correct qns in the case of qn indices -> todo
-  # do algebraic reduction for same tensors etc..
-	
-  tpo_sum   = Vector{Prod{Op}}(undef, length(sm_terms))
+	# getting all non-zero terms
+	sm_terms = filter(t -> !isapprox(coefficient(t),0), terms(sortmergeterms(ampo)))
+	# assert correct qns in the case of qn indices -> todo
+	# do algebraic reduction for same tensors etc..
+
+	tpo_sum   = Vector{Prod{Op}}(undef, length(sm_terms))
 
 	for (jj, stm) in enumerate(sm_terms)
 		# saving coefficient
@@ -32,6 +32,7 @@ function TPO(ampo::OpSum, lat::AbstractLattice)
 			return Op(_op, (0, idx_lin); sm = Tuple(jj), op_length = length(stm), is_identity = false)
 		end
 		# now rescale the first operator in the list with the coefficient
+		# TODO: Keep the coefficient explicitly, otherwise it not creates the correct noise term.. but is this crucial??
 		prod_op[1] = Op(which_op(prod_op[1])*coef, site(prod_op[1]); params(prod_op[1])...)
 		tpo_sum[jj] = reduce(*, prod_op, init = Prod{Op}())
 	end

@@ -5,6 +5,9 @@ struct NoExpander <: AbstractSubspaceExpander end
 expand(T::ITensor, A::ITensor, ::AbstractSubspaceExpander; kwargs...) = T, A
 expand(A::ITensor, Chlds::Tuple{ITensor, ITensor}, ::AbstractSubspaceExpander; kwargs...) = A, Chlds...
 
+maxiter(expander::NonTrivialExpander) = expander.maxiter
+tol(expander::NonTrivialExpander) = expander.tol
+
 
 function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...)
     @assert is_orthogonalized(ttn)
@@ -24,6 +27,7 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
     posnext = connecting_path(net, pos, position_next)[1]
     idx_r = commonind(ttn[pos], ttn[posnext])
     idx_l = uniqueinds(A, idx_r)
+
 
     Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), kwargs...)
 
@@ -53,9 +57,13 @@ end
 struct DefaultExpander <: NonTrivialExpander
     p::Float64
     min::Int64
-    function DefaultExpander(p::Real; min = 1)
+
+    maxiter::Int64
+    tol::Number
+
+    function DefaultExpander(p::Real; min = 1, maxiter = 10, tol = 1E-5)
         p ≈ 0 && (return NoExpander())
-        return new(p, min)
+        return new(p, min, maxiter, tol)
     end
 end
 

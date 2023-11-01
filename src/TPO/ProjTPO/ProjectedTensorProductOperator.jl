@@ -202,11 +202,11 @@ function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
     return action
 end
 
-function noiseterm(ptpo::ProjTPO, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}})
+function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}}) where{N}
 
     isnothing(pos_next) && return nothing
-    pos = ortho_center(ptpo)
 
+    pos = TTNKit.ortho_center(ptpo)
 
     # getting the link connecting to the next position
     Δpos = pos_next .- pos
@@ -222,79 +222,68 @@ function noiseterm(ptpo::ProjTPO, T::ITensor, pos_next::Union{Nothing, Tuple{Int
         error("Next position is not valid for defining a noise term (needs to be neighbored): pos=$pos, next position=$(pos_next)")
     end
 
-    # get all environments for this site
-    envs = environments(ptpo, pos)
-    
-    # we want to filter the terms according to terms only accting to all other links than pos_next
-    # interacting terms and total local terms acting on pos_next.
-    # all three classes act individually and has to be summed up "squared"
-    # on the last two classes we need to replace the non-trivial operator
-    # acting on pos_next with an identity
+    res_inds = uniqueinds(T, idx_next)
+    #build the reduced denisty matrix for that site
 
-    envs_trm = terms.(envs)
-    # all terms acting with identity on pos_next
-    trms_lower = filter(envs_trm) do smt
-        sites = site.(smt)
-        is_id = getindex.(params.(smt), :is_identity)
-        idx_pos = findfirst(isequal(pos_next), sites) 
+    rho = prime(T, res_inds) * dag(T)
+
+    # get all environments for this site
+    envs = TTNKit.environments(ptpo, pos)
+
+    envs_trm = ITensors.terms.(envs)
+
+	# all terms acting with identity on pos_next
+     trms_lower = filter(envs_trm) do smt
+        sites = ITensors.site.(smt)
+        is_id = getindex.(ITensors.params.(smt), :is_identity)
+        idx_pos = findfirst(isequal(pos_next), sites)
         return is_id[idx_pos]
     end
 
+	Tlower =  mapreduce(+, trms_lower) do smt
+        ops = map(ITensors.which_op, filter(smt) do op
+            site = ITensors.site(op)
+            !(site == pos_next)
+        end)
+        tensor_list = vcat(T, ops)
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        noprime(contract(tensor_list; sequence = opt_seq))
+    end
 
-    trms_int = filter(envs_trm) do smt
-        sites = site.(smt)
-        is_id = getindex.(params.(smt), :is_identity)
-        idx_pos = findfirst(isequal(pos_next), sites) 
-        op_length = only(unique(getindex.(params.(smt), :op_length)))
+	 trms_int = filter(envs_trm) do smt
+        sites = ITensors.site.(smt)
+        is_id = getindex.(ITensors.params.(smt), :is_identity)
+        idx_pos = findfirst(isequal(pos_next), sites)
+        op_length = only(unique(getindex.(ITensors.params.(smt), :op_length)))
         return !is_id[idx_pos] && op_length > 1
     end
 
-    # now remove the interaction on the non-trivial site
-    trms_int = map(trms_int) do smt
-        sites = site.(smt)
+	nt = mapreduce(+, trms_int) do smt
+        ops = prime.(map(ITensors.which_op, filter(smt) do op
+            site = ITensors.site(op)
+            !(site == pos_next)
+        end), 1, plev = 1)
 
-        idx_pos = findfirst(isequal(pos_next), sites)
-
-        id_pn  = delta(inds(which_op(smt[idx_pos])))
-        rpl_op = Op(id_pn, sites[idx_pos], sm = getindex(params(smt[idx_pos]), :sm), is_identity = true, 
-                    op_length = getindex(params(smt[idx_pos]), :op_length))
-        smt_n = copy(smt)
-        smt_n[idx_pos] = rpl_op
-        return smt_n
+		tensor_list = vcat(T, ops)
+		opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+		ϕ′ = noprime(contract(tensor_list; sequence = opt_seq))
+		return prime(ϕ′, res_inds) * dag(ϕ′)
+		#tensor_list = vcat(rho, ops, prime.(dag.(ops)))
+        #opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        #prime(contract(tensor_list; sequence = opt_seq), -2)
     end
-
-    # filter the operator acting only onsite on pos_next, if it is present at all
-    trm_id = filter(envs_trm) do smt
-        sites = site.(smt)
-        is_id = getindex.(params.(smt), :is_identity)
-        idx_pos = findfirst(isequal(pos_next), sites) 
-        op_length = only(unique(getindex.(params.(smt), :op_length)))
+	trm_id = filter(envs_trm) do smt
+        sites = ITensors.site.(smt)
+        is_id = getindex.(ITensors.params.(smt), :is_identity)
+        idx_pos = findfirst(isequal(pos_next), sites)
+        op_length = only(unique(getindex.(ITensors.params.(smt), :op_length)))
         return !is_id[idx_pos] && op_length == 1
     end
-    # and replace the the onsite operator with an identity
-    trm_id = map(trm_id) do smt
-        sites = site.(smt)
+	 # get the number of these operators, rho has to be added weighted by this number
+    n_trms_id = length(trm_id)
 
-        idx_pos = findfirst(isequal(pos_next), sites)
+	rho_lower = prime(Tlower, res_inds) * dag(Tlower)
 
-        id_pn  = delta(inds(which_op(smt[idx_pos])))
-        rpl_op = Op(id_pn, sites[idx_pos], sm = getindex(params(smt[idx_pos]), :sm), is_identity = true, 
-                    op_length = getindex(params(smt[idx_pos]), :op_length))
-        smt_n = copy(smt)
-        smt_n[idx_pos] = rpl_op
-        return smt_n
-    end
-
-    trms_act = map([trms_lower, trms_int, trm_id]) do trms
-        isempty(trms) && return missing
-        trm_tmp = mapreduce(+,trms) do smt
-            reduce(*, which_op.(smt), init = T)
-        end
-        return trm_tmp * dag(prime(noprime(trm_tmp), idx_next))
-    end
-
-    nt = reduce(+, skipmissing(trms_act))
-    return nt
-
-    # now we want to filter all terms which have the identity on the direction to pos_next
+	rhon = n_trms_id * rho + rho_lower + nt
+	return rhon
 end
