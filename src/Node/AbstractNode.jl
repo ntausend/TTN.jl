@@ -127,10 +127,10 @@ function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, n
     g["desc"] = node.desc
 
     if isa(node, TTNKit.PhysicalNode)
-        attributes(g)["type"] = "physical"
+        HDF5.attributes(g)["type"] = "physical"
         write(g, "hilbertspace", node.hilbertspace)
     else
-        attributes(g)["type"] = "not-physical"
+        HDF5.attributes(g)["type"] = "not-physical"
     end
 end
 
@@ -138,7 +138,7 @@ function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::
     g = open_group(parent, name)
     s = read(g, "s")
     desc = read(g, "desc")
-    read(attributes(g)["type"]) != "physical" && return Node(s, Int64, desc)
+    read(HDF5.attributes(g)["type"]) != "physical" && return Node(s, Int64, desc)
     hilberstpace = read(g, "hilbertspace", Index)
     return ITensorNode(s, hilberstpace)
 end

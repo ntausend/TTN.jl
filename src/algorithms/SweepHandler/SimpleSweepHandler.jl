@@ -35,7 +35,7 @@ function info_string(sh::SimpleSweepHandler, output_level::Int)
     trnc_wght = sh.current_max_truncerr
     # todo ->  make a function for that .... which also can handle TensorKit
     maxdim = maxlinkdim(sh.ttn)
-    output_level ≥ 1 && @printf("\tCurrent energy: %.6f.\n", e)
+    output_level ≥ 1 && @printf("\tCurrent energy: %.15f.\n", e)
     output_level ≥ 2 && @printf("\tTruncated Weigth: %.3e. Maximal bond dim = %i\n", trnc_wght, maxdim)
     sh.current_max_truncerr = 0.0
     nothing
