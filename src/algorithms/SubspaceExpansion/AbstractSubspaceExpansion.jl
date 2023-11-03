@@ -8,8 +8,21 @@ expand(A::ITensor, Chlds::Tuple{ITensor, ITensor}, ::AbstractSubspaceExpander; k
 maxiter(expander::NonTrivialExpander) = expander.maxiter
 tol(expander::NonTrivialExpander) = expander.tol
 
+replace_nothing(::Nothing, replacement) = replacement
+replace_nothing(value, replacement) = value
 
-function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; kwargs...)
+function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; 
+                               normalize = nothing,
+                               which_decomp = nothing,
+                               mindim = nothing,
+                               maxdim = nothing,
+                               cutoff = nothing,
+                               eigen_perturbation = nothing,
+                               svd_alg = nothing)
+    
+
+    normalize = replace_nothing(normalize, false)
+
     @assert is_orthogonalized(ttn)
 
     pos = ortho_center(ttn)
@@ -19,8 +32,6 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
         return ttn, Spectrum(nothing, 0.0)
     end
 
-    normalize::Bool = get(kwargs, :normalize, false)
-
     # otherwise, we need to perform a trunctation/qr decomposition
     net = network(ttn)
     # move towards next node..
@@ -29,7 +40,13 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
     idx_l = uniqueinds(A, idx_r)
 
 
-    Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), kwargs...)
+    Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), 
+                           mindim,
+                           maxdim,
+                           cutoff,
+                           which_decomp,
+                           eigen_perturbation,
+                           svd_alg)
 
     ttn[pos] = Q
     ttn[posnext] = ttn[posnext] * R
