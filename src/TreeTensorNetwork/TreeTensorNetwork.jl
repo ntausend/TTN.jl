@@ -521,7 +521,8 @@ function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, t
         group_data_layer = create_group(group_data, name_data_layer)
         for (node, data_node) in enumerate(data_layer)
             name_data_node = "node_"*string(node)
-            write(group_data_layer, name_data_node, cpu(data_node))
+            #write(group_data_layer, name_data_node, cpu(data_node))
+            write(group_data_layer, name_data_node, data_node)
         end
     end
 end

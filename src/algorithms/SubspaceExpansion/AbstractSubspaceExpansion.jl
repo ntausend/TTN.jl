@@ -40,7 +40,7 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
     idx_l = uniqueinds(A, idx_r)
 
 
-    Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), 
+    Q, R, spec = factorize_own(A, idx_l; tags = tags(idx_r), 
                            mindim,
                            maxdim,
                            cutoff,

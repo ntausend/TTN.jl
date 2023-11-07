@@ -12,6 +12,9 @@ module TTNKit
     using Printf
     using HDF5
 
+    ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
+    include("factorize_workaround.jl")
+
 
     struct NotImplemented <: Exception
         fn::Symbol
