@@ -82,7 +82,7 @@ module TTNKit
     export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
-    #include("./Network/TrenaryNetwork.jl")
+    include("./Network/TernaryNetwork.jl")
 
     
 

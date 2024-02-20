@@ -1,4 +1,3 @@
-
 function _dims_to_n_layer_binary(dims::NTuple{D, Int}) where D
     n_layer = 0
     try
