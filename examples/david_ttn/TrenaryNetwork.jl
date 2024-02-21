@@ -65,7 +65,7 @@ number_of_child_nodes(::TrenaryNetwork, ::Tuple{Int,Int}) = 3
 number_of_tensors(net::TrenaryNetwork) = Int64((3^number_of_layers(net) - 1)/2)
 
 #const BinaryChainNetwork{S<:IndexSpace, I<:Sector} = BinaryNetwork{1, S, I}
-const TrenaryChainNetwork{L<:SimpleLattice{1}, B} = TrenaryNetwork{L,B}
+const  TrenaryChainNetwork{L<:SimpleLattice{1}, B} = TrenaryNetwork{L,B}
 function TrenaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwargs...)
     tensors_per_layer = [3^(number_of_layers - jj) for jj in 0:number_of_layers]
     phys_lat = Chain(tensors_per_layer[1], nd; kwargs...)
