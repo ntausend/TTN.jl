@@ -1,7 +1,7 @@
 function _dims_to_n_layer_ternary(dims::NTuple{D, Int}) where{D}
     n_layer = 0
     try
-        n_layer = sum(Int64.(round(log.(3, dims), sigdigits = 4)))
+        n_layer = sum(Int64.(map(d -> round(map(log(3, d), sigdigits = 4)), dims)))
     catch
         throw(DimensionsException(dims))
     end
