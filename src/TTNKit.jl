@@ -51,7 +51,7 @@ module TTNKit
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import ITensors: state, op, space, siteinds
     import ITensors: expect
-    using ITensors: terms, sortmergeterms, which_op, site, params, determineValType
+    using ITensors: terms, ITensorMPS.sortmergeterms, which_op, site, params, ITensorMPS.determineValType
 	using ITensors: argument, optimal_contraction_sequence
 
     # fixing missing support for qn-sparse qr decomposition of ITensors, should

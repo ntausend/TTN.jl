@@ -51,9 +51,10 @@ using Test
 
         function ITensors.measure!(ob::testObserver; kwargs...)
           tdvp = kwargs[:sweep_handler]
-          pos = kwargs[:pos]
+          #pos = kwargs[:pos]
 
-          ((tdvp.dirloop !== :backward) || (pos !== tdvp.path[2])) && return
+          #((tdvp.dirloop !== :backward) || (pos !== tdvp.path[2])) && return
+          (tdvp.dirloop !== :backward) && return
 
           topPos = (TTNKit.number_of_layers(TTNKit.network(tdvp.ttn)), 1)
           n_sites = TTNKit.number_of_sites(TTNKit.network(tdvp.ttn))

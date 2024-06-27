@@ -1,3 +1,6 @@
+replace_nothing(::Nothing, replacement) = replacement
+replace_nothing(value, replacement) = value
+
 function factorize_own(
   A::ITensor,
   Linds...;
@@ -26,9 +29,9 @@ function factorize_own(
     end
     which_decomp = "eigen"
   end
-  ortho = NDTensors.replace_nothing(ortho, "left")
-  tags = NDTensors.replace_nothing(tags, ts"Link,fact")
-  plev = NDTensors.replace_nothing(plev, 0)
+  ortho = replace_nothing(ortho, "left")
+  tags = replace_nothing(tags, ts"Link,fact")
+  plev = replace_nothing(plev, 0)
 
   # Determines when to use eigen vs. svd (eigen is less precise,
   # so eigen should only be used if a larger cutoff is requested)

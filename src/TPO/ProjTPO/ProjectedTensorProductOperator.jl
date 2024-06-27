@@ -189,6 +189,28 @@ function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
     end
 end
 
+function ∂A(projTPO::ProjTPO{N, ITensor}, o1s::Vector{ITensor}, weight::Float64, pos::Tuple{Int,Int}) where{N}
+    # getting the enviornments of the current position
+    envs = projTPO[pos]
+
+    #o1s = [inner(sweep_handler.ttn, ttn_ortho, pos) for ttn_ortho in sweep_handler.ttns_ortho]
+
+    function action(T::ITensor)
+        
+        result = mapreduce(+, envs) do trm
+            _ops = which_op.(trm)
+            tensor_list = vcat(T, _ops)
+            opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list; sequence = opt_seq)) 
+        end
+
+        orthos = mapreduce(+,o1s) do o1
+            return noprime((o1 * dag(noprime(o1))) * T)
+        end
+
+        return result + (weight * orthos)
+    end
+end
 
 function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
     envs = projTPO[posi]
@@ -286,4 +308,50 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
 
 	rhon = n_trms_id * rho + rho_lower + nt
 	return rhon
+end
+
+
+
+
+###### VecProj which contains any configuration of ProjTPOs and ProjTTNs ########
+
+struct VecProj{N<:TTNKit.AbstractNetwork, T, P<:Tuple{Vararg{AbstractProjTPO{N, T}}}} <: AbstractProjTPO{N,T}
+    net::N
+    data::P
+    ortho_center::Vector{Int64}
+end
+
+function VecProj(all_projs::Tuple)
+    ortho_center = all_projs[1].ortho_center
+    return VecProj(network(all_projs[1]), all_projs, ortho_center)
+end
+
+# maybe updating issue here, we will see
+function update_environments!(vecproj::VecProj, isom::ITensor, pos::Tuple{Int,Int}, pos_final::Tuple{Int,Int})
+    for (idx,proj) in enumerate(vecproj.data)
+        update_environments!(proj, isom, pos, pos_final)
+    end
+    return vecproj
+end
+
+function ∂A(proj_ttn::ProjTTN, pos::Tuple{Int,Int})
+
+    function action(T::ITensor)
+        #println("using projttn action")
+        tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
+    end
+
+end
+
+function ∂A(proj_operator::VecProj, pos::Tuple{Int,Int})
+   
+    action_vec = map(ptpo -> ∂A(ptpo, pos), proj_operator.data)
+
+    function action(T::ITensor)
+        return mapreduce(+, action_vec) do act
+            return act(T)
+        end
+    end
 end
