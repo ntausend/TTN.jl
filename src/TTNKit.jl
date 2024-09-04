@@ -13,7 +13,8 @@ module TTNKit
     using HDF5
 
     ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
-    include("factorize_workaround.jl")
+    #include("factorize_workaround.jl")
+    # should be fixed, keep the file in the folder in case we need it.
 
 
     struct NotImplemented <: Exception
