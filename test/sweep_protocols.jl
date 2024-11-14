@@ -1,5 +1,5 @@
 using TTNKit
-using ITensors
+using ITensors, ITensorMPS
 using Test
 
 @testset "SweepProtocol" begin
@@ -49,7 +49,7 @@ using Test
           testObserver() = new(Float64[], Float64[])
         end
 
-        function ITensors.measure!(ob::testObserver; kwargs...)
+        function ITensorMPS.measure!(ob::testObserver; kwargs...)
           tdvp = kwargs[:sweep_handler]
           #pos = kwargs[:pos]
 
