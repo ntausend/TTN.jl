@@ -1,5 +1,6 @@
 module TTNKit
     using SparseArrays
+    using ITensorMPS
     using ITensors
     #using ITensorGPU
     using CUDA
@@ -7,7 +8,7 @@ module TTNKit
     #using Parameters: @with_kw
     #using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
     #using MPSKitModels: LocalOperator, @mpoham
-    using KrylovKit: exponentiate, eigsolve
+    using KrylovKit: exponentiate, eigsolve, svdsolve
     using LinearAlgebra
     using Printf
     using HDF5
@@ -51,8 +52,10 @@ module TTNKit
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import ITensors: state, op, space, siteinds
-    import ITensors: expect
-    using ITensors: terms, ITensorMPS.sortmergeterms, which_op, site, params, ITensorMPS.determineValType
+    import ITensorMPS: expect
+    using ITensorMPS: sortmergeterms, determineValType
+    using ITensors: terms, which_op, site, params
+    #ITensorMPS.sortmergeterms, , ITensorMPS.determineValType
 	using ITensors: argument, optimal_contraction_sequence
 
     # fixing missing support for qn-sparse qr decomposition of ITensors, should

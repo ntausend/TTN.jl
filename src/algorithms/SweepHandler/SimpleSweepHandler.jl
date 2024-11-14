@@ -66,7 +66,7 @@ function update_next_sweep!(sp::SimpleSweepHandler)
     return sp
 end
 
-function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
+function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int}; svd_alg = nothing)
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
     pTPO = sp.pTPO
@@ -264,7 +264,8 @@ function update!(sp::SimpleSweepHandler, pos::Tuple{Int, Int})
     ttn, spec = update_node_and_move!(ttn,tn, pn;
                                       maxdim = maxdim(sp),
                                       eigen_perturbation = drho,
-                                      normalize = true)
+                                      normalize = true,
+                                      svd_alg)
 
     sp.current_spec = spec
     trncerr = truncerror(spec)

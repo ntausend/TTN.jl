@@ -185,7 +185,8 @@ function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     ttn[pos] = Tn
 end
 
-function update!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
+# kwargs for being compatible with additional arguments
+function update!(sp::TDVPSweepHandler, pos::Tuple{Int,Int}; kwargs...)
     if sp.dirloop == :forward
         _tdvpforward!(sp, pos)
     elseif sp.dirloop == :topnode

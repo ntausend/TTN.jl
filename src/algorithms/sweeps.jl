@@ -20,6 +20,8 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
 
     outputlevel = get(kwargs, :outputlevel, 1)
 
+    svd_alg = get(kwargs, :svd_alg, nothing)
+
     # now start with the sweeping protocol
     initialize!(sp)
     # measure!(
@@ -36,7 +38,7 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
         end
         t_p = time()
         for pos in sp
-            update!(sp, pos)
+            update!(sp, pos; svd_alg)
             # measure!(
             #     obs;
             #     sweep_handler=sp,
