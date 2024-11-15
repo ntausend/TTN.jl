@@ -81,9 +81,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 				return sres
 			end
 			idx = inds(ttn[(1,pp)], "Site,n=$(pos)")
+			# explicit cast on dense arrays since the gpu interface does not support Diag NDTensors... sofar
 			convert_cu(dense(delta(dag.(idx), prime.((idx)))), ttn)
-			# adapt(CuArray, delta(dag.(idx), prime.((idx))))
-			# delta(dag.(idx), prime.((idx)))
 		end
 	end
 	
