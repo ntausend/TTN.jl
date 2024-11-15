@@ -12,7 +12,8 @@ is_cu(x::ITensor) = is_cu(typeof(NDTensors.tensor(x)))
 function convert_cu(T::ITensor, T_type::ITensor)
     #ITensorGPU.is_cu(T_type) || return T
     is_cu(T_type) || return T
-    return cu(eltype(T_type), T)
+    # return cu(T)
+    return adapt(CuArray, T)
 end
 
 convert_cu(T::ITensor, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
@@ -23,16 +24,28 @@ end
 
 function convert_cu(T::Op, T_type::ITensor)
     is_cu(T_type) || return T
-    return Op(cu(eltype(T_type), which_op(T)), T.sites...; T.params...)
+    # return Op(cu(which_op(T)), T.sites...; T.params...)
+    return Op(adapt(CuArray, which_op(T)), T.sites...; T.params...)
 end
 
 convert_cu(T::Op, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
 convert_cu(T::Vector{Op}, ttn::TreeTensorNetwork) = map(t -> convert_cu(t, ttn), T)
 
+function cpu(ttn::TTNKit.TreeTensorNetwork; type::Type = ComplexF64)
+    datac = deepcopy(ttn.data)
+    datacpu = map(datac) do layerdata
+        return map(T -> adapt(Array, T), layerdata)
+    end
+    ortho_centerc = deepcopy(ttn.ortho_center)
+    netc = deepcopy(ttn.net)
+    ortho_directionc = deepcopy(ttn.ortho_direction)
+    return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
+end
 function gpu(ttn::TTNKit.TreeTensorNetwork; type::Type = ComplexF64)
     datac = deepcopy(ttn.data)
     datagpu = map(datac) do layerdata
-        map(T -> cu(type, T), layerdata)
+        map(T -> adapt(CuArray, T), layerdata)
+        # map(T -> cu(T), layerdata)
     end
     ortho_centerc = deepcopy(ttn.ortho_center)
     netc = deepcopy(ttn.net)

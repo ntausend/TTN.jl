@@ -12,6 +12,17 @@ Inputs:
       be used for decomposition
     - pos_left: position in the network defining the left part of the partionining. 
 """
+ 
+function entropy2(s::Spectrum)
+  S = 0.0
+  eigs_s = Array(eigs(s))
+  isnothing(eigs_s) && error("Spectrum does not contain any eigenvalues, cannot compute the entropy")
+  for p in eigs_s
+    p > 1e-13 && (S -= p * log(p))
+  end
+  return S
+end
+                    
 function entanglement_entropy(ttn::TreeTensorNetwork, pos_right::Tuple{Int, Int}, pos_left::Tuple{Int, Int})
     net = network(ttn)
     # checking if pos_right is contained in the network
@@ -35,5 +46,5 @@ function entanglement_entropy(ttn::TreeTensorNetwork, pos_right::Tuple{Int, Int}
     end
 
     U,S,V,spec = svd(T, idx_left)
-    return entropy(spec)
+    return entropy2(spec)
 end

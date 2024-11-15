@@ -81,8 +81,9 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 				return sres
 			end
 			idx = inds(ttn[(1,pp)], "Site,n=$(pos)")
-			#convert_cu(dense(delta(dag.(idx), prime.((idx)))), ttn)
-			delta(dag.(idx), prime.((idx)))
+			convert_cu(dense(delta(dag.(idx), prime.((idx)))), ttn)
+			# adapt(CuArray, delta(dag.(idx), prime.((idx))))
+			# delta(dag.(idx), prime.((idx)))
 		end
 	end
 	

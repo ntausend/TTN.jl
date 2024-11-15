@@ -1,4 +1,5 @@
 module TTNKit
+    using Adapt
     using SparseArrays
     using ITensors
     #using ITensorGPU
