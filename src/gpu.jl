@@ -12,6 +12,11 @@ is_cu(x::ITensor) = is_cu(typeof(NDTensors.tensor(x)))
 function convert_cu(T::ITensor, T_type::ITensor)
     #ITensorGPU.is_cu(T_type) || return T
     is_cu(T_type) || return T
+
+	# explicit cast on dense arrays in the case of a delta since the gpu interface does not support Diag NDTensors... sofar
+    if ITensors.tensor(T) isa ITensors.NDTensors.DiagTensor
+        return adapt(CuArray, dense(T))
+    end
     # return cu(T)
     return adapt(CuArray, T)
 end
