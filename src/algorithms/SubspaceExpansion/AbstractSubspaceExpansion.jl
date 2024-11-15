@@ -11,6 +11,28 @@ tol(expander::NonTrivialExpander) = expander.tol
 replace_nothing(::Nothing, replacement) = replacement
 replace_nothing(value, replacement) = value
 
+function factorize_svdsolve(A, idxl, maxdim; tags = "factorize")
+    
+    idxr = uniqueinds(A, idxl)
+
+    cl = combiner(idxl)
+    cr = combiner(idxr)
+    Am = matrix(cl * A * cr)
+
+    v₀ = randn(eltype(Am), size(Am,1))
+    
+    vals, lvecs, rvecs = svdsolve(Am, v₀, maxdim, :LR; krylovdim = round(Int64, 1.5*maxdim))
+
+    # connecting link
+    idcn = Index(length(vals); tags) 
+    # now build the U and V matrices, directly scaling the right vectors by the singular value will lead to the R factor in the
+    # factorization
+    Q = cl*ITensor(reduce(hcat, lvecs), combinedind(cl), idcn)
+    R = cr*ITensor(reduce(hcat, conj.(rvecs).*vals), combinedind(cr), idcn)
+   
+    return Q, R, vals.^2
+end
+
 function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing}; 
                                normalize = nothing,
                                which_decomp = nothing,
@@ -40,13 +62,17 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
     idx_l = uniqueinds(A, idx_r)
 
 
-    Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), 
+    if svd_alg == :krylov
+        Q, R, spec = factorize_svdsolve(A, idxl, maxdim; tags = tags(idx_r))
+    else
+        Q, R, spec = factorize(A, idx_l; tags = tags(idx_r), 
                            mindim,
                            maxdim,
                            cutoff,
                            which_decomp,
                            eigen_perturbation,
                            svd_alg)
+    end
 
     ttn[pos] = Q
     ttn[posnext] = ttn[posnext] * R
@@ -71,16 +97,20 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
     return move_ortho!(ttn, position_next), spec
 end
 
-struct DefaultExpander <: NonTrivialExpander
-    p::Float64
+struct DefaultExpander{K} <: NonTrivialExpander
+    p::K
     min::Int64
 
     maxiter::Int64
     tol::Number
 
-    function DefaultExpander(p::Real; min = 1, maxiter = 10, tol = 1E-5)
+    function DefaultExpander(p::Float64; min = 1, maxiter = 10, tol = 1E-5)
         p ≈ 0 && (return NoExpander())
-        return new(p, min, maxiter, tol)
+        return new{Float64}(p, min, maxiter, tol)
+    end
+    function DefaultExpander(p::Int; min = 1, maxiter = 10, tol = 1E-5)
+        p ≈ 0 && (return NoExpander())
+        return new{Int64}(p, min, maxiter, tol)
     end
 end
 

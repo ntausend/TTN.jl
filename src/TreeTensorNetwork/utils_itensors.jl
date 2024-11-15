@@ -160,7 +160,7 @@ function Base.intersect(j1::Index{Int64}, j2::Index{Int64}; tags = "Intersect")
     return Index(min(ITensors.dim(j1),ITensors.dim(j2)); tags = tags)
 end
 
-function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int}}}, p::Real, min::Int; tags = "Padded", kwargs...)
+function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int}}}, p::Float64, min::Int; tags = "Padded", kwargs...)
     @assert 0≤p≤1
     dir(j) ≠ dir(jp) && error(
     "To pad two indices, they must have the same direction. Trying to pad indices $j and $jp.",
@@ -174,7 +174,6 @@ function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int
     
 end
 
-#=
 function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int}}}, p::Int; tags = "Padded", kwargs...)
     @assert 0≤p
     dir(j) ≠ dir(jp) && error(
@@ -187,20 +186,17 @@ function _padding(j::Index{Vector{Pair{QN, Int}}}, jp::Index{Vector{Pair{QN, Int
     
     return directsum(j, jp_new; tags = tags)
 end
-=#
 
-function _padding(j::Index{Int64}, jp::Index{Int64}, p::Real, min::Int; tags = "Padded", kwargs...)
+function _padding(j::Index{Int64}, jp::Index{Int64}, p::Float64, min::Int; tags = "Padded", kwargs...)
     @assert 0≤p≤1
     jp_new = Index(max(round(Int, ITensors.dim(jp)*p), min))
     return directsum(j, jp_new; tags = tags)
 end
-#=
-function _padding(j::Index{Int64}, jp::Index{Int64}, p::Int; tags = "Padded", kwargs...)
+function _padding(j::Index{Int64}, jp::Index{Int64}, p::Int, min_dim::Int; tags = "Padded", kwargs...)
     @assert 0≤p
     jp_new = Index(min(ITensors.dim(jp), p))
     return directsum(j, jp_new; tags = tags)
 end
-=#
 
 
 shift_qn(j::Index{Int64}, ::Nothing) = j

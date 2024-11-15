@@ -30,9 +30,9 @@ end
 #include("./ttn_factory_tensorkit.jl")
 include("./ttn_factory_itensors.jl")
 
-ITensors.maxlinkdim(ttn::TreeTensorNetwork) = maximum(map(pos -> maximum(ITensors.dims(ttn[pos])), NodeIterator(network(ttn))))
+ITensorMPS.maxlinkdim(ttn::TreeTensorNetwork) = maximum(map(pos -> maximum(ITensors.dims(ttn[pos])), NodeIterator(network(ttn))))
 
-ITensors.siteinds(ttn::TreeTensorNetwork) = siteinds(physical_lattice(network(ttn)))
+ITensorMPS.siteinds(ttn::TreeTensorNetwork) = siteinds(physical_lattice(network(ttn)))
 
 function _initialize_ortho_direction(net)
     ortho_direction = Vector{Vector{Int64}}(undef, number_of_layers(net))
