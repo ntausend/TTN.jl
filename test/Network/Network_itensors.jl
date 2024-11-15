@@ -1,5 +1,5 @@
 
-using TTNKit, ITensors
+using TTNKit, ITensors, ITensorMPS
 using Test
 
 

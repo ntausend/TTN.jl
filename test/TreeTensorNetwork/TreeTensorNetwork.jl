@@ -1,4 +1,4 @@
-using TTNKit, ITensors
+using TTNKit, ITensors, ITensorMPS
 using Test
 
 @testset "General Tree Tensor Network" begin
@@ -32,7 +32,7 @@ using Test
     @test ttn[1,1] == ttn[(1,1)]
     
     #n_ten = randomITensor(Index(2),Index(2), Index(1))
-    n_ten = randomITensor(inds(ttn[1,1]))
+    n_ten = random_itensor(inds(ttn[1,1]))
     ttn[1,1] = n_ten
     @test ttn[1,1] == n_ten
     ttn = TTNKit.RandomTreeTensorNetwork(net, orthogonalize = true)

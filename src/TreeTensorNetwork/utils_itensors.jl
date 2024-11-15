@@ -13,7 +13,7 @@ function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_rand
 
     # in case of qns we have to do more work
     # first create a dummy Tensor with the correct sectors
-    Ttn = use_random ? randomITensor(eltype(T), flux(T), id_n...) : ITensor(eltype(T), 0, flux(T), id_n...)
+    Ttn = use_random ? random_itensor(eltype(T), flux(T), id_n...) : ITensor(eltype(T), 0, flux(T), id_n...)
 
 
     Tpt = ITensors.tensor(T)

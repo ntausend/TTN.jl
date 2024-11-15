@@ -1,4 +1,4 @@
-using TTNKit, ITensors
+using TTNKit, ITensors, ITensorMPS
 using Test
 
 @testset "Basic Network" begin

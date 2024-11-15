@@ -73,7 +73,7 @@ function _construct_random_tree_tensor_network(net::AbstractNetwork, maxdim::Int
     for (ll,pp) in NodeIterator(net)
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
-        ttn[ll][pp] = randomITensor(elT, codom..., dom)
+        ttn[ll][pp] = random_itensor(elT, codom..., dom)
     end
 
     # correct the top node legs
@@ -89,7 +89,7 @@ function _construct_random_tree_tensor_network(net::AbstractNetwork, target_char
     for (ll,pp) in NodeIterator(net)
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
-        ttn[ll][pp] = randomITensor(elT, codom..., dom)
+        ttn[ll][pp] = random_itensor(elT, codom..., dom)
     end
 
     # correct the top node legs
