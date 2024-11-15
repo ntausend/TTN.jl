@@ -1,14 +1,10 @@
 module TTNKit
     using Adapt
     using SparseArrays
-    using ITensorMPS
     using ITensors
-    #using ITensorGPU
+    using ITensorMPS
     using CUDA
     using Distributions: Multinomial
-    #using Parameters: @with_kw
-    #using MPSKit: MPOHamiltonian, DenseMPO, _embedders, SparseMPO, PeriodicArray
-    #using MPSKitModels: LocalOperator, @mpoham
     using KrylovKit: exponentiate, eigsolve, svdsolve
     using LinearAlgebra
     using Printf
@@ -53,7 +49,7 @@ module TTNKit
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
     import ITensors: state, op, space, siteinds
-    import ITensorMPS: expect
+    #import ITensorMPS: expect
     using ITensorMPS: sortmergeterms, determineValType
     using ITensors: terms, which_op, site, params
     #ITensorMPS.sortmergeterms, , ITensorMPS.determineValType
