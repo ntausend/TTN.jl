@@ -1,5 +1,5 @@
 # TTNKit
-Package of handling one- and two- dimensional Tree Tensor Networks based on TensorKit and ITensors
+Package of handling one- and two- dimensional Tree Tensor Networks based on ITensors
 
 
 ## TODO
