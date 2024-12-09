@@ -1,4 +1,4 @@
-module TTNKit
+module TTN
     using Adapt
     using SparseArrays
     using ITensors
