@@ -92,9 +92,9 @@ the indices of the child legs are adjacent but the prarent index is shifted.
 
 ```
 	net = BinaryChainNetwork(2) # creates a network with two virtual layers
-	TTNKit.internal_index_of_legs(net, (1,1)) # returns [1,2,5]
-	TTNkit.internal_index_of_legs(net, (1,2)) # returns [3,4,6]
-	TTNKit.internal_index_of_legs(net, (2,1)) # returns [5,6,7]
+	TTN.internal_index_of_legs(net, (1,1)) # returns [1,2,5]
+	TTN.internal_index_of_legs(net, (1,2)) # returns [3,4,6]
+	TTN.internal_index_of_legs(net, (2,1)) # returns [5,6,7]
 ```
 
 """
@@ -373,7 +373,7 @@ function Base.iterate(itr::Iterators.Reverse{<:NodeIterator}, state)
 	return (pos, pos)
 end
 
-function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, net::TTNKit.AbstractNetwork)
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, net::AbstractNetwork)
     g = create_group(parent, name)
     for (num_lat,lat) in enumerate(net.lattices)
         name_lat = "lattice_"*string(num_lat)
@@ -381,12 +381,12 @@ function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, n
     end
 end
 
-function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.AbstractNetwork})
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{AbstractNetwork})
     g = open_group(parent, name)
 
     lattices = map(keys(g)) do name_lattice
-        read(g, name_lattice, TTNKit.AbstractLattice)
+        read(g, name_lattice, AbstractLattice)
     end
     
-    return TTNKit.BinaryNetwork{typeof(lattices[1])}(lattices)
+    return BinaryNetwork{typeof(lattices[1])}(lattices)
 end

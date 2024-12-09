@@ -36,7 +36,7 @@ end
 convert_cu(T::Op, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
 convert_cu(T::Vector{Op}, ttn::TreeTensorNetwork) = map(t -> convert_cu(t, ttn), T)
 
-function cpu(ttn::TTNKit.TreeTensorNetwork; type::Type = ComplexF64)
+function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     datac = deepcopy(ttn.data)
     datacpu = map(datac) do layerdata
         return map(T -> adapt(Array, T), layerdata)
@@ -46,7 +46,7 @@ function cpu(ttn::TTNKit.TreeTensorNetwork; type::Type = ComplexF64)
     ortho_directionc = deepcopy(ttn.ortho_direction)
     return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
 end
-function gpu(ttn::TTNKit.TreeTensorNetwork; type::Type = ComplexF64)
+function gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     datac = deepcopy(ttn.data)
     datagpu = map(datac) do layerdata
         map(T -> adapt(CuArray, T), layerdata)
@@ -59,15 +59,15 @@ function gpu(ttn::TTNKit.TreeTensorNetwork; type::Type = ComplexF64)
 end
 
 #=
-function gpu(mpo::TTNKit.MPOWrapper{L, M}; type::Type = ComplexF64) where{L,M}
+function gpu(mpo::MPOWrapper{L, M}; type::Type = ComplexF64) where{L,M}
     datac = deepcopy(mpo.data)
     datagpu = map(T -> cu(type, T), datac) 
     mappingc = deepcopy(mpo.mapping)
     latc = deepcopy(mpo.lat)
-    return TTNKit.MPOWrapper{L, M}(latc, datagpu, mappingc)
+    return MPOWrapper{L, M}(latc, datagpu, mappingc)
 end
 
-function gpu(tpo::TTNKit.TPO{L}, ttn::TreeTensorNetwork) where L
+function gpu(tpo::TPO{L}, ttn::TreeTensorNetwork) where L
     latc = deepcopy(tpo.lat)
     datac = deepcopy(tpo.data)
     datagpu = map(datac) do T
@@ -76,7 +76,7 @@ function gpu(tpo::TTNKit.TPO{L}, ttn::TreeTensorNetwork) where L
                 end)
         return ITensors.Applied(T.f, newargs)
     end
-    return TTNKit.TPO{L}(latc, datagpu)
+    return TPO{L}(latc, datagpu)
 end
 =#
 

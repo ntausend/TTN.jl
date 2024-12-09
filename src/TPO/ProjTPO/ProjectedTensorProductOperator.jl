@@ -1,4 +1,4 @@
-struct ProjTPO{N<:TTNKit.AbstractNetwork, T} <: AbstractProjTPO{N,T}
+struct ProjTPO{N<:AbstractNetwork, T} <: AbstractProjTPO{N,T}
     net::N
     tpo::TPO
     ortho_center::Vector{Int64} # tracking the current ortho center
@@ -228,7 +228,7 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
 
     isnothing(pos_next) && return nothing
 
-    pos = TTNKit.ortho_center(ptpo)
+    pos = ortho_center(ptpo)
 
     # getting the link connecting to the next position
     Δpos = pos_next .- pos
@@ -250,7 +250,7 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
     rho = prime(T, res_inds) * dag(T)
 
     # get all environments for this site
-    envs = TTNKit.environments(ptpo, pos)
+    envs = environments(ptpo, pos)
 
     envs_trm = ITensors.terms.(envs)
 
@@ -315,7 +315,7 @@ end
 
 ###### VecProj which contains any configuration of ProjTPOs and ProjTTNs ########
 
-struct VecProj{N<:TTNKit.AbstractNetwork, T, P<:Tuple{Vararg{AbstractProjTPO{N, T}}}} <: AbstractProjTPO{N,T}
+struct VecProj{N<:AbstractNetwork, T, P<:Tuple{Vararg{AbstractProjTPO{N, T}}}} <: AbstractProjTPO{N,T}
     net::N
     data::P
     ortho_center::Vector{Int64}

@@ -1,4 +1,4 @@
-struct TPO{L} <: TTNKit.AbstractTensorProductOperator{L}
+struct TPO{L} <: AbstractTensorProductOperator{L}
     lat::L
     data::Vector{Prod{Op}}
 end

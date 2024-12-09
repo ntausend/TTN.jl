@@ -75,7 +75,7 @@ function CreateChain(number_of_sites::Int)
     return GenericLattice{1, spacetype(lat_vec[1]), sectortype(lat_vec[1])}(lat_vec, (number_of_sites,))
 end
 
-function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, lattice::TTNKit.AbstractLattice)
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, lattice::AbstractLattice)
     g = create_group(parent, name)
     g["dims"] = collect(lattice.dims)
     for (num_node, node) in enumerate(lattice.lat)
@@ -84,12 +84,12 @@ function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, l
     end
 end
 
-function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.AbstractLattice})
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{AbstractLattice})
     g = open_group(parent, name)
     dims = Tuple(read(g, "dims"))
     lat = map(1:prod(dims)) do i
         name_node = "node_$(i)"
         read(g, name_node, AbstractNode)
     end
-    return TTNKit.SimpleLattice{length(dims),Index,Int64}(lat, dims)
+    return SimpleLattice{length(dims),Index,Int64}(lat, dims)
 end

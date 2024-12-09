@@ -40,7 +40,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 			
 				net = network(ttn1)
 			
-				#top_pos = (TTNKit.number_of_layers(net),1)
+				#top_pos = (number_of_layers(net),1)
 				#move_ortho!(ttn1, top_pos)
 				#move_ortho!(ttn2, top_pos)
 			
@@ -447,7 +447,7 @@ end
 
 # need a function to efficiently recalculate environments for new ortho_center
 
-mutable struct ProjTTN{N<:TTNKit.AbstractNetwork, T} <: AbstractProjTPO{N,T}
+mutable struct ProjTTN{N<:AbstractNetwork, T} <: AbstractProjTPO{N,T}
 	ortho_center::Vector{Int}
 	weight::Float64
 

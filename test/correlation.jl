@@ -1,4 +1,4 @@
-using TTNKit
+using TTN
 using Test
 
 function n_non_sym()
@@ -22,10 +22,10 @@ n_op(;conserve_qns = true) = conserve_qns ? n_sym() : n_non_sym()
     n_sites = 16
     conserve_qns = false
     dims = Tuple(n_sites)
-    net = TTNKit.BinaryNetwork(dims, "S=1/2"; conserve_qns = conserve_qns)
+    net = TTN.BinaryNetwork(dims, "S=1/2"; conserve_qns = conserve_qns)
     
     states = repeat(["↑", "↓"], n_sites÷2)
-    ttn = TTNKit.ProductTreeTensorNetwork(net, states)
+    ttn = TTN.ProductTreeTensorNetwork(net, states)
     
     op = "Z"
     
@@ -33,7 +33,7 @@ n_op(;conserve_qns = true) = conserve_qns ? n_sym() : n_non_sym()
         s == "↑" ? 1 : -1
     end
     corr_measured = map(1:n_sites) do jj
-        TTNKit.correlation(ttn, op, op, 1,jj)
+        TTN.correlation(ttn, op, op, 1,jj)
     end
     @test all(corr_measured .== expected_corr)
 end
@@ -43,10 +43,10 @@ end
     n_sites = 16
     conserve_qns = true
     dims = Tuple(n_sites)
-    net = TTNKit.BinaryNetwork(dims, "S=1/2"; conserve_qns = conserve_qns)
+    net = TTN.BinaryNetwork(dims, "S=1/2"; conserve_qns = conserve_qns)
     
     states = repeat(["↑", "↓"], n_sites÷2)
-    ttn = TTNKit.ProductTreeTensorNetwork(net, states)
+    ttn = TTN.ProductTreeTensorNetwork(net, states)
     
     op = "Z"
     
@@ -54,7 +54,7 @@ end
         s == "↑" ? 1 : -1
     end
     corr_measured = map(1:n_sites) do jj
-        TTNKit.correlation(ttn, op, op, 1,jj)
+        TTN.correlation(ttn, op, op, 1,jj)
     end
     @test all(corr_measured .== expected_corr)
 end

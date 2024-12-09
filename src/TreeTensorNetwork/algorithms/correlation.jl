@@ -96,13 +96,13 @@ end
 
 
 ### general n point correlations ###
-function correlation(ttn::TTNKit.TreeTensorNetwork, ops::Vector{String}, pos::Vector{Tuple{Int,Int}})
+function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{Tuple{Int,Int}})
     pos_lin = [linear_ind(physical_lattice(network(ttn)), posi) for posi in pos]
     return correlation(ttn, ops, pos_lin)
 end
 
-function correlation(ttn::TTNKit.TreeTensorNetwork, ops::Vector{String}, pos::Vector{Int})
-    net = TTNKit.network(ttn)
+function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{Int})
+    net = network(ttn)
     phys_sites = sites(ttn)
 
     # find the top position
@@ -122,8 +122,8 @@ function correlation(ttn::TTNKit.TreeTensorNetwork, ops::Vector{String}, pos::Ve
     for ll in 1:top_pos[1]-1
       temp_ops_pos = []
 
-      for pp in TTNKit.eachindex(net,ll)
-        idx = findall(x -> TTNKit.parent_node(net, x[2]) == (ll,pp), ops_pos)
+      for pp in eachindex(net,ll)
+        idx = findall(x -> parent_node(net, x[2]) == (ll,pp), ops_pos)
         isempty(idx) && continue
 
         T = ttnc[(ll,pp)]
@@ -139,7 +139,7 @@ function correlation(ttn::TTNKit.TreeTensorNetwork, ops::Vector{String}, pos::Ve
     end
 
     T = ttnc[top_pos]
-    idx = findall(x -> TTNKit.parent_node(net, x[2]) == top_pos, ops_pos)
+    idx = findall(x -> parent_node(net, x[2]) == top_pos, ops_pos)
     temp_ops = [ops_pos[i][1] for i in idx]
     idx_shr = [commonind(T, temp_opsi) for temp_opsi in temp_ops]
 

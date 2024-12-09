@@ -121,12 +121,12 @@ end
 ==(nd1::AbstractNode, nd2::PhysicalNode) = false
 ==(nd1::PhysicalNode, nd2::AbstractNode) = false
 
-function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, node::TTNKit.AbstractNode)
+function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, node::AbstractNode)
     g = create_group(parent, name)
     g["s"] = node.s
     g["desc"] = node.desc
 
-    if isa(node, TTNKit.PhysicalNode)
+    if isa(node, PhysicalNode)
         HDF5.attributes(g)["type"] = "physical"
         write(g, "hilbertspace", node.hilbertspace)
     else
@@ -134,7 +134,7 @@ function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, n
     end
 end
 
-function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{TTNKit.AbstractNode})
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{AbstractNode})
     g = open_group(parent, name)
     s = read(g, "s")
     desc = read(g, "desc")

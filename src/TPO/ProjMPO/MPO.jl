@@ -112,7 +112,7 @@ function Hamiltonian(ampo::OpSum, lat::AbstractLattice; mapping::Vector{Int} = c
     @assert is_physical(lat)
     # idx_lat = siteinds(lat)
     idx_lat = map(mapping) do pos #inverse_mapping(mapping)
-        TTNKit.hilbertspace(lat[pos])
+        hilbertspace(lat[pos])
     end
 
     mpo = MPO(ampo, idx_lat)

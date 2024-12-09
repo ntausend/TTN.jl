@@ -1,10 +1,9 @@
-using TTNKit
 using Test
 
 function test_expectation(dims, conserve_qns, op, ndtype, states, expected)
-    net = TTNKit.BinaryNetwork(dims, ndtype; conserve_qns = conserve_qns)
-    ttn = TTNKit.ProductTreeTensorNetwork(net, states)
-    obs_measured = real.(TTNKit.expect(ttn, op))
+    net = TTN.BinaryNetwork(dims, ndtype; conserve_qns = conserve_qns)
+    ttn = TTN.ProductTreeTensorNetwork(net, states)
+    obs_measured = real.(TTN.expect(ttn, op))
     @test all(obs_measured .≈ expected)
 end
 
