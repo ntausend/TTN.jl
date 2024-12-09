@@ -1,6 +1,6 @@
 name = "TTN"
 uuid = "b44c321c-291e-437f-af1d-05cac99632ef"
-authors = ["Niklas Tausendpfund <n.tausendpfund@fz-juelich.de>"]
+authors = ["Niklas Tausendpfund <n.tausendpfund@fz-juelich.de>", "Wladislaw Krinitsin <w.krinitsin@fz-juelich.de>"]
 version = "0.1.0"
 
 [deps]
