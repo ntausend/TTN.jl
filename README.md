@@ -1,4 +1,4 @@
-# TTNKit
+# TTN.jl
 Package of handling one- and two- dimensional Tree Tensor Networks based on ITensors
 
 
