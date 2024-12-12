@@ -1,6 +1,6 @@
 # TTN.jl
 
-ZENODO DOI
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14421855.svg)](https://zenodo.org/doi/10.5281/zenodo.14421855)
 
 ## Introduction
 
@@ -152,7 +152,22 @@ We are happy if you decide to use our framework for your research. When citing o
 The BibTeX code for these references are:
 
 ```bibtex
-todo
+	@software{tausendpfund_2024_14421855,
+	  author       = {Tausendpfund, Niklas and
+	                  Rizzi, Matteo and
+	                  Krinitsin, Wladislaw and
+	                  Schmitt, Markus},
+	  title        = {TTN -- A tree tensor network library for
+	                   calculating groundstates and solving time
+	                   evolution
+	                  },
+	  month        = dec,
+	  year         = 2024,
+	  publisher    = {Zenodo},
+	  version      = {0.1},
+	  doi          = {10.5281/zenodo.14421855},
+	  url          = {https://doi.org/10.5281/zenodo.14421855}
+	}
 ```
 
 ## TODO's
