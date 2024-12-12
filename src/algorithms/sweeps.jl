@@ -118,6 +118,8 @@ end
 Performs a dmrg minimization of the initial guess `psi0` with respect to the local Hamiltonian defined by `tpo`, which can either be a MPOWrapper or a TPO object.
 `psi_ortho` are additional tensor to orthogonalize against.
 
+It returns a sweep object `sp` where one can extract the final tree with `sp.ttn` and the energy by `sp.current_energy`.
+
 # Keywords:
 
 - `expander`: A optional subspace expansion algorithm can be choosen by this keyword. Be careful as the subspace expansion might be expensive. Default: NoExpander. Possible other choice: DefaultExpander(p) with `p` being a Integer (number of included sectors) or a Float (percentage of the full two tensor update).
@@ -180,6 +182,8 @@ end
 
 Performs a tdvp simulation of the state `psi0` with respect to the local Hamiltonian `tpo` defined either as a MPOWrapper or TPO object.
 The integration is based on \$-i\\partial_t\\psi  = H\\psi\$, and thus describes a real time evolution.
+
+It returns a sweep object `sp` where one can extract the final tree with `sp.ttn`.
 
 # Keywords:
 - `timestep`: time step for the integrator

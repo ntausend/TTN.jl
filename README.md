@@ -136,6 +136,11 @@ which creates a tensor product object. Alternative, one can use the `Hamiltonian
 
 All objects defined in this package can be easily put on the GPU by wrapping each object with the `gpu` function. Currently only `CUDA.jl` is supported.
 
+### Detailed Examples
+
+- `examples/J1J2_DMRG/j1j2_dmrg.jl`: contains an example of minimizing the J1J2 model on a square lattice using DMRG
+
+
 ---
 
 ## Citation
