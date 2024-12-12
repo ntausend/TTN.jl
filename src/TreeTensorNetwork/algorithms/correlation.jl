@@ -1,9 +1,24 @@
-# ITensor functionallity
+"""
+```julia
+    correlations(ttn::TreeTensorNetwork, op1, op2, pos::NTuple)
+```
+
+Calculates the correlation function between the `op1` at position `pos` and `op2` varying for all sites of the system.  
+The position is given as the d-dimensional coordinate of the system.
+"""
 function correlations(ttn::TreeTensorNetwork, op1, op2, pos::NTuple)
     pos_lin = linear_ind(physical_lattice(network(ttn)), pos)
     return correlations(ttn, op1, op2, pos_lin)
 end
 
+"""
+```julia
+    correlations(ttn::TreeTensorNetwork, op1, op2, pos::Int)
+```
+
+Calculates the correlation function between the `op1` at position `pos` and `op2` varying for all sites of the system.  
+The position is given as the linearized position in the system.
+"""
 function correlations(ttn::TreeTensorNetwork, op1, op2, pos::Int)
     physlat = physical_lattice(network(ttn))
     res = map(eachindex(physlat)) do pp
@@ -13,12 +28,27 @@ function correlations(ttn::TreeTensorNetwork, op1, op2, pos::Int)
     return reshape(res, dims)
 end
 
+"""
+```julia
+    correlation(ttn::TreeTensorNetwork, op1, op2, pos1::NTuple,pos1::NTuple)
+```
+
+Calculates the correlation function between the `op1` at position `pos1` and `op2` at position `pos2`.
+The positions is given as the d-dimensional coordinate of the system.
+"""
 function correlation(ttn::TreeTensorNetwork, op1, op2, pos1::NTuple, pos2::NTuple)
     pos1_lin = linear_ind(physical_lattice(network(ttn)), pos1)
     pos2_lin = linear_ind(physical_lattice(network(ttn)), pos2)
     return correlation(ttn, op1, op2, pos1_lin, pos2_lin)
 end
 
+"""
+```julia
+    correlation(ttn::TreeTensorNetwork, op1, op2, pos1::Int,pos1::Int)
+```
+Intnts the correlation function between the `op1` at position `pos1` and `op2` at position `pos2`.
+The positions is given as the linearized position in the system.
+"""
 function correlation(ttn::TreeTensorNetwork, op1::AbstractString, op2::AbstractString, pos1::Int, pos2::Int)
     if pos1 == pos2
         # fast exit using the expectation value
@@ -96,11 +126,27 @@ end
 
 
 ### general n point correlations ###
-function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{Tuple{Int,Int}})
+"""
+```julia
+    correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{NTuple})
+```
+
+Calculates the n-point function of n operators `ops` at positions `pos`.
+The position `pos[j]` corresponds to the operator `ops[j]`. The positions are given by the d-dimensional coordinates of the system.
+"""
+function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{NTuple})
     pos_lin = [linear_ind(physical_lattice(network(ttn)), posi) for posi in pos]
     return correlation(ttn, ops, pos_lin)
 end
 
+"""
+```julia
+    correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{Int})
+```
+
+Calculates the n-point function of n operators `ops` at positions `pos`.
+The position `pos[j]` corresponds to the operator `ops[j]`. The positions are given by the linearized coordinates of the system.
+"""
 function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{Int})
     net = network(ttn)
     phys_sites = sites(ttn)

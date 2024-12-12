@@ -4,92 +4,6 @@ struct MPOWrapper{L, M} <: AbstractTensorProductOperator{L}
     mapping::Vector{Int}
 end
 
-
-#=
-function MPOWrapper(lat::L, mpo::MPOHamiltonian, mapping::Vector{Int}) where L
-    data = _wrapper_mpskit_mpo(mpo)
-
-    # correct the first and last tensor
-    tnfirst = data[1]
-    tnlast  = data[end]
-    codom   = codomain(tnfirst)[1]
-    dom     =   domain(tnlast)[2]
-    if sectortype(lat) == Trivial
-        ctl = Tensor([jj == 1 ? 1 : 0 for jj in 1:dim(dom)], dom')
-        ctr = Tensor([jj == dim(codom) ? 1 : 0  for jj in 1:dim(codom)], codom)
-    else
-        ctl = Tensor(zeros, codom')
-        ctr = Tensor(zeros, dom)
-        # these can only have the trivial rep
-        trRep = keys(blocks(ctl))[1]
-        blocks(ctl)[trRep][1] = 1
-        trRep = keys(blocks(ctr))[1]
-        blocks(ctr)[trRep][end] = 1
-    end
-
-    @plansor tmp1[-1,-2,-3] := ctl[1] * tnfirst[1, -1, -2, -3]
-    @plansor tmp2[-1,-2;-3] := tnlast[-1, -2, -3, 1] * ctr[1]
-
-    data[1] = TensorKit.permute(tmp1, (1,), (2,3))
-    data[end] = tmp2
-
-
-    return MPOWrapper{L, typeof(data), TensorKitBackend}(lat, data, mapping)
-end
-=#
-
-#=
-function _wrapper_mpskit_mpo(mpo::MPOHamiltonian)
-    s = convert(SparseMPO,mpo.data)
-    embeds = PeriodicArray(_embedders.([s[i].domspaces for i in 1:length(s)]))
-
-    data = map(1:size(s,1)) do loc
-        mapreduce(+,Iterators.product(1:s.odim,1:s.odim)) do (i,j)
-            @plansor temp[-1 -2;-3 -4]:=embeds[loc][i][-1;1]*s[loc][i,j][1 -2;-3 2]*conj(embeds[loc+1][j][-4;2])
-        end
-    end
-    DenseMPO(data)
-end
-=#
-
-#=
-#TODO: Make this also for symmetry states
-function _wrapper_itensors_mpo(ampo::OpSum, sites::Vector{<:Index{Int64}})
-    ham = ITensors.MPO(ampo, sites)
-    data = map(enumerate(ham)) do (i,h)
-        dimHilb = ITensors.dim(inds(h)[end])
-
-        if length(inds(h)) == 3
-            dimLink = ITensors.dim(inds(h)[1])
-
-            if i == 1
-                TensorKit.permute(TensorKit.Tensor(array(h), (ℂ^dimLink)'*ℂ^dimHilb*(ℂ^dimHilb)'), (2,), (3,1))
-            else
-                TensorKit.permute(TensorKit.Tensor(array(h), ℂ^dimLink*ℂ^dimHilb*(ℂ^dimHilb)'), (1,2), (3,))
-            end
-        else
-            dimLink1 = ITensors.dim(inds(h)[1])
-            dimLink2 = ITensors.dim(inds(h)[2])
-            TensorKit.permute(TensorKit.Tensor(ITensors.array(h), ℂ^dimLink1*(ℂ^dimLink2)'*ℂ^dimHilb*(ℂ^dimHilb)'), (1,3), (4,2))
-        end
-    end
-
-    return Vector{TensorMap}(data)
-end
-=#
-
-#=
-function Hamiltonian(ampo::OpSum, type_str::AbstractString, lat::AbstractLattice{D, S, I}; 
-            mapping::Vector{Int} = collect(eachindex(lat)), kwargs...) where {D, S, I}
-    sites= siteinds(type_str, number_of_sites(lat); kwargs...)
-    data = _wrapper_itensors_mpo(ampo, sites)
-    return MPOWrapper{typeof(lat), typeof(data), TensorKitBackend}(lat, data, mapping)
-end
-=#
-
-#ITensors constructor
-# also include the mappings here
-
 function Hamiltonian(mpo::MPO, lat::L; mapping::Vector{Int} = collect(eachindex(lat))) where{L}
     @assert is_physical(lat)
     @assert length(lat) == length(mpo)
@@ -107,6 +21,15 @@ function Hamiltonian(mpo::MPO, lat::L; mapping::Vector{Int} = collect(eachindex(
     return MPOWrapper{L, MPO}(lat, mpoc, mapping)
 end
 
+"""
+```julia
+    Hamiltonian(ampo::OpSum, lat::L; mapping::Vector{Int} = collect(eachindex(lat))) where{L}
+```
+
+Creates an MPO used for the DMRG/TDVP simulations based on the abstract `OpSum` object of `ITensor`.
+The mapping translates between the order of the tree tensor network and the spacial lattice enumeration.
+The default is the standart one to one mapping. But in two and higher dimensions this might not be optimal and one have to choose a differnt mapping.
+"""
 function Hamiltonian(ampo::OpSum, lat::AbstractLattice; mapping::Vector{Int} = collect(eachindex(lat)))
     # @assert isone(dimensionality(lat))
     @assert is_physical(lat)

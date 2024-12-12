@@ -10,6 +10,13 @@ end
 
 # general constructor from a formal sum, depending on the case it will 
 # generate the itensor or tensormap version of this pTPO
+"""
+```julia
+    ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO) where {N,T}
+```
+
+Builds the link tensors for applying the local action of the Hamiltonian.
+"""
 function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO) where {N,T}
     net = network(ttn)
     # first construct the tpo, invovles some conversion and returns
@@ -174,7 +181,13 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
     return projTPO
 end
 
+"""
+```julia
+    ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
+```
 
+Returns the local action of the hamiltonian projected onto the `pos` node in the network.
+"""
 function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
     # getting the enviornments of the current position
     envs = projTPO[pos]
@@ -212,6 +225,13 @@ function ∂A(projTPO::ProjTPO{N, ITensor}, o1s::Vector{ITensor}, weight::Float6
     end
 end
 
+"""
+```julia
+    ∂A2(projTPO::ProjMPO, pos::Tuple{Int,Int})
+```
+
+Returns the local action of the hamiltonian projected onto the link between the tensor at the node `pos` and `isom` which is assumed to be placed at one of the nodes connected to `pos` (NOT CHECKT!)
+"""
 function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
     envs = projTPO[posi]
     function action(link::ITensor)

@@ -110,6 +110,24 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
     return sweep(psic, sh; kwargs...)
 end
 
+"""
+```julia
+   dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
+```
+
+Performs a dmrg minimization of the initial guess `psi0` with respect to the local Hamiltonian defined by `tpo`, which can either be a MPOWrapper or a TPO object.
+`psi_ortho` are additional tensor to orthogonalize against.
+
+# Keywords:
+
+- `expander`: A optional subspace expansion algorithm can be choosen by this keyword. Be careful as the subspace expansion might be expensive. Default: NoExpander. Possible other choice: DefaultExpander(p) with `p` being a Integer (number of included sectors) or a Float (percentage of the full two tensor update).
+- `maxdims`: Maximal bond dimension
+- `n_sweeps`: Number of full sweeps through the network. A full sweep contains a forward and backward sweep such that every tensor is optimized twice.
+- `weight`: weights for the orthogonalization against `psi_ortho`.
+- `eigsolve_tol`: Tolerance of the eigsolve procedure
+- `eigsolve_krylovdim`: dimensionality of the krylov space
+- `eigsolve_maxiter`: maximal iterations for the krylov algorithm
+"""
 function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
@@ -155,6 +173,22 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
     return sweep(psic, sh; kwargs...)
 end
 
+"""
+```julia
+   tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
+```
+
+Performs a tdvp simulation of the state `psi0` with respect to the local Hamiltonian `tpo` defined either as a MPOWrapper or TPO object.
+The integration is based on \$-i\\partial_t\\psi  = H\\psi\$, and thus describes a real time evolution.
+
+# Keywords:
+- `timestep`: time step for the integrator
+- `initialtime`: starting time for the integrator
+- `finaltime`: final time for the integrator
+- `eigsolve_tol`: Tolerance of the eigsolve procedure
+- `eigsolve_krylovdim`: dimensionality of the krylov space
+- `eigsolve_maxiter`: maximal iterations for the krylov algorithm
+"""
 function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_TDVP)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_TDVP)

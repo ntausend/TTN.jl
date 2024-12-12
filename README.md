@@ -130,7 +130,7 @@ ampo = TFI(J,g, lat; periodic = false)
 H = TPO(ampo, lat)
 ```
 
-which creates a tensor product object. Alternative, one can use the `MPO(ampo, lat)` function to create a matrix product operator.
+which creates a tensor product object. Alternative, one can use the `Hamiltonian(ampo, lat)` function to create a matrix product operator.
 
 ### GPU
 

@@ -1,3 +1,10 @@
+"""
+```julia
+   inner(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
+```
+
+Calculates the overlapp between the two tensor networks `ttn1` and `ttn2`.
+"""
 function inner(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
     net1 = network(ttn1)
     net2 = network(ttn2)

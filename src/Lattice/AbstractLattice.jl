@@ -9,24 +9,51 @@ end
 abstract type AbstractLattice{D, S, I} end
 
 dimensionality(::Type{<:AbstractLattice{D}}) where D = D
+"""
+```julia
+    dimensionality(lat::AbstractLattice)
+```
+
+Returns the dimensionality of the lattice `lat`.
+"""
 dimensionality(lat::AbstractLattice) = dimensionality(typeof(lat))
 
-# extracting indices, only necessary for ITensors backend
 function ITensors.siteinds(lat::AbstractLattice)
     is_physical(lat) || error("Site indices only meaningful for physical lattices")
     return map(hilbertspace, lat)
 end
 
 
-
 nodes(lat::AbstractLattice) = lat.lat
 node(lat::AbstractLattice, p::Int) = nodes(lat)[p]
 
+"""
+```julia
+    number_of_sites(lat::AbstractLattice)
+```
+
+Returns the total number of sites contained in the lattice `lat`.
+"""
 number_of_sites(lat::AbstractLattice) = length(lat.lat)
 
 # convertions from linear to D-dim tuple and back, not implemented in generallity, functionallity has to be
 # implemented for derived types
+"""
+```julia
+linear_ind(lat::SimpleLattice{D}, p::NTuple{D,Int}) where D
+```
+
+Returns the linearized index of the d-dimensional coordinate \$(p_1, p_2, \\dots, p_D)\$ enumerating the lattice sites of `lat`.
+"""
+
 linear_ind(lat::AbstractLattice{D}, ::NTuple{D,Int}) where D = throw(NotImplemented(:linear_ind, typeof(lat)))
+"""
+```julia
+    coordinate(lat::SimpleLattice{D}, p::Int) where D
+```
+
+Returns the d-dimensional coordinate \$(p_1, p_2, \\dots, p_D)\$ representing the coordinate for the linearized index `p`.
+"""
 coordinate(lat::AbstractLattice{D}, ::Int) where {D} = throw(NotImplemented(:coordinate, typeof(lat)))
 
 # check if lattice is made of physical nodes
@@ -40,6 +67,13 @@ sectortype(lat::AbstractLattice) = sectortype(typeof(lat))
 spacetype(::Type{<:AbstractLattice{D,S}}) where{D,S} = S
 spacetype(lat::AbstractLattice) = spacetype(typeof(lat)) 
 
+"""
+```julia
+    coordinates(lat::SimpleLattice{D}) where D
+```
+
+Return an array of all coordinates representing the lattice.
+"""
 function coordinates(lat::AbstractLattice)
     coord = map(x-> coordinate(lat, x), eachindex(lat))
     return coord

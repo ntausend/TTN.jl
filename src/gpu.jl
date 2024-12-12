@@ -36,6 +36,13 @@ end
 convert_cu(T::Op, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
 convert_cu(T::Vector{Op}, ttn::TreeTensorNetwork) = map(t -> convert_cu(t, ttn), T)
 
+"""
+```julia
+    pu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
+```
+
+Copy the data of the tree tensor network from the GPU to the CPU.
+"""
 function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     datac = deepcopy(ttn.data)
     datacpu = map(datac) do layerdata
@@ -46,6 +53,13 @@ function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     ortho_directionc = deepcopy(ttn.ortho_direction)
     return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
 end
+"""
+```julia
+    gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
+```
+
+Copy the data of the tree tensor network onto the GPU.
+"""
 function gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     datac = deepcopy(ttn.data)
     datagpu = map(datac) do layerdata

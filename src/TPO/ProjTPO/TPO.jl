@@ -5,6 +5,15 @@ end
 
 # transforming a formal ampo from ITensors to a vector of product operators
 # already performing the scaling and extracting the operators from the hilbertspaces
+"""
+```julia
+    TPO(ampo::OpSum, lat::AbstractLattice)
+```
+
+Creates a tensor product operator object. This is equivalent to an Matrix product operator, but represents the action of the 
+Hamiltonian as a sum over local terms implicitly. This is advatage in the case of two dimensions as the application is faster than
+applying the environments from a full MPO.
+"""
 function TPO(ampo::OpSum, lat::AbstractLattice)
 	physidx = siteinds(lat)	
 	# getting all non-zero terms

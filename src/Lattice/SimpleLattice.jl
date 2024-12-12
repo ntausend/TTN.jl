@@ -22,7 +22,9 @@ struct SimpleLattice{D, S, I} <: AbstractLattice{D,S,I}
     dims::NTuple{D,Int}
 end
 """
+```julia
     SimpleLattice(dims::NTuple{D, Int}, nodetype::Function; kwargs...) where D
+```
 
 Construction of a general Regular Lattice of dimension `D`. This Lattice serves as a basis for
 the Binary networks, where every layer is represented as a simple lattice of the same dimensionality.
@@ -38,12 +40,11 @@ Every dimension should be multiple of 2 in order to be compatible with a Binary 
    and `n` is a description string
 - In case, nd is of type ITensorNode, a type string defining the local hilbertspace is expcect following
   `nd`
-```
+```julia
 lat = SimpleLattice((8,), ITensorNode, "SpinHalf"; kwargs...)
 ```
    would generate a chain filled with 'SpinHalf' degrees of freedom.
 """
-
 function SimpleLattice(dims::NTuple{D, Int}, nd::Type{<:AbstractNode}; kwargs...) where {D}
     if nd isa ITensorNode
         error("Using node type ITensorNode needs specifying the type string for constructing the hilberspaces.")
@@ -104,11 +105,53 @@ SimpleLattice(dims::NTuple{D,Int}, type::AbstractString; kwargs...) where{D} = S
 
 
 #const BinaryChain = BinaryLattice{1}
+"""
+```julia
+    Chain(n_sites::Int, type::AbstractString; kwargs...)
+```
+
+Creates a chain of length `n_sites`. The Hilbert-space of every node will be given by `type`.
+
+# Arguments
+
+---
+
+- `n_sites`: Length of the chain
+- `type`: Definition of the local Hilbert-space
+
+# Keywords
+
+---
+
+The keywords `kwargs` are passed to the `siteinds` function and defines the properties of the local Hilbert-space
+
+"""
 Chain(n_sites::Int, local_dim::Int; kwargs...) = SimpleLattice((n_sites,), local_dim; kwargs...)
 Chain(n_sites::Int, nd::Type{<:AbstractNode}, args...; kwargs...) = SimpleLattice((n_sites,), nd, args...; kwargs...)
 Chain(n_sites::Int, args...; kwargs...) = SimpleLattice((n_sites,), args...; kwargs...)
 
 
+"""
+```julia
+    Rectangle(n_x::Int, n_y::Int, type::AbstractString; kwargs...)
+```
+
+Creates a rectangle of dimension `(n_x,n_y)`. The Hilbert-space of every node will be given by `type`.
+
+# Arguments
+
+---
+
+- `n_sites`: Length of the chain
+- `type`: Definition of the local Hilbert-space
+
+# Keywords
+
+---
+
+The keywords `kwargs` are passed to the `siteinds` function and defines the properties of the local Hilbert-space
+
+"""
 Rectangle(n_x::Int, n_y::Int, args...; kwargs...) = SimpleLattice((n_x, n_y), args...; kwargs...)
 Rectangle(dims::Tuple{Int, Int}, args...; kwargs...) = SimpleLattice(dims, args...; kwargs...)
 Square(n_lin::Int, args...; kwargs...) = Rectangle(n_lin, n_lin, args...; kwargs...)
@@ -124,9 +167,11 @@ Square(n_lin::Int, indices::Vector{<:Index}) = Rectangle((n_lin, n_lin), indices
 Base.size(lat::SimpleLattice) = lat.dims
 Base.size(lat::SimpleLattice, d::Integer) = size(lat)[d]
 
+
 function linear_ind(lat::SimpleLattice{D}, p::NTuple{D,Int}) where D
     return _linear_ind_simple_lattice(p, size(lat))
 end
+
 
 function coordinate(lat::SimpleLattice, p::Int)
     return _coordinate_simple_lattice(p, size(lat))

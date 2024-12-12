@@ -104,6 +104,7 @@ function BinaryChainNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}; kwa
     #return BinaryChainNetwork{spacetype(nvd_type), sectortype(nvd_type)}(lat_vec)
     return BinaryChainNetwork{typeof(lat_vec[1])}(lat_vec)
 end
+
 BinaryChainNetwork(number_of_layers::Int; kwargs...) = BinaryChainNetwork(number_of_layers, TrivialNode; kwargs...)
 
 function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:AbstractNode}; kwargs...)
@@ -130,7 +131,29 @@ function BinaryChainNetwork(number_of_sites::Tuple{Int}, nd::Type{<:ITensorNode}
     n_layers = _dims_to_n_layer_binary(Tuple(number_of_sites))
     return BinaryChainNetwork(n_layers, nd, type)
 end
-BinaryChainNetwork(number_of_sites, type::AbstractString; kwargs...) = BinaryChainNetwork(number_of_sites, ITensorNode, type; kwargs...) 
+
+"""
+```julia
+    ChainBinaryChainNetwork(number_of_sites::Int, type::AbstractString; kwargs...)
+```
+
+Creates a binary tree network based on a one dimensional chain of length `number_of_sites`.
+
+# Arguments
+
+---
+
+- `number_of_sites`: Length of the chain
+- `type`: Definition of the local Hilbert-space
+
+# Keywords
+
+---
+
+The keywords `kwargs` are passed to the `siteinds` function and defines the properties of the local Hilbert-space
+
+"""
+BinaryChainNetwork(number_of_sites::Int, type::AbstractString; kwargs...) = BinaryChainNetwork(number_of_sites, ITensorNode, type; kwargs...) 
 
 
 function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode}, args...; kwargs...)
@@ -148,9 +171,52 @@ function BinaryRectangularNetwork(number_of_layers::Int, nd::Type{<:AbstractNode
     return BinaryNetwork((n_x, n_y), nd, args...; kwargs...)
 end
 BinaryRectangularNetwork(number_of_layers::Int; kwargs...) = BinaryRectangularNetwork(number_of_layers, TrivialNode; kwargs...)
-BinaryRectangularNetwork(number_of_layers, type::AbstractString, kwargs...) = BinaryRectangularNetwork(number_of_layers, ITensorNode, type; kwargs...)
+
+"""
+```julia
+    BinaryRectangularNetwork(number_of_layers::Int, type::AbstractString; kwargs...)
+```
+
+Creates a binary tree network based on a two dimensional rectangle with `number_of_layers` layers. The physical Hilbert-space is given by `type`.
+
+# Arguments
+
+---
+
+- `number_of_layers`: Number of layers in the network.
+- `type`: Definition of the local Hilbert-space
+
+# Keywords
+
+---
+
+The keywords `kwargs` are passed to the `siteinds` function and defines the properties of the local Hilbert-space
+
+"""
+BinaryRectangularNetwork(number_of_layers::Int, type::AbstractString, kwargs...) = BinaryRectangularNetwork(number_of_layers, ITensorNode, type; kwargs...)
 
 #BinaryRectangularNetwork(dims::Tuple{Int,Int}, nd::Type{<:AbstractNode}, args...; kwargs...) = BinaryNetwork(dims, nd; kwargs...)
+"""
+```julia
+    BinaryRectangularNetwork(dims::Tuple{Int,Int}, type::AbstractString; kwargs...)
+```
+
+Creates a binary tree network based on a two dimensional rectangle with dimensions given by `dims`. The physical Hilbert-space is given by `type`.
+
+# Arguments
+
+---
+
+- `dims`: A two dimensional tuple defining the dimensionality of the rectangle
+- `type`: Definition of the local Hilbert-space
+
+# Keywords
+
+---
+
+The keywords `kwargs` are passed to the `siteinds` function and defines the properties of the local Hilbert-space
+
+"""
 BinaryRectangularNetwork(dims::Tuple{Int,Int}, type::AbstractString; kwargs...) = BinaryNetwork(dims, ITensorNode, type; kwargs...)
 BinaryRectangularNetwork(dims::Tuple{Int,Int}; kwargs...) = BinaryNetwork(dims, TrivialNode; kwargs...)
 

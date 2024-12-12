@@ -28,7 +28,13 @@ indices(projTPO::ProjMPO, pos::Tuple{Int, Int}) = vcat(bottom_indices(projTPO, p
 #include("./constructing_projmpo_from_mpo_tensorkit.jl")
 include("./constructing_projmpo_from_mpo_itensors.jl")
 
+"""
+```julia
+    ProjMPO(ttn::TreeTensorNetwork{N, T}, tpo::MPOWrapper)
+```
 
+Creates a projected MPO. This contains all the environments at every link for all tensors in the network.
+"""
 function ProjMPO(ttn::TreeTensorNetwork{N, T}, tpo::MPOWrapper) where{N, T}
     # sanity check if the physical setup is correct
     @assert physical_lattice(network(ttn)) == lattice(tpo)
@@ -90,6 +96,13 @@ function _update_bottom_environment!(projTPO::ProjMPO, isom::ITensor, pos::Tuple
     return projTPO
 end
 
+"""
+```julia
+    ∂A(projTPO::ProjMPO, pos::Tuple{Int,Int})
+```
+
+Returns the local action of the hamiltonian projected onto the `pos` node in the network.
+"""
 function ∂A(projTPO::ProjMPO, pos::Tuple{Int,Int})
     envs = projTPO[pos]
     function action(T::ITensor)
@@ -101,6 +114,13 @@ function ∂A(projTPO::ProjMPO, pos::Tuple{Int,Int})
 end
 
 
+"""
+```julia
+    ∂A2(projTPO::ProjMPO, pos::Tuple{Int,Int})
+```
+
+Returns the local action of the hamiltonian projected onto the link between the tensor at the node `pos` and `isom` which is assumed to be placed at one of the nodes connected to `pos` (NOT CHECKT!)
+"""
 function ∂A2(projTPO::ProjMPO, isom::ITensor, pos::Tuple{Int,Int})
     envs = projTPO[pos]
     function action(link::ITensor)

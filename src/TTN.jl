@@ -55,17 +55,9 @@ module TTN
     #ITensorMPS.sortmergeterms, , ITensorMPS.determineValType
 	using ITensors: argument, optimal_contraction_sequence
 
-    # fixing missing support for qn-sparse qr decomposition of ITensors, should
-    # be included in the future.. see pullrequest:
-    # https://github.com/ITensor/ITensors.jl/pull/1009
-    # This is also my code from 
-    # https://github.com/ntausend/variance_iTensor
-    # in slightly modified version of Jan Reimers
-    # just use the factorize for the moment... dont want to get nasty warnings
-    #include("./qn_qr_it/qr.jl")
-
 
     # contract_tensor ncon wrapper
+    export contract_tensos
     include("./contract_tensors.jl")
 
     # nodes
@@ -75,12 +67,15 @@ module TTN
     include("./Node/ITensorNode.jl")
 
     # lattice class
-    export Rectangle, Square
+    export Rectangle, Square, Chain
+    export linear_ind, coordinate, dimensionality, number_of_sites, coordinates
     include("./Lattice/AbstractLattice.jl")
     include("./Lattice/SimpleLattice.jl")
 
     # including the Network classes
     export BinaryNetwork, BinaryChainNetwork, BinaryRectangularNetwork
+    export lattices, lattice, physical_lattice, number_of_layers, number_of_tensors, dimensions
+    export physical_coordinates, eachlayer
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
     include("./Network/TernaryNetwork.jl")
@@ -89,11 +84,13 @@ module TTN
 
     #=================================================================================#
     # i rather not like to have these kind of functions to be exported...
-    export increase_dim_tree_tensor_network_zeros, increase_dim_tree_tensor_network_randn
+    #export increase_dim_tree_tensor_network_zeros, increase_dim_tree_tensor_network_randn
     #=================================================================================#
 
     export TreeTensorNetwork, RandomTreeTensorNetwork, ProductTreeTensorNetwork
     export move_ortho!, adjust_tree_tensor_dimensions, adjust_tree_tensor_dimensions!
+    export layer, number_of_layers, network, ortho_center, is_orthogonalized
+    export correlation, correlations, entanglement_entropy, inner
     include("./TreeTensorNetwork/TreeTensorNetwork.jl")
     include("./TreeTensorNetwork/algorithms/inner.jl")
     include("./TreeTensorNetwork/algorithms/expect.jl")
@@ -106,22 +103,24 @@ module TTN
     include("./TPO/AbstractProjectedTensorProductOperator.jl")
 
     # gpu helper functions
+    export gpu, cpu
     include("./gpu.jl")
     # MPO class
+    export Hamiltonian, ProjMPO
     include("./TPO/ProjMPO/MPO.jl")
     include("./TPO/ProjMPO/ProjectedMatrixProductOperator.jl")
     include("./TPO/ProjMPO/utilsMPO.jl")
 
     # tensor product operator implementations
-    export TPO
+    export TPO, ProjTPO
     include("./TPO/ProjTPO/TPO.jl")
     include("./TPO/ProjTPO/ProjectedTensorProductOperator.jl")
 
-    # model implementations
-    #include("./Models/TransverseFieldIsing.jl")
-
     # dmrg/tdvp
+    export DefaultExpander, NoExpander
     include("./algorithms/SubspaceExpansion/AbstractSubspaceExpansion.jl")
+
+    export dmrg, tdvp
     include("./algorithms/SweepHandler/AbstractSweepHandler.jl")
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")

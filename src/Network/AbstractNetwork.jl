@@ -15,6 +15,13 @@ end
 
 # dimensionality of network
 dimensionality(::Type{<:AbstractNetwork{L}}) where L  = dimensionality(L)
+"""
+```julia
+    dimensionality(net::AbstractNetwork)
+```
+
+Returns the dimensionality of the underlaying lattice of the network `net`.
+"""
 dimensionality(net::AbstractNetwork) = dimensionality(typeof(net))
 
 # calculates the dimensionality of a layer 
@@ -31,19 +38,63 @@ end
 siteinds(net::AbstractNetwork) = siteinds(physical_lattice(net))
 
 # returning the lattices of the network, 1 is physical, and 2:n_layers are the virtuals
+"""
+```julia
+    lattices(net::AbstractNetwork)
+```
+
+Returns as an array the lattices representing the different layers of the network.
+"""
 lattices(net::AbstractNetwork) = net.lattices
 # returning the l-th layer. l is here defined with respect to the first **virtual** layer
+"""
+```julia
+    lattice(net::AbstractNetwork, l::Int)
+```
+
+Returns the `l`-th lattice representing. This is lattice defines the Hilbert-spaces connecting the `l`-th layer of tensors
+with the `l+1`-th layer of tensors. Thus, the physical lattice is per convention defined by `l =0`, as there is no tensor attached below the physical layer. 
+"""
 lattice(net::AbstractNetwork, l::Int) = lattices(net)[l + 1]
 
 # returns the physical lattice
+"""
+```julia
+    physical_lattice(net::AbstractNetwork)
+```
+
+Returns the physical layer of the network defining the local Hilbert-space on every site for the given problem.
+"""
 physical_lattice(net::AbstractNetwork) = lattice(net, 0)
 
 # returning the number of **virtual** layers
+"""
+```julia
+    number_of_layers(net::AbstractNetwork)
+```
+
+Returns the number of layers in the network.
+This counts only the layers with tensors attached to it.
+"""
 number_of_layers(net::AbstractNetwork) = length(lattices(net)) - 1
 
 # returning the number of nodes living on the `l` virtual layer
+"""
+```julia
+    number_of_tensors(net::AbstractNetwork, l::Int)
+```
+
+Returns the number of tensors in the `l`-th layer.
+"""
 number_of_tensors(net::AbstractNetwork, l::Int) = number_of_sites(lattice(net,l))
 # returning the total number of nodes in all virtual layers
+"""
+```julia
+    number_of_tensors(net::AbstractNetwork)
+```
+
+Returns the total number of tensors of the network.
+"""
 number_of_tensors(net::AbstractNetwork) = sum(map(l -> number_of_tensors(net, l), 1:number_of_layers(net)))
 
 # adjacency matrix associated with connecting the `l` and `l+1` virtual layer. l = 0 should
@@ -57,9 +108,23 @@ node(net::AbstractNetwork, p::Tuple{Int,Int}) = node(lattice(net,p[1]), p[2])
 hilbertspace(net::AbstractNetwork, p::Tuple{Int,Int}, sectors) = hilbertspace(node(lattice(net,p[1]),p[2]), sectors)
 
 # dimensions of the `l`-th layer
+"""
+```julia
+    dimensions(net::AbstractNetwork, l::Int)
+```
+
+Returns the d-dimensional dimensions of the `l`-th lattice
+"""
 dimensions(net::AbstractNetwork, l::Int) = size(lattice(net, l))
 
 # number of physical sites
+"""
+```julia
+    number_of_sites(net::AbstractNetwork)
+```
+
+Returns the total number of sites of the physical lattice.
+"""
 number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 
 
@@ -67,7 +132,9 @@ number_of_sites(net::AbstractNetwork) = number_of_sites(physical_lattice(net))
 #Base.length(net::AbstractNetwork) = sum(map(jj -> length(lattice(net,jj)), 0:number_of_layers(net)))
 
 """
+```julia
 	internal_index_of_legs(net::AbstractNetwork, pos::Tuple{Int, Int})
+```
 
 Returns a list of indices associated to the legs of a tensor located at `pos`
 
@@ -111,6 +178,13 @@ function internal_index_of_legs(net::AbstractNetwork, pos::Tuple{Int,Int})
 end
 
 
+"""
+```julia
+    physical_coordinates(net::AbstractNetwork)
+```
+
+Returns an array of the coordinates of the physical lattice.
+"""
 physical_coordinates(net::AbstractNetwork) = coordinates(physical_lattice(net))
 
 spacetype( ::Type{<:AbstractNetwork{L}}) where{L} = spacetype(L)
@@ -127,7 +201,9 @@ function check_valid_position(net::AbstractNetwork, pos::Tuple{Int, Int})
 end
 
 """
+```julia
 	index_of_child(net::AbstractNetwork, pos_child::Tuple{Int,Int})
+```
 
 Returns the index of a child in the child list of its parent.
 Needed for uniquly identifying the leg associated to this child
@@ -143,7 +219,9 @@ end
 
 
 """
+```julia
 	parent_node(net::AbstractNetwork, pos::Tuple{Int, Int})
+```
 
 Returns the (unique) parent node of the given position tuple. 
 If `pos` is the top node, `nothing` is returned.
@@ -165,7 +243,9 @@ end
 
 
 """
+```julia
 	child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
+```
 
 Returns an array representing all childs. In case of node beeing in the lowest
 layer, it returns a list of the form (0, p) representing the physical site.
@@ -187,7 +267,9 @@ function number_of_child_nodes(net::AbstractNetwork, pos::Tuple{Int, Int})
 end
 
 """
+```julia
 	split_index(net::AbstractNetwork, pos::Tuple{Int,Int}, idx::Int)
+```
 
 This function returns ((idx),(I\\idx)) with I being the complete index
 set of a given tensor at `pos`. This function is needed to perform perumations
@@ -243,7 +325,9 @@ function _connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tup
 end
 
 """
+```julia
 	connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tuple{Int, Int})
+```
 
 Returns the path through the network connecting `pos1` and `pos2`, excluding `pos1`.
 If `pos1 == pos2`, the result is empty. I.e. if the network is a standart Binary tree
@@ -284,7 +368,21 @@ function connecting_path(net::AbstractNetwork, pos1::Tuple{Int, Int}, pos2::Tupl
 end
 
 
+"""
+```julia
+	eachlayer(net::AbstractNetwork)
+```
+
+Generates an iterator over the enumeration of the layers of the network.
+"""
 eachlayer(net::AbstractNetwork) = 1:number_of_layers(net)
+"""
+```julia
+	eachindex(net::AbstractNetwork, l::Int)
+```
+
+Generates an iterator over the enumeration the sites of the `l`-th lattice.
+"""
 eachindex(net::AbstractNetwork,l::Int) = eachindex(lattice(net,l))
 
 
