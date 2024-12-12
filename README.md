@@ -147,7 +147,7 @@ All objects defined in this package can be easily put on the GPU by wrapping eac
 
 We are happy if you decide to use our framework for your research. When citing our work, please use the following reference 
 
-* TODO
+Tausendpfund, N., Rizzi, M., Krinitsin, W., & Schmitt, M. (2024). TTN.jl -- A tree tensor network library for calculating groundstates and solving time evolution (0.1). Zenodo. [https://doi.org/10.5281/zenodo.14421855](https://doi.org/10.5281/zenodo.14421855)
 
 The BibTeX code for these references are:
 
@@ -157,7 +157,7 @@ The BibTeX code for these references are:
 	                  Rizzi, Matteo and
 	                  Krinitsin, Wladislaw and
 	                  Schmitt, Markus},
-	  title        = {TTN -- A tree tensor network library for
+	  title        = {TTN.jl -- A tree tensor network library for
 	                   calculating groundstates and solving time
 	                   evolution
 	                  },
