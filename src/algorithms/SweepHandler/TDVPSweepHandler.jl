@@ -29,6 +29,7 @@ end
 
 current_sweep(sh::TDVPSweepHandler) = sh.current_time
 
+# iterating through the ttn
 function Base.iterate(sp::TDVPSweepHandler)
     pos = start_position(sp)
     return (pos, 1)
@@ -43,18 +44,22 @@ function Base.iterate(sp::TDVPSweepHandler, state)
     return (next_pos, next_state)
 end
 
+# return time sweeps
 sweeps(sp::TDVPSweepHandler) = (sp.initialtime):(sp.timestep):(sp.finaltime)
+# initial position of the sweep
 start_position(sp::TDVPSweepHandler) = (sp.path[1])
 initialize!(::TDVPSweepHandler) = nothing
 
+# update the current time of the sweep
 function update_next_sweep!(sp::TDVPSweepHandler)
     sp.current_time += sp.timestep 
     return sp
 end
 
+# path of a single TDVP update through the TTN
+# the path is split into a forward and a backward mode, as well as a single separate update for the top node
 function _tdvp_path(net::AbstractNetwork)
     path = Vector{Tuple{Int,Int}}([(number_of_layers(net), 1)])
-
     function gotochild(pos::Tuple{Int,Int})      
         for chd_nd in child_nodes(net, pos)
             if chd_nd[1] > 0
@@ -64,22 +69,22 @@ function _tdvp_path(net::AbstractNetwork)
             end
         end
     end
-
     gotochild(path[1])
-
     return path
 end
 
+# forward mode of the TDVP sweep
+# the tensor at position pos is only updated if the next step goes a layer up in the network, otherwise we just move the isometry center
 function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
-
     ttn = sp.ttn
     pTPO = sp.pTPO
     net = network(ttn)
     T = ttn[pos]
+    # detmermine next position
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
-
     Δ = nextpos .- pos
 
+    # if going down, just move ortho center to the next tensor and update environment
     if Δ[1] == -1
         # orthogonalize to child
         n_child = index_of_child(net, nextpos)
@@ -87,13 +92,12 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 
         #update environments
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
-
         ttn.ortho_center[1] = nextpos[1]
         ttn.ortho_center[2] = nextpos[2]
 
+    # if going up perform time step algorithm
     elseif Δ[1] == 1
-
-        # time evolve tensor at pos
+        # effective Hamiltonian for tensor at pos
         action = ∂A(pTPO, pos)
         (Tn,_) = sp.func(action, sp.timestep/2, T) 
 
@@ -102,7 +106,7 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         idx_l = uniqueinds(ttn[pos], idx_r)
         Qn,R = factorize(Tn, idx_l; tags = tags(idx_r))
         
-        # reverse time evolution for R tensor between pos and nextpos
+        # reverse time evolution for link tensor between pos and nextpos
         action2 = ∂A2(pTPO, Qn, pos)
         (Rn,_) = sp.func(action2, -sp.timestep/2, R)
 
@@ -116,36 +120,35 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         # move orthocenter (just for consistency), update ttnc and environments
         ttn.ortho_center[1] = nextpos[1]
         ttn.ortho_center[2] = nextpos[2]
-
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
-
     else
         error("Invalid direction for TDVP step: ", Δ)
     end
 end
 
+# backward mode of the TDVP sweep
+# the tensor at position pos is only updated if the next step goes a layer down in the network, otherwise we just move the isometry center
 function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
-
     ttn = sp.ttn
     pTPO = sp.pTPO
     net = network(ttn)
     T = ttn[pos]
+    # detmermine next position
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
-
     Δ = nextpos .- pos
 
+    # if going up, just move ortho center to the next tensor and update environment
     if Δ[1] == 1
         # orthogonalize to parent
         _orthogonalize_to_parent!(ttn, pos)
 
-        #update environments
+        #update environments and ortho center
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
-
         ttn.ortho_center[1] = nextpos[1]
         ttn.ortho_center[2] = nextpos[2]
 
+    # if going down perform time step algorithm
     elseif Δ[1] == -1
-
         # QR decomposition in direction of the TDVP-step
         idx_r = commonind(T, ttn[nextpos])
         idx_l = uniqueinds(T, idx_r)
@@ -174,12 +177,12 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     end
 end
 
+# time evolution of top-node
 function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     ttn = sp.ttn
     pTPO = sp.pTPO
     T = ttn[pos]
 
-    # time evolution of top-node
     action = ∂A(pTPO, pos)
     (Tn, _) = sp.func(action, sp.timestep, T)
     ttn[pos] = Tn
@@ -196,6 +199,7 @@ function update!(sp::TDVPSweepHandler, pos::Tuple{Int,Int}; kwargs...)
     end
 end
 
+# returns the next position in the sweep, based on the current mode and position
 function next_position(sp::TDVPSweepHandler, state::Int)
     len = length(sp.path) - 1
     net = network(sp.ttn)

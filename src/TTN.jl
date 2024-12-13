@@ -106,7 +106,7 @@ module TTN
     export gpu, cpu
     include("./gpu.jl")
     # MPO class
-    export Hamiltonian, ProjMPO
+    export Hamiltonian, ProjMPO, nearest_neighbours
     include("./TPO/ProjMPO/MPO.jl")
     include("./TPO/ProjMPO/ProjectedMatrixProductOperator.jl")
     include("./TPO/ProjMPO/utilsMPO.jl")
