@@ -20,7 +20,7 @@ function BinaryNetwork(dimensions::NTuple{D,Int}, nd::Type{<:AbstractNode}; kwar
     # first dimension must be largest, second second largest etc..
     # this is required due to our pairing
     if !(sort(dimensionsc) == reverse(dimensionsc))
-        msg = "Only Lattices with first dimension beeing largest, second being second largest etc are suppported for BinaryNetworks. Dimensions: $dimensions"   
+        msg = "Only Lattices with first dimension being largest, second being second largest etc are suppported for BinaryNetworks. Dimensions: $dimensions"   
         throw(NotSupportedException(msg))
     end
     lat_vec[1] = SimpleLattice(dimensions, nd; kwargs...)
@@ -54,7 +54,7 @@ function BinaryNetwork(dims::NTuple{D, Int}, indices::Vector{<:Index}) where{D}
     # first dimension must be largest, second second largest etc..
     # this is required due to our pairing
     if !(sort(dimensionsc) == reverse(dimensionsc))
-        msg = "Only Lattices with first dimension beeing largest, second being second largest etc are suppported for BinaryNetworks. Dimensions: $dimensions"   
+        msg = "Only Lattices with first dimension being largest, second being second largest etc are suppported for BinaryNetworks. Dimensions: $dimensions"   
         throw(NotSupportedException(msg))
     end
     lat_vec[1] = SimpleLattice(dims, indices)

@@ -125,5 +125,16 @@ function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::
         name_node = "node_$(i)"
         read(g, name_node, AbstractNode)
     end
-    return SimpleLattice{length(dims),Index,Int64}(lat, dims)
+    return SimpleLattice{length(dims), spacetype(lat[1]), sectortype(lat[1])}(lat, dims)
+end
+
+function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{AbstractLattice}, ref_nd::AbstractNode)
+    g = open_group(parent, name)
+    dims = Tuple(read(g, "dims"))
+    lat = map(1:prod(dims)) do i
+        name_node = "node_$(i)"
+	nd = read(g, name_node, AbstractNode)
+	Node(ref_nd, nd.s, nd.desc)
+    end
+    return SimpleLattice{length(dims), spacetype(lat[1]), sectortype(lat[1])}(lat, dims)
 end

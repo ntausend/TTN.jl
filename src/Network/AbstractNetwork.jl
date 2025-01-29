@@ -479,12 +479,31 @@ function HDF5.write(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, n
     end
 end
 
+function _correct_sector_type(nd::AbstractNode, ref_nd::AbstractNode)
+    Node(ref_nd, nd.s, nd.desc)
+end
+
+function _correct_sector_type(lat::AbstractLattice, ref_nd::AbstractNode)
+   dims = lat.dims
+   lat_vec = lat.lat
+
+   lat_vec_new = map(1:length(lat_vec)) do j
+      _correct_sector_type(lat_vec[j], ref_nd)
+   end
+
+   return SimpleLattice{length(dims), spacetype(lat_vec_new[1]), sectortype(lat_vec_new[1])}(lat_vec_new, dims)
+end
+
 function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::Type{AbstractNetwork})
     g = open_group(parent, name)
 
     lattices = map(keys(g)) do name_lattice
         read(g, name_lattice, AbstractLattice)
     end
+    for jj in 2:length(lattices)
+	lattices[jj] = _correct_sector_type(lattices[jj], lattices[1][1])
+    end
+
     
     return BinaryNetwork{typeof(lattices[1])}(lattices)
 end
