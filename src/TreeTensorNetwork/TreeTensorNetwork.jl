@@ -635,7 +635,7 @@ function HDF5.read(parent::Union{HDF5.File,HDF5.Group}, name::AbstractString, ::
     g = open_group(parent, name)
 
     ### read net ###
-    net = read(g, "net", TTNKit.AbstractNetwork)
+    net = read(g, "net", AbstractNetwork)
 
     ### read data ###
     group_data = open_group(g, "data")
