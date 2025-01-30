@@ -6,6 +6,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHan
     pTPO::AbstractProjTPO
     func
     path::Vector{Tuple{Int,Int}}
+    prefactor_funcs
 
     dirloop::Symbol # forward/backward-loop or topnode
     dir::Int #index of child for the next position in the path, 0 for parent node
@@ -18,16 +19,18 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHan
         initialtime,
         finaltime,
         func,
+        prefactor_funcs,
     ) where {N,T}
         path = _tdvp_path(network(ttn))
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?
             index_of_child(network(ttn), path[2]) : 0
-        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
+        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, prefactor_funcs, :forward, dir, initialtime)
     end
 end
 
-current_sweep(sh::TDVPSweepHandler) = sh.current_time
+current_sweep(sh::TDVPSweepHandler)      = sh.current_time
+current_prefactors(sh::TDVPSweepHandler) = (isnothing(sh.prefactor_funcs) ? [1] : map(f -> f(sh.current_time), sh.prefactor_funcs))
 
 # iterating through the ttn
 function Base.iterate(sp::TDVPSweepHandler)
@@ -84,6 +87,8 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
     Δ = nextpos .- pos
 
+    factors = current_prefactors(sp)
+
     # if going down, just move ortho center to the next tensor and update environment
     if Δ[1] == -1
         # orthogonalize to child
@@ -98,7 +103,7 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     # if going up perform time step algorithm
     elseif Δ[1] == 1
         # effective Hamiltonian for tensor at pos
-        action = ∂A(pTPO, pos)
+        action = ∂A(pTPO, pos; factors)
         (Tn,_) = sp.func(action, sp.timestep/2, T) 
 
         # QR-decompose time evolved tensor at pos
@@ -107,7 +112,7 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         Qn,R = factorize(Tn, idx_l; tags = tags(idx_r))
         
         # reverse time evolution for link tensor between pos and nextpos
-        action2 = ∂A2(pTPO, Qn, pos)
+        action2 = ∂A2(pTPO, Qn, pos; factors)
         (Rn,_) = sp.func(action2, -sp.timestep/2, R)
 
         # multiply new R tensor onto tensor at nextpos
@@ -137,6 +142,8 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
     Δ = nextpos .- pos
 
+    factors = current_prefactors(sp)
+
     # if going up, just move ortho center to the next tensor and update environment
     if Δ[1] == 1
         # orthogonalize to parent
@@ -156,7 +163,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         ttn[pos] = Qn
 
         # reverse time evolution for R tensor between pos and nextpos
-        action = ∂A2(pTPO, Qn, pos)
+        action = ∂A2(pTPO, Qn, pos; factors)
         (Ln,_) = sp.func(action, -sp.timestep/2, L) 
 
         # multiply new L tensor on tensor at nextpos
@@ -164,7 +171,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 
         # update environments & time evolve tensor at nextpos
         pTPO = update_environments!(pTPO, Qn, pos, nextpos)
-        action2 = ∂A(pTPO, nextpos)
+        action2 = ∂A(pTPO, nextpos; factors)
         (nextTn, _) = sp.func(action2, sp.timestep / 2, nextQ)
 
         # set new tensor and move orthocenter (just for consistency)
@@ -183,7 +190,9 @@ function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     pTPO = sp.pTPO
     T = ttn[pos]
 
-    action = ∂A(pTPO, pos)
+    factors = current_prefactors(sp)
+
+    action = ∂A(pTPO, pos; factors)
     (Tn, _) = sp.func(action, sp.timestep, T)
     ttn[pos] = Tn
 end

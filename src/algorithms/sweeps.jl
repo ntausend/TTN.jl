@@ -204,6 +204,9 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     timestep = get(kwargs, :timestep, 1e-2)
     initialtime = get(kwargs, :initialtime, 0.)
     finaltime = get(kwargs, :finaltime, 1.)
+
+    prefactor_funcs = get(kwargs, :prefactor_funcs, nothing)
+
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
@@ -216,5 +219,52 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
                                            ishermitian = ishermitian,
                                            eager = eigsolve_eager);  
 
-    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func); kwargs...);
+    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func, prefactor_funcs); kwargs...);
+end
+
+"""
+```julia
+   tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
+```
+
+Performs a tdvp simulation of the state `psi0` with respect to the local Hamiltonian `tpo` defined either as a MPOWrapper or TPO object.
+The integration is based on \$-i\\partial_t\\psi  = H\\psi\$, and thus describes a real time evolution.
+
+It returns a sweep object `sp` where one can extract the final tree with `sp.ttn`.
+
+# Keywords:
+- `timestep`: time step for the integrator
+- `initialtime`: starting time for the integrator
+- `finaltime`: final time for the integrator
+- `eigsolve_tol`: Tolerance of the eigsolve procedure
+- `eigsolve_krylovdim`: dimensionality of the krylov space
+- `eigsolve_maxiter`: maximal iterations for the krylov algorithm
+"""
+function tdvp(psi0::TreeTensorNetwork, tpo::Vector{T}; kwargs...) where T<:AbstractTensorProductOperator
+    eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_TDVP)
+    eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
+    eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
+    #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_TDVP)
+    ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_TDVP)
+    eigsolve_eager = get(kwargs, :eager, DEFAULT_EAGER_TDVP)
+
+    timestep = get(kwargs, :timestep, 1e-2)
+    initialtime = get(kwargs, :initialtime, 0.)
+    finaltime = get(kwargs, :finaltime, 1.)
+
+    prefactor_funcs = get(kwargs, :prefactor_funcs, nothing)
+
+    psic = copy(psi0)
+    psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
+
+    pTPO = ProjTPOSum(psic, tpo)
+    
+    func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                           krylovdim = eigsolve_krylovdim,
+                                           tol = eigsolve_tol, 
+                                           maxiter = eigsolve_maxiter,
+                                           ishermitian = ishermitian,
+                                           eager = eigsolve_eager);  
+
+    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func, prefactor_funcs); kwargs...);
 end

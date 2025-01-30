@@ -115,6 +115,7 @@ module TTN
     export TPO, ProjTPO
     include("./TPO/ProjTPO/TPO.jl")
     include("./TPO/ProjTPO/ProjectedTensorProductOperator.jl")
+    include("./TPO/ProjTPO/PTPOSum.jl")
 
     # dmrg/tdvp
     export DefaultExpander, NoExpander

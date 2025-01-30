@@ -188,7 +188,7 @@ end
 
 Returns the local action of the hamiltonian projected onto the `pos` node in the network.
 """
-function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
+function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int}; factors=nothing)
     # getting the enviornments of the current position
     envs = projTPO[pos]
 
@@ -232,7 +232,7 @@ end
 
 Returns the local action of the hamiltonian projected onto the link between the tensor at the node `pos` and `isom` which is assumed to be placed at one of the nodes connected to `pos` (NOT CHECKT!)
 """
-function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
+function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int}; factors=nothing)
     envs = projTPO[posi]
     function action(link::ITensor)
         mapreduce(+, envs) do trm 
@@ -354,24 +354,32 @@ function update_environments!(vecproj::VecProj, isom::ITensor, pos::Tuple{Int,In
     return vecproj
 end
 
-function ∂A(proj_ttn::ProjTTN, pos::Tuple{Int,Int})
+# function ∂A(proj_ttn::ProjTTN, pos::Tuple{Int,Int})
+#
+#     function action(T::ITensor)
+#         #println("using projttn action")
+#         tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
+#         opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+#         return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
+#     end
+# end
 
+function ∂A(proj_operator::VecProj, pos::Tuple{Int,Int}; factors=ones(length(proj_operator.data)))
+    action_vec = map(ptpo -> ∂A(ptpo, pos), proj_operator.data)
     function action(T::ITensor)
-        #println("using projttn action")
-        tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
+      return mapreduce(+, zip(factors,action_vec)) do (f,act)
+        return f*act(T)
+      end
     end
-
 end
 
-function ∂A(proj_operator::VecProj, pos::Tuple{Int,Int})
-   
-    action_vec = map(ptpo -> ∂A(ptpo, pos), proj_operator.data)
+function ∂A2(proj_operator::VecProj, isom::ITensor, posi::Tuple{Int,Int}; factors=ones(length(projTPO.environments)))
+    action_vec = map(ptpo -> ∂A2(ptpo, isom, pos; factors), proj_operator.data)
 
-    function action(T::ITensor)
-        return mapreduce(+, action_vec) do act
-            return act(T)
-        end
+    function action(link::ITensor)
+      return mapreduce(+, zip(factors,action_vec)) do (f,act)
+        return f*act(link)
+      end
     end
+    return action
 end
