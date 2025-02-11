@@ -26,13 +26,13 @@ Here we provide basic examples on how to use our package. More involved examples
 Currently, only perfect binary trees are implemented. This requires $L = 2^{n_{\rm layer}}$ where $n_{\rm layer}$ is the number of layers contained in the binary tree.
 
 ```julia
-using ITensors, TTTN
-Lx = 2^4 # length of the chain.
+using ITensors, ITensorMPS, TTN
+nlayers = 4 # Number of layers in the tree
 
 maxdims = 4 # maximal bond dimension of the random tensor network
 # Creates a network of nodes with a local Hilbertspace of S=1/2 spins
 # This is of type AbstractNetwork
-net = BinaryChainNetwork(Lx, "SpinHalf")
+net = BinaryChainNetwork(nlayers, "SpinHalf")
 # Creates a random tree tensor network based on `net`.
 ttn = RandomTreeTensorNetwork(net; maxdim = maxdims, elT = Float64)
 
@@ -43,11 +43,12 @@ zexpect = expect(ttn, "Z")
 We can also use quantum numbers
 
 ```julia
-using ITensors, TTTN
-Lx = 2^4 # length of the chain.
+using ITensors, ItensorMPS, TTN
+nlayers = 4 # Number of layers in the tree
+Lx = 2^nlayers
 states = [isodd(j) ? "Up" : "Dn" for j in 1:Lx] # product state
 # Creates a network of nodes with a local Hilbertspace of S=1/2 spins
-net = BinaryChainNetwork(Lx, "SpinHalf"; conserve_qns = true)
+net = BinaryChainNetwork(nlayers, "SpinHalf"; conserve_qns = true)
 # Creates a tree tensor network based on `net` representing the product state `states`.
 ttn = ProductTreeTensorNetwork(net states; elT = Float64)
 # calculation of the local magnetization for every lattice point
@@ -76,7 +77,7 @@ The index of the one dimensional system gets directly translated to the index re
 We only allow two-dimensional systems with a total number of spins $L_x + L_y = 2^{n_{\rm layer}}$. Also, the current implementation requires that both $L_x$ and $L_y$ be powers of two, where $L_x$ must be greater than $L_y$. This is likely to change in the near future.
 
 ```julia
-using ITensors, TTTN
+using ITensors, ITensorMPS, TTN
 dims = (2^2,2^2) # dimensions of the rectangle.
 
 maxdims = 4 # maximal bond dimension of the random tensor network
@@ -117,7 +118,7 @@ The first argument of the `nearest_neighbor` function is the physical lattice an
 To obtain a object which can be used for DMRG or TDVP, we now have to pass this `OpSum` object
 
 ```julia
-using ITensors, TTTN
+using ITensors, ITensorMPS, TTN
 dims = (2^2,2^2) # dimensions of the rectangle.
 J,g = 1, 0.1
 maxdims = 4 # maximal bond dimension of the random tensor network
