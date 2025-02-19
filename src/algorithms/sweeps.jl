@@ -88,10 +88,10 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
     end
     #noise = vcat(abs.(noise), repeat(noise[end:end], n_sweeps - length(noise)+1))
 
-    eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_DMRG)
-    eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
+    eigsolve_tol = get(kwargs, :eigsolve_tol, DEFAULT_TOL_DMRG)
+    eigsolve_krylovdim = get(kwargs, :eigsolve_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_DMRG)
-    #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
+    eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_DMRG)
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
