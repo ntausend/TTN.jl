@@ -43,7 +43,7 @@ zexpect = expect(ttn, "Z")
 We can also use quantum numbers
 
 ```julia
-using ITensors, ItensorMPS, TTN
+using ITensors, ITensorMPS, TTN
 nlayers = 4 # Number of layers in the tree
 Lx = 2^nlayers
 states = [isodd(j) ? "Up" : "Dn" for j in 1:Lx] # product state
@@ -101,13 +101,13 @@ where the sum is over all nearest neighbors in the square lattice for the $\sigm
 ```julia
 function TFI(J, g, lattice; periodic = true)
 	ampo = OpSum()
-    for bond in TTN.nearest_neighbor(lattice, collect(eachindex(lattice)); periodic = periodic)
+    for bond in TTN.nearest_neighbours(lattice, collect(eachindex(lattice)); periodic = periodic)
         b1 = coordinate(lat, first(bond))
         b2 = coordinate(lat, last(bond))
         ampo += J, "X", b1, "X", b2
     end
     for j in eachindex(lattice)
-       ampo += g, "Z", j 
+       ampo += g, "Z", coordinate(lat,j) 
     end
     return ampo
 end
