@@ -39,7 +39,7 @@ function _collapse_onsite(tpo::Vector{Prod{Op}})
 			Op(which_op(id), site(id); sm = smid, is_identity = true, op_length = 1)
 		end
 	end
-	return vcat(otrms_cllps, residual...)
+	return reduce(vcat, [otrms_cllps, residual...])
 end
 
 # version with unpacked product operator
@@ -83,7 +83,7 @@ function _collapse_onsite(tpo::Vector{Vector{Op}})
 		end
 		vcat(op_n, padding_id...)
 	end
-	return vcat(otrms_cllps, residual...)
+	return reduce(vcat, [otrms_cllps, residual...])
 end
 
 # version wich operators only on a vector and collapses all length one operators acting on the same site
