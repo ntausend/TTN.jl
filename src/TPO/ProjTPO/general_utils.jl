@@ -39,7 +39,8 @@ function _collapse_onsite(tpo::Vector{Prod{Op}})
 			Op(which_op(id), site(id); sm = smid, is_identity = true, op_length = 1)
 		end
 	end
-	return vcat(otrms_cllps, residual...)
+	res = vcat(otrms_cllps, residual...)
+	return res
 end
 
 # version with unpacked product operator

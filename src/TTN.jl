@@ -102,14 +102,15 @@ module TTN
     include("./TPO/AbstractTPO.jl")
     include("./TPO/AbstractProjectedTensorProductOperator.jl")
 
-    # gpu helper functions
-    export gpu, cpu
-    include("./gpu.jl")
     # MPO class
-    export Hamiltonian, ProjMPO, nearest_neighbours
+    export Hamiltonian, ProjMPO, nearest_neighbours, MPOWrapper
     include("./TPO/ProjMPO/MPO.jl")
     include("./TPO/ProjMPO/ProjectedMatrixProductOperator.jl")
     include("./TPO/ProjMPO/utilsMPO.jl")
+
+    # gpu helper functions
+    export gpu, cpu
+    include("./gpu.jl")
 
     # tensor product operator implementations
     export TPO, ProjTPO

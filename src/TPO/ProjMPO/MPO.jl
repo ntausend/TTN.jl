@@ -30,11 +30,12 @@ Creates an MPO used for the DMRG/TDVP simulations based on the abstract `OpSum` 
 The mapping translates between the order of the tree tensor network and the spacial lattice enumeration.
 The default is the standart one to one mapping. But in two and higher dimensions this might not be optimal and one have to choose a differnt mapping.
 """
-function Hamiltonian(ampo::OpSum, lat::AbstractLattice; mapping::Vector{Int} = collect(eachindex(lat)))
+function Hamiltonian(ampo::OpSum, lat::AbstractLattice; mapping = collect(eachindex(lat)))
     # @assert isone(dimensionality(lat))
     @assert is_physical(lat)
     # idx_lat = siteinds(lat)
-    idx_lat = map(mapping) do pos #inverse_mapping(mapping)
+    # idx_lat = map(mapping) do pos 
+    idx_lat = map(inverse_mapping(mapping)) do pos 
         hilbertspace(lat[pos])
     end
 

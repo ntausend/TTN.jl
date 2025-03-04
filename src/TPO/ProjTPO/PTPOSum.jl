@@ -211,6 +211,10 @@ function ∂A(projTPO::ProjTPOSum, pos::Tuple{Int,Int}; factors=ones(length(proj
   # getting the enviornments of the current position
   envsSum = map(env -> env[pos[1]][pos[2]], projTPO.environments)
 
+  @show "action1"
+  @show (length(envsSum))
+  @show (length(factors))
+  @show (factors)
   function action(T::ITensor)
     mapreduce(+, zip(factors,envsSum)) do (f,envs)
       return f*mapreduce(+, envs) do trm
@@ -254,18 +258,23 @@ end
 Returns the local action of the hamiltonian projected onto the link between the tensor at the node `pos` and `isom` which is assumed to be placed at one of the nodes connected to `pos` (NOT CHECKT!)
 """
 function ∂A2(projTPO::ProjTPOSum, isom::ITensor, posi::Tuple{Int,Int}; factors=ones(length(projTPO.environments)))
+  envsSum = map(env -> env[posi[1]][posi[2]], projTPO.environments)
 
-    envsSum = map(env -> env[posi[1]][posi[2]], projTPO.environments)
-    function action(link::ITensor)
-      mapreduce(+, zip(factors, envsSum)) do (f,envs)
-        return f*mapreduce(+, envs) do trm
-            tensor_list = vcat(isom, dag(prime(isom)), link, which_op.(trm))
-            opt_seq = optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list; sequence = opt_seq))
-        end
+  @show "action2"
+  @show (length(envsSum))
+  @show (length(factors))
+  @show (factors)
+
+  function action(link::ITensor)
+    mapreduce(+, zip(factors, envsSum)) do (f,envs)
+      return f*mapreduce(+, envs) do trm
+          tensor_list = vcat(isom, dag(prime(isom)), link, which_op.(trm))
+          opt_seq = optimal_contraction_sequence(tensor_list)
+          return noprime(contract(tensor_list; sequence = opt_seq))
       end
     end
-    return action
+  end
+  return action
 end
 
 # function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothing, Tuple{Int, Int}}) where{N}

@@ -24,12 +24,12 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
 
     # now start with the sweeping protocol
     initialize!(sp)
-    # measure!(
-    #     obs;
-    #     sweep_handler=sp,
-    #     outputlevel=outputlevel,
-    #     dt = 0,
-    # )
+    measure!(
+        obs;
+        sweep_handler=sp,
+        outputlevel=outputlevel,
+        dt = 0,
+    )
     #sp = SimpleSweepProtocol(net, n_sweeps)
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
@@ -210,7 +210,9 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
+    println("building ptpo")
     pTPO = ProjectedTensorProductOperator(psic, tpo)
+    println("finished building ptpo")
     
     func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
                                            krylovdim = eigsolve_krylovdim,
