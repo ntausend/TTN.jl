@@ -20,7 +20,7 @@ dims = (2^2, 2^2)
 # periodic boundary conditions
 periodic = false
 # if we want, we can use the gpu
-conserve_qns = false
+conserve_qns = true
 # performing 5 sweeps
 number_of_sweeps = 5
 
@@ -30,10 +30,13 @@ maxdims = 10
 net = BinaryRectangularNetwork(dims, "SpinHalf"; conserve_qns = conserve_qns)
 lat = physical_lattice(net)
 
-ttn0 = RandomTreeTensorNetwork(net; maxdim = nmaxdim, elT = Float64)
+ttn0 = RandomTreeTensorNetwork(net; maxdim = maxdims, elT = Float64)
 if use_gpu
     ttn0 = gpu(ttn0)
 end
+
+ham = J1J2Ham(J1, J2, lat; periodic = periodic)
+tpo = TTN.TPO(ham, lat)
 
 obs = EnergyObserver()
 

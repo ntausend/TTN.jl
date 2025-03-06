@@ -1,16 +1,16 @@
 # J1J2 Hamiltonian, J1 is the nearst neighbor coupling, J2 the coupling to next nearest neighbors
 function J1J2Ham(J1, J2, lat; periodic = false)
     ampo = OpSum()
-        for bond in TTNKit.nearest_neighbours(lat, collect(eachindex(lat)), periodic = periodic)
-            b1 = TTNKit.coordinate(lat, first(bond))
-            b2 = TTNKit.coordinate(lat, last(bond))
+        for bond in TTN.nearest_neighbours(lat, collect(eachindex(lat)), periodic = periodic)
+            b1 = TTN.coordinate(lat, first(bond))
+            b2 = TTN.coordinate(lat, last(bond))
             ampo += J1, "X", b1, "X", b2
             ampo += J1, "Y", b1, "Y", b2
             ampo += J1, "Z", b1, "Z", b2
         end
         for bond in next_nearest_neighbours(lat, collect(eachindex(lat)), periodic = periodic)
-            b1 = TTNKit.coordinate(lat, first(bond))
-            b2 = TTNKit.coordinate(lat, last(bond))
+            b1 = TTN.coordinate(lat, first(bond))
+            b2 = TTN.coordinate(lat, last(bond))
             ampo += J2, "X", b1, "X", b2
             ampo += J2, "Y", b1, "Y", b2
             ampo += J2, "Z", b1, "Z", b2
@@ -34,7 +34,7 @@ end
 function next_nearest_neighbours(lat::TTN.SimpleLattice, mapping::Vector{Int}; periodic::Bool = false)
 
     prod_it = Iterators.product(UnitRange.(1, lat.dims)...)
-    mapping = TTNKit.inverse_mapping(mapping)
+    mapping = TTN.inverse_mapping(mapping)
         iter = map(prod_it) do pos
            map([-1,+1]) do dir
                     xpos = pos[2] + dir
@@ -46,7 +46,7 @@ function next_nearest_neighbours(lat::TTN.SimpleLattice, mapping::Vector{Int}; p
                         nextpos = map(zip(new_pos, lat.dims)) do (pp,d)
                                 return mod(pp-1, d)+1
                         end
-                        return (mapping[TTNKit.linear_ind(lat, pos)], mapping[TTNKit.linear_ind(lat, Tuple(nextpos))])
+                        return (mapping[TTN.linear_ind(lat, pos)], mapping[TTN.linear_ind(lat, Tuple(nextpos))])
                 end
         end
     return Vector{Tuple{Vararg{Int}}}(filter(!isnothing, vcat(vec(iter)...)))
