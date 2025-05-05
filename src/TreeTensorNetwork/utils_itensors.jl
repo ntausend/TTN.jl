@@ -15,6 +15,9 @@ function _enlarge_two_leg_tensor(T::ITensor, id_n::Tuple{Index, Index}, use_rand
     # first create a dummy Tensor with the correct sectors
     Ttn = use_random ? random_itensor(eltype(T), flux(T), id_n...) : ITensor(eltype(T), 0, flux(T), id_n...)
 
+    # move Ttn to GPU memory if T is on GPU
+    occursin("Cu",string(typeof(T.tensor))) && (Ttn = adapt(CuArray,Ttn))
+
 
     Tpt = ITensors.tensor(T)
     Tnt = ITensors.tensor(Ttn)
