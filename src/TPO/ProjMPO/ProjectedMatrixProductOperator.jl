@@ -82,7 +82,7 @@ function _update_top_environment!(projTPO::ProjMPO, isom::ITensor, pos::Tuple{In
     b_collect = deleteat!(collect(1:number_of_child_nodes(net, pos)), index_of_child(net, pos_final))
     tensorListBottom = map(jj -> bottom_environment(projTPO, pos, jj), b_collect)
 
-    opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), tEnv, tensorListBottom...)
+    opt_seq = optimal_contraction_sequence(isom, dag(prime(isom)), tEnv, tensorListBottom...)
     projTPO.top_envs[pos_final[1]][pos_final[2]] = contract(isom, dag(prime(isom)), tEnv, tensorListBottom...; sequence = opt_seq)
 
     return projTPO
@@ -91,7 +91,7 @@ function _update_bottom_environment!(projTPO::ProjMPO, isom::ITensor, pos::Tuple
     net = network(projTPO)
 
     bEnvs = bottom_environment(projTPO, pos)
-    opt_seq = ITensors.optimal_contraction_sequence(isom, dag(prime(isom)), bEnvs...)
+    opt_seq = optimal_contraction_sequence(isom, dag(prime(isom)), bEnvs...)
     projTPO.bottom_envs[pos_final[1]][pos_final[2]][index_of_child(net, pos)] = contract(isom, dag(prime(isom)), bEnvs...; sequence = opt_seq)
     return projTPO
 end
@@ -107,7 +107,7 @@ function ∂A(projTPO::ProjMPO, pos::Tuple{Int,Int})
     envs = projTPO[pos]
     function action(T::ITensor)
         tensor_list = vcat(T, envs)
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        opt_seq = optimal_contraction_sequence(tensor_list)
         return noprime(contract(tensor_list; sequence = opt_seq))
     end
     return action
@@ -125,7 +125,7 @@ function ∂A2(projTPO::ProjMPO, isom::ITensor, pos::Tuple{Int,Int})
     envs = projTPO[pos]
     function action(link::ITensor)
         tensor_list = vcat(isom, dag(prime(isom)), link, envs...)
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        opt_seq = optimal_contraction_sequence(tensor_list)
         return noprime(contract(tensor_list; sequence = opt_seq))
     end
     return action
@@ -141,7 +141,7 @@ function ∂A3(projTPO::ProjMPO, pos::Tuple{Int,Int})
 
     function action(isom_chd::ITensor, isom_prnt::ITensor)
         tensor_list = vcat(isom_chd, isom_prnt, bottomEnvs_chd..., envs_prnt...)
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        opt_seq = optimal_contraction_sequence(tensor_list)
         return noprime(contract(tensor_list; sequence = opt_seq))
     end
     return action
@@ -170,7 +170,7 @@ function noiseterm(ptpo::ProjMPO, T::ITensor, pos_next::Union{Nothing, Tuple{Int
     else
         error("Next position is not valid for defining a noise term (needs to be neighbored): pos=$pos, next position=$(pos_next)")
     end
-    opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+    opt_seq = optimal_contraction_sequence(tensor_list)
     nt = contract(tensor_list; sequence = opt_seq)
 
     nt = nt * dag(noprime(nt))
