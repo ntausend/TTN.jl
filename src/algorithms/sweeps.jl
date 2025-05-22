@@ -204,11 +204,14 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     timestep = get(kwargs, :timestep, 1e-2)
     initialtime = get(kwargs, :initialtime, 0.)
     finaltime = get(kwargs, :finaltime, 1.)
+
+    save_to_cpu = get(kwargs, :save_to_cpu, false)
+
     psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    pTPO = ProjectedTensorProductOperator(psic, tpo)
-    
+    pTPO = ProjectedTensorProductOperator(psic, tpo; save_to_cpu)
+
     func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
                                            krylovdim = eigsolve_krylovdim,
                                            tol = eigsolve_tol, 

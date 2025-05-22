@@ -23,22 +23,68 @@ end
 
 convert_cu(T::ITensor, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
 
+function convert_cpu(T::ITensor)
+    return adapt(Array, T)
+end
+
 function convert_cu(T::Vector{ITensor}, T_type::ITensor)
     return map(t -> convert_cu(t, T_type), T)
 end
 
 function convert_cu(T::Op, T_type::ITensor)
     is_cu(T_type) || return T
-    # return Op(cu(which_op(T)), T.sites...; T.params...)
     return Op(adapt(CuArray, which_op(T)), T.sites...; T.params...)
 end
 
 convert_cu(T::Op, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
 convert_cu(T::Vector{Op}, ttn::TreeTensorNetwork) = map(t -> convert_cu(t, ttn), T)
 
+function convert_cpu(T::Op)
+    return Op(adapt(Array, which_op(T)), T.sites...; T.params...)
+end
+
+function convert_cpu(T::Prod{Op})
+    new_args = tuple(convert_cpu.(collect(T.args))...)
+
+    return Prod{Op}(T.f, new_args, T.kwargs)
+end
+
+function convert_cpu(env::Vector{Prod{Op}})
+    return convert_cpu.(env)
+end
+
+function convert_cpu(env::Vector{Vector{Vector{Prod{Op}}}})
+    return map(x->map(y->convert_cpu.(y), x), env)
+end
+
+function convert_cpu(T::Vector{Op})
+    return convert_cpu.(T)
+end
+
+function convert_cu(T::Op)
+    return Op(adapt(CuArray, which_op(T)), T.sites...; T.params...)
+end
+
+function convert_cu(T::Prod{Op})
+    new_args = tuple(convert_cu.(collect(T.args))...)
+    return Prod{Op}(T.f, new_args, T.kwargs)
+end
+
+function convert_cu(env::Vector{Prod{Op}})
+    return convert_cu.(env)
+end
+
+function convert_cu(env::Vector{Vector{Vector{Prod{Op}}}})
+    return map(x->map(y->convert_cu.(y), x), env)
+end
+
+function convert_cu(T::Vector{Op})
+    return convert_cu.(T)
+end
+
 """
 ```julia
-    pu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
+    cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
 ```
 
 Copy the data of the tree tensor network from the GPU to the CPU.

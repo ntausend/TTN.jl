@@ -6,6 +6,7 @@ struct ProjTPO{N<:AbstractNetwork, T} <: AbstractProjTPO{N,T}
     rg_terms_upwards::Vector{Vector{Vector{Vector{Op}}}}
     #rg_id_upwars::Vector{Vector{Vector{T}}}
     environments::Vector{Vector{Vector{Prod{Op}}}}
+    save_to_cpu::Bool
 end
 
 # general constructor from a formal sum, depending on the case it will 
@@ -17,18 +18,21 @@ end
 
 Builds the link tensors for applying the local action of the Hamiltonian.
 """
-function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO) where {N,T}
+function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO; save_to_cpu::Bool = false) where {N,T}
     net = network(ttn)
     # first construct the tpo, invovles some conversion and returns
     # a vector (representing the sum) of the product operators.
     # calcualte the uprg flows of the operators and identities
     rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo)
     # build the environments
-    envs = _build_environments(ttn, rg_flw_up, id_up_rg)
-    return ProjTPO{N, T}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs)
+    envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
+
+    println("save_to_cpu: ", save_to_cpu)
+
+    return ProjTPO{N, T}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs, save_to_cpu)
 end
 
-ProjectedTensorProductOperator(ttn::TreeTensorNetwork, tpo::TPO) = ProjTPO(ttn, tpo)
+ProjectedTensorProductOperator(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu::Bool = false) = ProjTPO(ttn, tpo; save_to_cpu)
 
 environments(ptpo::ProjTPO, pos::Tuple{Int, Int}) = ptpo.environments[pos[1]][pos[2]]
 
@@ -36,17 +40,14 @@ include("./general_utils.jl")
 include("./construct_environments_itensors.jl")
 include("./construct_environments_itensors_implicit_identity.jl")
 
-
 function rebuild_environments!(projTPO::ProjTPO, ttn::TreeTensorNetwork)
     net = network(projTPO)
     @assert net == network(ttn)
 
     tpo = projTPO.tpo
     rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo)
-    #rg_flw_up = _up_rg_flow_future(ttn, tpo)
     # build the environments
-    envs = _build_environments(ttn, rg_flw_up, id_up_rg)
-    #envs = _build_environments_future_future(ttn, rg_flw_up)
+    envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
 
     projTPO.rg_terms_upwards .= rg_flw_up
     projTPO.environments     .= envs
@@ -57,12 +58,14 @@ end
 
 
 function update_environments_future!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
+    save_to_cpu = projTPO.save_to_cpu
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
     
     # get the envrionments of the current position
-    envs_cur = projTPO[pos]
-    envs_target = projTPO[pos_final]
+    envs_cur    = save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
+    envs_target = save_to_cpu ? convert_cu(projTPO[pos_final]) : projTPO[pos_final]
+
     # extract all components comming from below
     terms_filtered = map(envs_cur) do smt
         filter(T -> site(T) != pos_final, terms(smt))
@@ -102,14 +105,21 @@ end
 
 
 function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
+    save_to_cpu = projTPO.save_to_cpu
+    println("update_envs")
+    println("save_to_cpu: ", save_to_cpu)
 
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
     
     
     # get the envrionments of the current position
-    envs_cur = projTPO[pos]
-    envs_target = projTPO[pos_final]
+    # envs_cur = projTPO[pos]
+    # envs_target = projTPO[pos_final]
+
+    envs_cur    = save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
+    envs_target = save_to_cpu ? convert_cu(projTPO[pos_final]) : projTPO[pos_final]
+
     # extract all components comming from below
     terms_filtered = map(envs_cur) do smt
         filter(T -> site(T) != pos_final, terms(smt))
@@ -124,9 +134,9 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
             op_reduction -= 1
         end
         tensor_list = [isom, _ops..., dag(prime(isom))]
-        opt_seq = optimal_contraction_sequence(tensor_list)
+        # opt_seq = optimal_contraction_sequence(tensor_list)
 				
-        _rg_op = contract(tensor_list; sequence = opt_seq)
+        _rg_op = contract(tensor_list) #; sequence = opt_seq)
         prm   = params.(smt)
 		# summand index, should be the same for all
 		sid  = only(unique(getindex.(prm, :sm)))
@@ -176,7 +186,8 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
     end
 
     # now rebuild the environments for the new node
-    projTPO.environments[pos_final[1]][pos_final[2]] = vcat(env_n_onsite, env_n_id..., env_n_int)
+    new_envs = vcat(env_n_onsite, env_n_id..., env_n_int)
+    projTPO.environments[pos_final[1]][pos_final[2]] = save_to_cpu ? convert_cpu(new_envs) : new_envs
 
     return projTPO
 end
@@ -190,21 +201,26 @@ Returns the local action of the hamiltonian projected onto the `pos` node in the
 """
 function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
     # getting the enviornments of the current position
-    envs = projTPO[pos]
+    # envs = projTPO[pos]
+    envs = projTPO.save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
+    println("action")
+    println("save_to_cpu: ", projTPO.save_to_cpu)
 
     function action(T::ITensor)
-        mapreduce(+, envs) do trm
+        result = mapreduce(+, envs) do trm
             _ops = which_op.(trm)
             tensor_list = vcat(T, _ops)
-            opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list; sequence = opt_seq))
+            # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list)) #; sequence = opt_seq))
         end
+        projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
+        return result
     end
 end
 
 function ∂A(projTPO::ProjTPO{N, ITensor}, o1s::Vector{ITensor}, weight::Float64, pos::Tuple{Int,Int}) where{N}
     # getting the enviornments of the current position
-    envs = projTPO[pos]
+    envs = projTPO.save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
 
     #o1s = [inner(sweep_handler.ttn, ttn_ortho, pos) for ttn_ortho in sweep_handler.ttns_ortho]
 
@@ -213,8 +229,8 @@ function ∂A(projTPO::ProjTPO{N, ITensor}, o1s::Vector{ITensor}, weight::Float6
         result = mapreduce(+, envs) do trm
             _ops = which_op.(trm)
             tensor_list = vcat(T, _ops)
-            opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list; sequence = opt_seq)) 
+            # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list)) # ; sequence = opt_seq)) 
         end
 
         orthos = mapreduce(+,o1s) do o1
@@ -233,13 +249,18 @@ end
 Returns the local action of the hamiltonian projected onto the link between the tensor at the node `pos` and `isom` which is assumed to be placed at one of the nodes connected to `pos` (NOT CHECKT!)
 """
 function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
-    envs = projTPO[posi]
+    # envs = projTPO[posi]
+    println("action2")
+    println("save_to_cpu: ", projTPO.save_to_cpu)
+    envs = projTPO.save_to_cpu ? convert_cu(projTPO[posi]) : projTPO[posi]
     function action(link::ITensor)
-        mapreduce(+, envs) do trm 
+        result = mapreduce(+, envs) do trm 
             tensor_list = vcat(isom, dag(prime(isom)), link, which_op.(trm))
-            opt_seq = optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list; sequence = opt_seq))
+            # opt_seq = optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list)) #; sequence = opt_seq))
         end
+        projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
+        return result
     end
     return action
 end
@@ -288,8 +309,8 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
             !(site == pos_next)
         end)
         tensor_list = vcat(T, ops)
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        noprime(contract(tensor_list; sequence = opt_seq))
+        # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        noprime(contract(tensor_list)) #; sequence = opt_seq))
     end
 
 	 trms_int = filter(envs_trm) do smt
@@ -307,8 +328,8 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
         end), 1, plev = 1)
 
 		tensor_list = vcat(T, ops)
-		opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-		ϕ′ = noprime(contract(tensor_list; sequence = opt_seq))
+		# opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+		ϕ′ = noprime(contract(tensor_list)) #; sequence = opt_seq))
 		return prime(ϕ′, res_inds) * dag(ϕ′)
 		#tensor_list = vcat(rho, ops, prime.(dag.(ops)))
         #opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
@@ -359,8 +380,8 @@ function ∂A(proj_ttn::ProjTTN, pos::Tuple{Int,Int})
     function action(T::ITensor)
         #println("using projttn action")
         tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
+        # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return proj_ttn.weight * (noprime(contract(tensor_list))) #; sequence = opt_seq)))
     end
 
 end
