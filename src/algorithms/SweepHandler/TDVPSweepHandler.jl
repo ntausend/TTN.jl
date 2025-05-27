@@ -80,8 +80,6 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     pTPO = sp.pTPO
     net = network(ttn)
     T = ttn[pos]
-    println(" ========================== forward ======================= ")
-    @show pos
     # detmermine next position
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
     Δ = nextpos .- pos
@@ -131,8 +129,6 @@ end
 # backward mode of the TDVP sweep
 # the tensor at position pos is only updated if the next step goes a layer down in the network, otherwise we just move the isometry center
 function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
-    println(" ========================== backward ======================= ")
-    @show pos
     ttn = sp.ttn
     pTPO = sp.pTPO
     net = network(ttn)

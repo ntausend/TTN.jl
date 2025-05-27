@@ -27,8 +27,6 @@ function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO; save_to_cpu::Bool = fal
     # build the environments
     envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
 
-    println("save_to_cpu: ", save_to_cpu)
-
     return ProjTPO{N, T}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs, save_to_cpu)
 end
 
@@ -106,8 +104,6 @@ end
 
 function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
     save_to_cpu = projTPO.save_to_cpu
-    println("update_envs")
-    println("save_to_cpu: ", save_to_cpu)
 
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
@@ -134,9 +130,9 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
             op_reduction -= 1
         end
         tensor_list = [isom, _ops..., dag(prime(isom))]
-        # opt_seq = optimal_contraction_sequence(tensor_list)
+        opt_seq = optimal_contraction_sequence(tensor_list)
 				
-        _rg_op = contract(tensor_list) #; sequence = opt_seq)
+        _rg_op = contract(tensor_list; sequence = opt_seq)
         prm   = params.(smt)
 		# summand index, should be the same for all
 		sid  = only(unique(getindex.(prm, :sm)))
@@ -202,18 +198,30 @@ Returns the local action of the hamiltonian projected onto the `pos` node in the
 function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
     # getting the enviornments of the current position
     # envs = projTPO[pos]
-    envs = projTPO.save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
-    println("action")
-    println("save_to_cpu: ", projTPO.save_to_cpu)
+    envs = projTPO.save_to_cpu ? convert_cu(copy(projTPO[pos])) : projTPO[pos]
+    # println("action")
+    # println("save_to_cpu: ", projTPO.save_to_cpu)
+    # println()
+    # println("========================== first ===========================")
+    # println()
+    # @show isnothing(envs)
 
     function action(T::ITensor)
+        # println()
+        # println("========================== before ===========================")
+        # println()
+        # @show isnothing(envs)
         result = mapreduce(+, envs) do trm
+            # println()
+            # println("========================== in function ===========================")
+            # println()
+            # @show isnothing(envs)
             _ops = which_op.(trm)
             tensor_list = vcat(T, _ops)
-            # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list)) #; sequence = opt_seq))
+            opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list; sequence = opt_seq))
         end
-        projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
+        # projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
         return result
     end
 end
@@ -229,8 +237,8 @@ function ∂A(projTPO::ProjTPO{N, ITensor}, o1s::Vector{ITensor}, weight::Float6
         result = mapreduce(+, envs) do trm
             _ops = which_op.(trm)
             tensor_list = vcat(T, _ops)
-            # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list)) # ; sequence = opt_seq)) 
+            opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list; sequence = opt_seq)) 
         end
 
         orthos = mapreduce(+,o1s) do o1
@@ -250,16 +258,16 @@ Returns the local action of the hamiltonian projected onto the link between the 
 """
 function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
     # envs = projTPO[posi]
-    println("action2")
-    println("save_to_cpu: ", projTPO.save_to_cpu)
-    envs = projTPO.save_to_cpu ? convert_cu(projTPO[posi]) : projTPO[posi]
+    # println("action2")
+    # println("save_to_cpu: ", projTPO.save_to_cpu)
+    envs = projTPO.save_to_cpu ? convert_cu(copy(projTPO[posi])) : projTPO[posi]
     function action(link::ITensor)
         result = mapreduce(+, envs) do trm 
             tensor_list = vcat(isom, dag(prime(isom)), link, which_op.(trm))
-            # opt_seq = optimal_contraction_sequence(tensor_list)
-            return noprime(contract(tensor_list)) #; sequence = opt_seq))
+            opt_seq = optimal_contraction_sequence(tensor_list)
+            return noprime(contract(tensor_list; sequence = opt_seq))
         end
-        projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
+        # projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
         return result
     end
     return action
@@ -309,8 +317,8 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
             !(site == pos_next)
         end)
         tensor_list = vcat(T, ops)
-        # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        noprime(contract(tensor_list)) #; sequence = opt_seq))
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        noprime(contract(tensor_list; sequence = opt_seq))
     end
 
 	 trms_int = filter(envs_trm) do smt
@@ -328,8 +336,8 @@ function noiseterm(ptpo::ProjTPO{N, ITensor}, T::ITensor, pos_next::Union{Nothin
         end), 1, plev = 1)
 
 		tensor_list = vcat(T, ops)
-		# opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-		ϕ′ = noprime(contract(tensor_list)) #; sequence = opt_seq))
+		opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+		ϕ′ = noprime(contract(tensor_list; sequence = opt_seq))
 		return prime(ϕ′, res_inds) * dag(ϕ′)
 		#tensor_list = vcat(rho, ops, prime.(dag.(ops)))
         #opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
@@ -380,8 +388,8 @@ function ∂A(proj_ttn::ProjTTN, pos::Tuple{Int,Int})
     function action(T::ITensor)
         #println("using projttn action")
         tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
-        # opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        return proj_ttn.weight * (noprime(contract(tensor_list))) #; sequence = opt_seq)))
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
     end
 
 end

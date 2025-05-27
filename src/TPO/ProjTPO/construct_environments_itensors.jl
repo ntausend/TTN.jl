@@ -129,8 +129,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 					# getting the up pointing index -> remove this by
 					# including the id rg flow?
 					tensor_list = [Tn, _ops..., dag(prime(Tn))]
-          # opt_seq = optimal_contraction_sequence(tensor_list)
-          _rg_op = contract(tensor_list) #; sequence = opt_seq)
+          opt_seq = optimal_contraction_sequence(tensor_list)
+          _rg_op = contract(tensor_list; sequence = opt_seq)
 					# now build the new params list
 					prm   = params.(trms)
 					# summand index, should be the same for all
@@ -149,8 +149,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 				#idx_up = commonind(ttn[(ll,pp)],Tn)
 				idchlds = id_rg[chd[1]][chd[2]]
 				tensor_list = vcat(Tn, idchlds..., dag(prime(Tn)))
-				# opt_seq = optimal_contraction_sequence(tensor_list)
-				idn = contract(tensor_list) #; sequence = opt_seq)
+				opt_seq = optimal_contraction_sequence(tensor_list)
+				idn = contract(tensor_list; sequence = opt_seq)
 				id_rg[ll][pp][index_of_child(net, chd)] = idn
 			end
 		end
@@ -215,8 +215,8 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 				_ops = which_op.(trm)
 				
 				tensor_list = [Tn, _ops..., dag(prime(Tn))]
-            	# opt_seq = optimal_contraction_sequence(tensor_list)
-				_rg_op = contract(tensor_list) #; sequence = opt_seq)
+            	opt_seq = optimal_contraction_sequence(tensor_list)
+				_rg_op = contract(tensor_list; sequence = opt_seq)
 				
 				prm   = params.(trm)
 				# summand index, should be the same for all
@@ -335,8 +335,8 @@ function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNe
 
 				idchlds = id_rg[chd[1]][chd[2]]
 				tensor_list = vcat(Tn1,idchlds..., prime(dag(Tn2)))
-				# opt_seq = optimal_contraction_sequence(tensor_list)
-				id_rg[ll][pp][index_of_child(net, chd)] = contract(tensor_list) #; sequence = opt_seq)
+				opt_seq = optimal_contraction_sequence(tensor_list)
+				id_rg[ll][pp][index_of_child(net, chd)] = contract(tensor_list; sequence = opt_seq)
 			end
 		end
 	end
@@ -364,8 +364,8 @@ function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwo
 
 		bottom_env_element = id_up_overlap[nlayers][1][pp]
 		tensor_list = vcat(Tn1, bottom_env_element, prime(dag(Tn2)))
-		#opt_seq = optimal_contraction_sequence(tensor_list)
-		top_environments[end][isodd(pp)+1] = contract(tensor_list)#contract(tensor_list; sequence = opt_seq)
+		opt_seq = optimal_contraction_sequence(tensor_list)
+		top_environments[end][isodd(pp)+1] = contract(tensor_list; sequence = opt_seq)
 	end
 	
 	# now go backwards through the network and calculate the downflow
@@ -385,8 +385,8 @@ function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwo
 
 				# order of tensor list is previous_top_env, ket tensor, bottom_env_element, bra tensor
 				tensor_list = vcat(previous_top_env, Tn1, bottom_env_element, prime(dag(Tn2)))
-				# opt_seq = optimal_contraction_sequence(tensor_list)
-				top_environments[ll-1][chd[2]] = contract(tensor_list) # ; sequence = opt_seq)
+				opt_seq = optimal_contraction_sequence(tensor_list)
+				top_environments[ll-1][chd[2]] = contract(tensor_list; sequence = opt_seq)
 			end
 		end		
 	end
@@ -526,9 +526,9 @@ function update_environments_down!(projttn::ProjTTN, isom::ITensor, pos::Tuple{I
 
 	tensor_list[1] = isom
 
-	# opt_seq = optimal_contraction_sequence(tensor_list)
+	opt_seq = optimal_contraction_sequence(tensor_list)
 
-	top_env_final = contract(tensor_list) #; sequence = opt_seq)
+	top_env_final = contract(tensor_list; sequence = opt_seq)
 
 	projttn.top_envs[pos_final[1]][pos_final[2]] = top_env_final
 	projttn.local_env = build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,pos_final)
@@ -551,8 +551,8 @@ function update_environments_up!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int
 	tensor_list[4] = dag(prime(projttn.psi_overlap[pos]))
 	tensor_list[1] = isom
 
-	# opt_seq = optimal_contraction_sequence(tensor_list)
-	bottom_env_final = contract(tensor_list) # ; sequence = opt_seq)
+	opt_seq = optimal_contraction_sequence(tensor_list)
+	bottom_env_final = contract(tensor_list; sequence = opt_seq)
 
 	chlds = child_nodes(network(projttn), pos_final)
 	projttn.bottom_envs[pos_final[1]][pos_final[2]][findfirst(x -> x == pos, chlds)] = bottom_env_final
