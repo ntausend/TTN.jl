@@ -54,6 +54,7 @@ module TTN
     using ITensors: terms, which_op, site, params
     #ITensorMPS.sortmergeterms, , ITensorMPS.determineValType
 	using ITensors: argument, optimal_contraction_sequence
+    using TensorOperations
 
 
     # contract_tensor ncon wrapper
@@ -125,5 +126,14 @@ module TTN
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+
+
+    # Revised Operator structures including LCA
+    export OpGroup, TPO_group, ProjTPO_group
+    export Link, LCAInfo, build_tpo_from_opsum, filter_site_terms
+    include("./RevisedOperators/OpStructs.jl")
+    export paired_sites, rerooted_parent_map, lowest_common_ancestor_node_links, build_lca_map
+    include("./RevisedOperators/LCA.jl")
+
 
 end # module
