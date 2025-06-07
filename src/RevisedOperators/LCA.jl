@@ -1,18 +1,3 @@
-## Get list of all paired sites in the TPO
-"""
-    paired_sites(tpo::TPO_group)
-Returns a Set of tuples representing pairs of sites in the TPO that are paired together.
-"""
-function paired_sites(tpo::TPO_group)
-    pairs = Set{Tuple{Int,Int}}()
-    for term in tpo.terms
-        if length(term.sites) == 2
-            push!(pairs, (term.sites[1], term.sites[2]))
-        end
-    end
-    return collect(pairs)
-end
-
 """
     rerooted_parent_map(net::AbstractNetwork, root::Tuple{Int,Int})
 
@@ -107,32 +92,94 @@ function lowest_common_ancestor_node_links(net::AbstractNetwork, site1, site2, r
     return (lca, leg1, leg2)
 end
 
-function build_lca_map(net::AbstractNetwork, tpo::TPO_group)
-    lca_sites = paired_sites(tpo)
-    lca_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
+function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_group)
+    lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
-    for l in 1:number_of_layers(net)
-        for n in 1:number_of_tensors(net, l)
-            root = (l, n)
+    for op in tpo
+        if length(op.sites) == 2
+            site1, site2 = op.sites
+            ## Ensure site1 < site2 for consistent ordering, already done
+            # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
+            for l in 1:number_of_layers(net)
+                for n in 1:number_of_tensors(net, l)
+                    root = (l, n)
+                    # Find the lowest common ancestor for the pair of sites
+                    lca, link1, link2 = lowest_common_ancestor_node_links(net, site1, site2, root)
 
-            for (s1, s2) in lca_sites
-                # Get the sites in the physical lattice
-                site1 = (0, s1)
-                site2 = (0, s2)
-
-                # Find the lowest common ancestor for the pair of sites
-                lca, link1, link2 = lowest_common_ancestor_node_links(net, site1, site2, root)
-
-                # Store the LCA information in a dictionary
-                get!(lca_map, (s1, s2), Dict())[root] = LCA(lca, (link1, link2))
+                    # Store the LCA information in a dictionary
+                    get!(lca_sites_map, (site1[2], site2[2]), Dict())[root] = LCA(lca, (link1, link2))
+                end
             end
         end
     end
-    return lca_map
+    return lca_sites_map
 end
+
+function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
+    lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
+    # Iterate over all pairs of sites in the TPO
+    for op in tpo
+        if length(op.sites) == 2
+            site1, site2 = op.sites
+            ## Ensure site1 < site2 for consistent ordering, already done
+            # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
+            for l in 1:number_of_layers(net)
+                for n in 1:number_of_tensors(net, l)
+                    root = (l, n)
+                    # Find the lowest common ancestor for the pair of sites
+                    lca, link1, link2 = lowest_common_ancestor_node_links(net, site1, site2, root)
+
+                    # Store the LCA information in a dictionary
+                    get!(lca_id_map, op.id, Dict())[root] = LCA(lca, (link1, link2))
+                end
+            end
+        end
+    end
+    return lca_id_map
+end
+
 
 #=
 
+function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
+    lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
+
+    # Get sites map
+    lca_sites_map = build_lca_sites_map(net, tpo)
+    for op in tpo
+        # op.sites is the ((0,site1), (0,site2)) tuple
+        # lin_sites = (op.sites[1][2], op.sites[2][2])
+        if length(op) == 2
+            lca_id_map[op.id] = lca_sites_map[op.sites[1][2], op.sites[2][2]]
+        end
+    end
+    return lca_id_map
+end
+
+=#
+
+#=
+
+## Get list of all paired sites in the TPO
+"""
+    paired_sites(tpo::TPO_group)
+Returns a Set of tuples representing pairs of sites in the TPO that are paired together.
+"""
+function paired_sites(tpo::TPO_group)
+    pairs = Set{Tuple{Tuple{Int,Int}, Tuple{Int,Int}}}()
+    for terms in tpo
+        if length(terms.sites) == 2
+            site1, site2 = terms.sites
+            pair = site1 < site2 ? (site1, site2) : (site2, site1)
+            push!(pairs, pair)
+        end
+    end
+    return collect(pairs)
+end
+
+=#
+
+#=
 ## Obsolete: Use LCA() constructor instead?
 
 function lca_info(net::AbstractNetwork, lca_sites::Vector{Tuple{Int64, Int64}}, root::Tuple{Int,Int})

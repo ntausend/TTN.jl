@@ -39,13 +39,12 @@ Fields:
                lca_link :: Tuple{Int,Int} # 0 = parent, 1 = child1, 2 = child2
 """
 struct OpGroup
-    id::Int
-    sites::Vector{Int}
-    ops::Vector{ITensor}
-    # sites::NTuple{N, Int} where {N}
-    # ops::NTuple{N, ITensor} where {N}
+  id::Int
+  sites::NTuple{N,Tuple{Int,Int}} where N
+  ops::NTuple{N,ITensor} where N
 end
 
+length(op::OpGroup) = length(op.sites)
 
 # ─────────────────────────────────────────────
 # Mid-level: Tree tensor product operator (TPO)
@@ -67,7 +66,10 @@ end
 getindex(tpo::TPO_group, i::Int) = tpo.terms[i]
 length(tpo::TPO_group) = length(tpo.terms)
 iterate(tpo::TPO_group, state=1) = state > length(tpo) ? nothing : (tpo[state], state+1)
+firstindex(tpo::TPO_group) = 1
+lastindex(tpo::TPO_group) = length(tpo.terms)
 
+# IndexStyle(::Type{TPO_group}) = IndexLinear()
 
 # ─────────────────────────────────────────────
 # Top-level: Projected TPO structure (ProjTPO)
@@ -86,22 +88,24 @@ Fields:
 - `lca_map`    : Dict{(site1, site2) => Dict{(layer, node) => (lca_layer, lca_node, lca_links)}} mapping
                 each site to its rerooted lowest common ancestor (LCA) under the current OC.
 """
-struct ProjTPO_group{N}
-    net::N
+struct ProjTPO_group
+    net::AbstractNetwork
     tpo::TPO
     oc::Tuple{Int,Int}
     link_ops::Dict{Link, Vector{ITensor}}
-    lca_map::Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}
+    lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
 end
 
 
 # Collect all terms acting on a specific site
-function filter_site_terms(groups::Vector{OpGroup}, target_site::Int)
-    return filter(g -> target_site in g.sites, groups)
+## Extend for ProjTPO?
+function filter_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
+    # Filter groups where the target site is in the sites of the group
+    return filter(g -> target_site in g.sites, tpo.terms)
 end
 
 function build_tpo_from_opsum(ampo::OpSum, lat)
-    physidx = siteinds(lat)	
+        physidx = siteinds(lat)	
     op_s = OpGroup[]
     terms = filter(t -> !isapprox(coefficient(t),0), ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
     tpo = Vector{OpGroup}(undef, length(terms))
@@ -130,6 +134,8 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
             push!(site_indices, siteidx_lin)
         end
         # Create the OpGroup for this term
+        site_indices = tuple(((0, x) for x in site_indices)...)
+        operator_tensors = tuple(operator_tensors...)
         push!(op_s, OpGroup(op_id, site_indices, operator_tensors))
         op_id += 1
     end
