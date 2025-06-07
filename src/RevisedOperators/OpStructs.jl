@@ -46,6 +46,8 @@ end
 
 length(op::OpGroup) = length(op.sites)
 
+OpGroup(id::Int, site::Tuple{Int,Int}, op::ITensor) = OpGroup(id, (site,), (op,))
+
 # ─────────────────────────────────────────────
 # Mid-level: Tree tensor product operator (TPO)
 # ─────────────────────────────────────────────
@@ -67,7 +69,7 @@ getindex(tpo::TPO_group, i::Int) = tpo.terms[i]
 length(tpo::TPO_group) = length(tpo.terms)
 iterate(tpo::TPO_group, state=1) = state > length(tpo) ? nothing : (tpo[state], state+1)
 firstindex(tpo::TPO_group) = 1
-lastindex(tpo::TPO_group) = length(tpo.terms)
+lastindex(tpo::TPO_group) = length(tpo)
 
 # IndexStyle(::Type{TPO_group}) = IndexLinear()
 
@@ -90,21 +92,59 @@ Fields:
 """
 struct ProjTPO_group
     net::AbstractNetwork
-    tpo::TPO
+    tpo::TPO_group
     oc::Tuple{Int,Int}
-    link_ops::Dict{Link, Vector{ITensor}}
+    link_ops::Dict{Link, Vector{OpGroup}}
     lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
 end
 
+# ─────────────────────────────────────────────
+# Helper function to build a TPO from an OpSum 
+# ─────────────────────────────────────────────
 
-# Collect all terms acting on a specific site
-## Extend for ProjTPO?
-function filter_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
-    # Filter groups where the target site is in the sites of the group
-    return filter(g -> target_site in g.sites, tpo.terms)
-end
+"""
+    build_tpo_from_opsum(ampo::OpSum, lat)
+Builds a `TPO_group` from an `OpSum` by extracting terms and converting them to `OpGroup`.
+
+`ampo` is an `OpSum` containing the operator terms, and `lat` is the lattice structure.
+
+This function constructs `OpGroup` instances for each term,
+and returns a `TPO_group` containing all the operator groups.
+N-site operators are splitted into individual `OpGroup` instances matched by their unique ID.
+"""
 
 function build_tpo_from_opsum(ampo::OpSum, lat)
+    physidx = siteinds(lat)	
+    op_s = OpGroup[]
+    terms = filter(t -> !isapprox(coefficient(t),0), ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
+    tpo = Vector{OpGroup}(undef, length(terms))
+
+    op_id = 1
+    for term in terms
+        coeff = coefficient(term)
+
+        # Build ITensors and extract site indices
+
+        for op in ITensors.terms(term)
+            opname = ITensors.which_op(op)
+            siteidx = ITensors.site(op)
+            # Convert site index to linear index if necessary
+            siteidx isa Int64 && (siteidx = Tuple(siteidx))
+            siteidx_lin = linear_ind(lat, siteidx)
+
+            # Create the ITensor for this operator
+            op_t = coeff*ITensors.op(physidx[siteidx_lin], opname; ITensors.params(op)...)
+
+            # Create the OpGroup for this term
+            push!(op_s, OpGroup(op_id, (0,siteidx_lin), op_t))
+        end
+        # Increment the operator ID for the next term
+        op_id += 1
+    end
+    return TPO_group(op_s)
+end
+
+function build_tpo_from_opsum_old(ampo::OpSum, lat)
         physidx = siteinds(lat)	
     op_s = OpGroup[]
     terms = filter(t -> !isapprox(coefficient(t),0), ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
@@ -117,7 +157,6 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
         # Build ITensors and extract site indices
         site_indices = Int[]
         operator_tensors = ITensor[]
-        # test_tensor = Vector{ITensor}(undef,2)
 
         for (j, op) in enumerate(ITensors.terms(term))
             opname = ITensors.which_op(op)
@@ -142,3 +181,16 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
 
     return TPO_group(op_s)
 end
+
+# Collect all terms acting on a specific site
+## Extend for ProjTPO?
+function filter_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
+    # Filter groups where the target site is in the sites of the group
+    return filter(g -> target_site in g.sites, tpo.terms)
+end
+
+# Find all operator groups by their unique ID
+function find_ops_by_id(tpo::TPO_group, target_id::Int)
+    return filter(op -> op.id == target_id, tpo.terms)
+end
+

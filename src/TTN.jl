@@ -132,7 +132,7 @@ module TTN
     export OpGroup, TPO_group, ProjTPO_group
     export Link, LCA, build_tpo_from_opsum, filter_site_terms
     include("./RevisedOperators/OpStructs.jl")
-    export paired_sites, rerooted_parent_map, lowest_common_ancestor_node_links
+    export rerooted_parent_map, lowest_common_ancestor_node_links, find_ops_by_id
     export build_lca_sites_map, build_lca_id_map
     include("./RevisedOperators/LCA.jl")
 

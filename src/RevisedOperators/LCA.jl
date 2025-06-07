@@ -92,12 +92,38 @@ function lowest_common_ancestor_node_links(net::AbstractNetwork, site1, site2, r
     return (lca, leg1, leg2)
 end
 
+
+function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
+    lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
+    # Iterate over all pairs of sites in the TPO
+    for idd in 1:tpo.terms[end].id
+        op = find_ops_by_id(tpo, idd)
+        if length(op) == 2
+            site1, site2 = op[1].sites[1], op[2].sites[1]
+            ## Ensure site1 < site2 for consistent ordering, already done
+            # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
+            for l in 1:number_of_layers(net)
+                for n in 1:number_of_tensors(net, l)
+                    root = (l, n)
+                    # Find the lowest common ancestor for the pair of sites
+                    lca, link1, link2 = lowest_common_ancestor_node_links(net, site1, site2, root)
+
+                    # Store the LCA information in a dictionary
+                    get!(lca_id_map, idd, Dict())[root] = LCA(lca, (link1, link2))
+                end
+            end
+        end
+    end
+    return lca_id_map
+end
+
 function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_group)
     lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
-    for op in tpo
-        if length(op.sites) == 2
-            site1, site2 = op.sites
+    for idd in 1:tpo.terms[end].id
+        op = find_ops_by_id(tpo, idd)
+        if length(op) == 2
+            site1, site2 = op[1].sites[1], op[2].sites[1]
             ## Ensure site1 < site2 for consistent ordering, already done
             # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
             for l in 1:number_of_layers(net)
@@ -115,7 +141,10 @@ function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_group)
     return lca_sites_map
 end
 
-function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
+
+#=
+
+function build_lca_id_map_old(net::AbstractNetwork, tpo::TPO_group)
     lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for op in tpo
@@ -138,6 +167,30 @@ function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
     return lca_id_map
 end
 
+function build_lca_sites_map_old(net::AbstractNetwork, tpo::TPO_group)
+    lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
+    # Iterate over all pairs of sites in the TPO
+    for op in tpo
+        if length(op.sites) == 2
+            site1, site2 = op.sites
+            ## Ensure site1 < site2 for consistent ordering, already done
+            # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
+            for l in 1:number_of_layers(net)
+                for n in 1:number_of_tensors(net, l)
+                    root = (l, n)
+                    # Find the lowest common ancestor for the pair of sites
+                    lca, link1, link2 = lowest_common_ancestor_node_links(net, site1, site2, root)
+
+                    # Store the LCA information in a dictionary
+                    get!(lca_sites_map, (site1[2], site2[2]), Dict())[root] = LCA(lca, (link1, link2))
+                end
+            end
+        end
+    end
+    return lca_sites_map
+end
+
+=#
 
 #=
 
