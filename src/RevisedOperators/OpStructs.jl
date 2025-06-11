@@ -13,12 +13,13 @@ struct LCA
   legs::Tuple{Int,Int}
 end
 
+#=
+Link struct unnecessary, but kept for reference
 struct Link
-  layer::Int      # Layer where the link resides
-  node::Int       # Index of the node at that layer
-  leg::Int8       # Which leg: 0=parent/top, 1=child1/left, 2=child2/right
+  node::Tuple{Int,Int}  # (layer,node) 
+  leg::Int8              # Which leg: 0=parent/top, 1=child1/left, 2=child2/right
 end
-
+=#
 
 # ───────────────────────────────────────────────
 # Low-level definition of a custom operator type
@@ -32,21 +33,18 @@ Represents a one- or multi-site operator with metadata and a precomputed LCAmap.
 Fields:
 - `id`        : Unique identifier to associate parts of a multi-site operator
 - `sites`     : Tuple of site indices the operator acts on (site1, site2, ...)
-- `ops`       : Vector of ITensors, one per site
-- `lca_map`   : Dict{OC => (lca_node, lca_link)} where
-               OC :: Tuple{Int,Int}
-               lca_node :: Tuple{Int,Int}
-               lca_link :: Tuple{Int,Int} # 0 = parent, 1 = child1, 2 = child2
+- `ops`       : Tuple of ITensors, one per site
 """
 struct OpGroup
   id::Int
-  sites::NTuple{N,Tuple{Int,Int}} where N
-  ops::NTuple{N,ITensor} where N
+  site::Tuple{Int,Int}
+  op::ITensor
+  length::Int 
 end
 
-length(op::OpGroup) = length(op.sites)
+length(op::OpGroup) = op.length
+# OpGroup(id::Int, site::Tuple{Int,Int}, op::ITensor) = OpGroup(id, (site,), (op,))
 
-OpGroup(id::Int, site::Tuple{Int,Int}, op::ITensor) = OpGroup(id, (site,), (op,))
 
 # ─────────────────────────────────────────────
 # Mid-level: Tree tensor product operator (TPO)
@@ -83,10 +81,10 @@ lastindex(tpo::TPO_group) = length(tpo)
 Encapsulates the TTN network, current OC, and link operators needed for sweeping.
 
 Fields:
-- `net`        : Tensor network (TTN)
+- `net`        : tree network structure, e.g. `BinaryNetwork`
 - `tpo`        : Tree product operator
 - `oc`         : Tuple{layer, node} denoting the orthogonality center
-- `link_ops`   : Dict{(layer, node, leg) => Vector{ITensor}} with link-operators
+- `link_ops`   : Dict{((layer, node), leg) => Vector{ITensor}} with link-operators
 - `lca_map`    : Dict{(site1, site2) => Dict{(layer, node) => (lca_layer, lca_node, lca_links)}} mapping
                 each site to its rerooted lowest common ancestor (LCA) under the current OC.
 """
@@ -94,7 +92,7 @@ struct ProjTPO_group
     net::AbstractNetwork
     tpo::TPO_group
     oc::Tuple{Int,Int}
-    link_ops::Dict{Link, Vector{OpGroup}}
+    link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}} # ((layer, node), leg) => Vector of OpGroups
     lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
 end
 
@@ -121,6 +119,7 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
 
     op_id = 1
     for term in terms
+        len = length(term)
         coeff = coefficient(term)
 
         # Build ITensors and extract site indices
@@ -136,7 +135,7 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
             op_t = coeff*ITensors.op(physidx[siteidx_lin], opname; ITensors.params(op)...)
 
             # Create the OpGroup for this term
-            push!(op_s, OpGroup(op_id, (0,siteidx_lin), op_t))
+            push!(op_s, OpGroup(op_id, (0,siteidx_lin), op_t, len))
         end
         # Increment the operator ID for the next term
         op_id += 1
@@ -145,7 +144,7 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
 end
 
 function build_tpo_from_opsum_old(ampo::OpSum, lat)
-        physidx = siteinds(lat)	
+    physidx = siteinds(lat)	
     op_s = OpGroup[]
     terms = filter(t -> !isapprox(coefficient(t),0), ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
     tpo = Vector{OpGroup}(undef, length(terms))
@@ -183,14 +182,69 @@ function build_tpo_from_opsum_old(ampo::OpSum, lat)
 end
 
 # Collect all terms acting on a specific site
-## Extend for ProjTPO?
-function filter_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
+function get_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
     # Filter groups where the target site is in the sites of the group
-    return filter(g -> target_site in g.sites, tpo.terms)
+    return filter(op -> op.site == target_site, tpo.terms)
 end
+
 
 # Find all operator groups by their unique ID
 function find_ops_by_id(tpo::TPO_group, target_id::Int)
     return filter(op -> op.id == target_id, tpo.terms)
 end
 
+"""
+    filter_id_term(link_ops, (layer, node), id) -> Vector{OpGroup}
+
+Return all `OpGroup`s whose `op.id == id` that act on the two child links
+of `(layer, node)` or the link to its parent.  If no such operators are
+present, an empty vector is returned.
+"""
+function filter_id_term(link_ops, (layer, node), id)
+    # collect every OpGroup on the three relevant links,
+    # then pull out the bucket for the requested id
+    get(collect_id_terms(link_ops, (layer, node)), id, Vector{OpGroup}())
+end
+
+
+function collect_id_terms(link_ops, (layer, node))
+    # gather all OpGroup objects whose id appears on the two child links
+    # of (layer,node) and on the link to its parent
+    bucket = Dict{Int, Vector{OpGroup}}()
+
+    # the three links we care about
+    links = (
+        ((layer, node), 1),                          # first-child link
+        ((layer, node), 2),                          # second-child link
+        (parent_node(net, (layer, node)),
+         which_child(net, (layer, node)))            # parent link
+    )
+
+    for link in links
+        # get(link_ops, link, Vector{OpGroup}()) → empty vector if link not present
+        for op in get(link_ops, link, Vector{OpGroup}())
+            push!(get!(bucket, op.id, Vector{OpGroup}()), op)
+        end
+    end
+
+    return bucket
+end
+
+# which_child(net, parent, child) = findfirst(==(child), child_nodes(net, parent))
+which_child(net, child) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
+
+## Find the index of a child node in the parent's child list
+"""
+    which_child(net, parent, child)
+"""
+#=
+function which_child(net, parent, child)
+    children = child_nodes(net, parent)
+    for (i, c) in enumerate(children)
+        if c == child
+            return i
+        end
+    end
+    error("Node $child is not a child of $parent")
+end
+=#

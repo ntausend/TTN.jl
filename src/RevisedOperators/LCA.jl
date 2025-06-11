@@ -99,7 +99,7 @@ function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
     for idd in 1:tpo.terms[end].id
         op = find_ops_by_id(tpo, idd)
         if length(op) == 2
-            site1, site2 = op[1].sites[1], op[2].sites[1]
+            site1, site2 = op[1].site, op[2].site
             ## Ensure site1 < site2 for consistent ordering, already done
             # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
             for l in 1:number_of_layers(net)
@@ -123,7 +123,7 @@ function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_group)
     for idd in 1:tpo.terms[end].id
         op = find_ops_by_id(tpo, idd)
         if length(op) == 2
-            site1, site2 = op[1].sites[1], op[2].sites[1]
+            site1, site2 = op[1].site, op[2].site
             ## Ensure site1 < site2 for consistent ordering, already done
             # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
             for l in 1:number_of_layers(net)
@@ -148,8 +148,8 @@ function build_lca_id_map_old(net::AbstractNetwork, tpo::TPO_group)
     lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for op in tpo
-        if length(op.sites) == 2
-            site1, site2 = op.sites
+        if length(op.site) == 2
+            site1, site2 = op.site
             ## Ensure site1 < site2 for consistent ordering, already done
             # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
             for l in 1:number_of_layers(net)
@@ -171,8 +171,8 @@ function build_lca_sites_map_old(net::AbstractNetwork, tpo::TPO_group)
     lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for op in tpo
-        if length(op.sites) == 2
-            site1, site2 = op.sites
+        if length(op.site) == 2
+            site1, site2 = op.site
             ## Ensure site1 < site2 for consistent ordering, already done
             # site_pair = site1 < site2 ? (site1, site2) : (site2, site1)
             for l in 1:number_of_layers(net)
@@ -200,10 +200,10 @@ function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
     # Get sites map
     lca_sites_map = build_lca_sites_map(net, tpo)
     for op in tpo
-        # op.sites is the ((0,site1), (0,site2)) tuple
-        # lin_sites = (op.sites[1][2], op.sites[2][2])
+        # op.site is the ((0,site1), (0,site2)) tuple
+        # lin_sites = (op.site[1][2], op.site[2][2])
         if length(op) == 2
-            lca_id_map[op.id] = lca_sites_map[op.sites[1][2], op.sites[2][2]]
+            lca_id_map[op.id] = lca_sites_map[op.site[1][2], op.site[2][2]]
         end
     end
     return lca_id_map
@@ -221,8 +221,8 @@ Returns a Set of tuples representing pairs of sites in the TPO that are paired t
 function paired_sites(tpo::TPO_group)
     pairs = Set{Tuple{Tuple{Int,Int}, Tuple{Int,Int}}}()
     for terms in tpo
-        if length(terms.sites) == 2
-            site1, site2 = terms.sites
+        if length(terms.site) == 2
+            site1, site2 = terms.site
             pair = site1 < site2 ? (site1, site2) : (site2, site1)
             push!(pairs, pair)
         end
