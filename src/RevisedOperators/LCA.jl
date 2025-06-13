@@ -97,7 +97,7 @@ function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
     lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for idd in 1:tpo.terms[end].id
-        op = find_ops_by_id(tpo, idd)
+        op = get_id_terms(tpo, idd)
         if length(op) == 2
             site1, site2 = op[1].site, op[2].site
             ## Ensure site1 < site2 for consistent ordering, already done
@@ -121,7 +121,7 @@ function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_group)
     lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for idd in 1:tpo.terms[end].id
-        op = find_ops_by_id(tpo, idd)
+        op = get_id_terms(tpo, idd)
         if length(op) == 2
             site1, site2 = op[1].site, op[2].site
             ## Ensure site1 < site2 for consistent ordering, already done

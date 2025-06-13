@@ -1,3 +1,15 @@
+const NEXT_OPGROUP_ID = Ref{Int}(0)
+
+"""
+new_opgroup_id()
+— return a fresh unique id; increments the counter.
+"""
+new_opgroup_id() = begin
+  id = NEXT_OPGROUP_ID[]
+  NEXT_OPGROUP_ID[] += 1
+  return id
+end
+
 """
     LCA
 
@@ -69,7 +81,21 @@ iterate(tpo::TPO_group, state=1) = state > length(tpo) ? nothing : (tpo[state], 
 firstindex(tpo::TPO_group) = 1
 lastindex(tpo::TPO_group) = length(tpo)
 
-# IndexStyle(::Type{TPO_group}) = IndexLinear()
+"""
+init_opgroup_id_counter!(tpo::Vector{OpGroup})
+— after you build your TPO (and have assigned its original ids),
+  call this to seed the counter one above the max you’ve used.
+"""
+
+function init_opgroup_id_counter!(tpo::Vector{OpGroup})
+  if isempty(tpo)
+    NEXT_OPGROUP_ID[] = 1
+  else
+    NEXT_OPGROUP_ID[] = maximum(g.id for g in tpo) + 1
+  end
+  return NEXT_OPGROUP_ID[]
+end
+
 
 # ─────────────────────────────────────────────
 # Top-level: Projected TPO structure (ProjTPO)
@@ -140,76 +166,22 @@ function build_tpo_from_opsum(ampo::OpSum, lat)
         # Increment the operator ID for the next term
         op_id += 1
     end
+    init_opgroup_id_counter!(op_s)
     return TPO_group(op_s)
 end
 
-function build_tpo_from_opsum_old(ampo::OpSum, lat)
-    physidx = siteinds(lat)	
-    op_s = OpGroup[]
-    terms = filter(t -> !isapprox(coefficient(t),0), ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
-    tpo = Vector{OpGroup}(undef, length(terms))
-
-    op_id = 1
-    for (i, term) in enumerate(terms)
-        coeff = coefficient(term)
-
-        # Build ITensors and extract site indices
-        site_indices = Int[]
-        operator_tensors = ITensor[]
-
-        for (j, op) in enumerate(ITensors.terms(term))
-            opname = ITensors.which_op(op)
-            siteidx = ITensors.site(op)
-            # Convert site index to linear index if necessary
-            siteidx isa Int64 && (siteidx = Tuple(siteidx))
-            siteidx_lin = linear_ind(lat, siteidx)
-
-            # Create the ITensor for this operator
-            op_t = coeff*ITensors.op(physidx[siteidx_lin], opname; ITensors.params(op)...)
-
-            # Store the operator tensor and site index
-            push!(operator_tensors, op_t)
-            push!(site_indices, siteidx_lin)
-        end
-        # Create the OpGroup for this term
-        site_indices = tuple(((0, x) for x in site_indices)...)
-        operator_tensors = tuple(operator_tensors...)
-        push!(op_s, OpGroup(op_id, site_indices, operator_tensors))
-        op_id += 1
-    end
-
-    return TPO_group(op_s)
+# Find all operator groups by their length
+function get_length_terms(tpo::TPO_group, len::Int)
+    return filter(op -> op.length == len, tpo.terms)
 end
 
-# Collect all terms acting on a specific site
-function get_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
-    # Filter groups where the target site is in the sites of the group
-    return filter(op -> op.site == target_site, tpo.terms)
+function get_length_terms(group::Vector{OpGroup}, len::Int)
+    filter(g -> g.length == len, group)
 end
 
-
-# Find all operator groups by their unique ID
-function find_ops_by_id(tpo::TPO_group, target_id::Int)
-    return filter(op -> op.id == target_id, tpo.terms)
-end
-
-"""
-    filter_id_term(link_ops, (layer, node), id) -> Vector{OpGroup}
-
-Return all `OpGroup`s whose `op.id == id` that act on the two child links
-of `(layer, node)` or the link to its parent.  If no such operators are
-present, an empty vector is returned.
-"""
-function filter_id_term(link_ops, (layer, node), id)
-    # collect every OpGroup on the three relevant links,
-    # then pull out the bucket for the requested id
-    get(collect_id_terms(link_ops, (layer, node)), id, Vector{OpGroup}())
-end
-
-
-function collect_id_terms(link_ops, (layer, node))
-    # gather all OpGroup objects whose id appears on the two child links
-    # of (layer,node) and on the link to its parent
+function get_length_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int}, len::Int)
+    # gather all OpGroup objects by length len
+    # of (layer,node) and on the link to its parentS
     bucket = Dict{Int, Vector{OpGroup}}()
 
     # the three links we care about
@@ -223,6 +195,58 @@ function collect_id_terms(link_ops, (layer, node))
     for link in links
         # get(link_ops, link, Vector{OpGroup}()) → empty vector if link not present
         for op in get(link_ops, link, Vector{OpGroup}())
+            if op.length == len
+                push!(get!(bucket, op.length, Vector{OpGroup}()), op)
+            end
+        end
+    end
+
+    return bucket
+end
+
+# Collect all terms acting on a specific site
+function get_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
+    # Filter groups where the target site is in the sites of the group
+    return filter(op -> op.site == target_site, tpo.terms)
+end
+
+# Find all operator groups by their unique ID
+function get_id_terms(tpo::TPO_group, target_id::Int)
+    return filter(op -> op.id == target_id, tpo.terms)
+end
+
+"""
+    filter_id_term(link_ops, (layer, node), id) -> Vector{OpGroup}
+
+Return all `OpGroup`s whose `op.id == id` that act on the two child links
+of `(layer, node)` or the link to its parent.  If no such operators are
+present, an empty vector is returned.
+"""
+function get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int}, id)
+    # collect every OpGroup on the three relevant links,
+    # then pull out the bucket for the requested id
+    get(get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)), id, Vector{OpGroup}())
+end
+
+function get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int})
+    # gather all OpGroup objects whose id appears on the two child links
+    # of (layer,node) and on the link to its parent
+    bucket = Dict{Int, Vector{OpGroup}}()
+    if layer == number_of_layers(net)
+        links = (
+        ((layer, node), 1),                 # first-child link
+        ((layer, node), 2))                 # second-child link
+    else
+        # the three links we care about
+        links = (
+        ((layer, node), 1),                 # first-child link
+        ((layer, node), 2),                 # second-child link
+        (parent_node(net, (layer, node)),
+         which_child(net, (layer, node))))  # parent link
+    end
+    for link in links
+        # get(link_ops, link, Vector{OpGroup}()) → empty vector if link not present
+        for op in get(link_ops, link, Vector{OpGroup}())
             push!(get!(bucket, op.id, Vector{OpGroup}()), op)
         end
     end
@@ -231,7 +255,7 @@ function collect_id_terms(link_ops, (layer, node))
 end
 
 # which_child(net, parent, child) = findfirst(==(child), child_nodes(net, parent))
-which_child(net, child) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
+which_child(net::AbstractNetwork, child::Tuple{Int,Int}) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
 
 ## Find the index of a child node in the parent's child list
 """
