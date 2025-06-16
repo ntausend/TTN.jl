@@ -137,38 +137,37 @@ and returns a `TPO_group` containing all the operator groups.
 N-site operators are splitted into individual `OpGroup` instances matched by their unique ID.
 """
 
-function build_tpo_from_opsum(ampo::OpSum, lat)
-    physidx = siteinds(lat)	
-    op_s = OpGroup[]
-    terms = filter(t -> !isapprox(coefficient(t),0), ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
-    tpo = Vector{OpGroup}(undef, length(terms))
+function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
+    physidx = siteinds(lat)
+    op_s    = OpGroup[]
+    terms   = filter(t -> !isapprox(coefficient(t),0),
+                     ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
 
     op_id = 1
     for term in terms
-        len = length(term)
         coeff = coefficient(term)
+        len   = length(term)
 
-        # Build ITensors and extract site indices
+        for (k, op) in enumerate(ITensors.terms(term))
+            opname       = ITensors.which_op(op)
+            siteidx      = ITensors.site(op)
+            siteidx isa Int && (siteidx = (siteidx,))        # 1D→tuple
+            siteidx_lin  = linear_ind(lat, siteidx)
 
-        for op in ITensors.terms(term)
-            opname = ITensors.which_op(op)
-            siteidx = ITensors.site(op)
-            # Convert site index to linear index if necessary
-            siteidx isa Int64 && (siteidx = Tuple(siteidx))
-            siteidx_lin = linear_ind(lat, siteidx)
+            # multiply the coefficient **once**, e.g. on the first factor
+            factor = (k == 1) ? coeff : 1.0
+            op_t = factor * ITensors.op(physidx[siteidx_lin], opname;
+                                     ITensors.params(op)...)
 
-            # Create the ITensor for this operator
-            op_t = coeff*ITensors.op(physidx[siteidx_lin], opname; ITensors.params(op)...)
-
-            # Create the OpGroup for this term
-            push!(op_s, OpGroup(op_id, (0,siteidx_lin), op_t, len))
+            push!(op_s, OpGroup(op_id, (0, siteidx_lin), op_t, len))
         end
-        # Increment the operator ID for the next term
         op_id += 1
     end
+
     init_opgroup_id_counter!(op_s)
     return TPO_group(op_s)
 end
+
 
 # Find all operator groups by their length
 function get_length_terms(tpo::TPO_group, len::Int)
