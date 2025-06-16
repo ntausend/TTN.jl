@@ -9,14 +9,13 @@ function populate_physical_link_ops(net::AbstractNetwork, tpo::TPO_group)
             link = ((1,n),i)  # layer, node, child_index
             ops_on_site = get_site_terms(tpo, child)
             # Store the operators on the link in the dictionary
-            # get!(link_ops, link, ops_on_site)
             link_ops[link] = ops_on_site
         end
     end 
     return link_ops
 end
 
-function contract_first_layer_linkops(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor})
+function contract_first_layer_linkops(net::BinaryNetwork, tpo::TPO_group, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor})
     link_ops = populate_physical_link_ops(net, tpo);
     layer = 1
     println("layer: $layer")
@@ -45,7 +44,7 @@ function contract_upper_layer_linkops(net::BinaryNetwork, ttn0::TreeTensorNetwor
 end
 
 function complete_contraction(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}})
-    (layer, node) = (4,1)
+    (layer, node) = (number_of_layers(net), 1)
     
     tn = ttn0[(layer, node)]
     collaps_list = Vector{ITensor}()
@@ -72,48 +71,220 @@ function complete_contraction(net::BinaryNetwork, ttn0::TreeTensorNetwork{Binary
     return tn_exp
 end
 
-function contract_ops_on_node(net::AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int})
+function complete_contraction_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, root::Tuple{Int64, Int64})
+    
+    tn = ttn0[root]
+    collaps_list = Vector{ITensor}()
+    bucket = get_id_terms(net, link_ops, root)
+    ## get sites of ITensor
+    tn_sites = extract_layer_node.(inds(tn))
+    ## find index of open / parent connection to prime
+
+    for (_idd, ops) in bucket
+        tn_p = tn
+        tensor_list = [tn]
+        for op in ops            
+            op_site_id = findfirst(x -> x == op.site, tn_sites)
+            op_site_ind = ind(tn_p, op_site_id)
+            tn_p = prime(tn_p, op_site_ind)
+            push!(tensor_list, op.op)
+        end
+        push!(tensor_list, dag(tn_p))
+        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        tn_con = contract(tensor_list; sequence = opcon_seq)
+        push!(collaps_list, tn_con)
+    end
+    tn_exp = sum(collaps_list)
+    return tn_exp
+end
+
+function upflow(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_group)
+    link_ops = populate_physical_link_ops(net, tpo)
+    # link_ops = contract_first_layer_linkops(net, ttn0, link_ops)
+    # link_ops = contract_upper_layer_linkops(net, ttn0, link_ops)
+    
+    for l in 1:number_of_layers(net)-1
+        # println("layer: $l")
+        
+        for n in eachindex(net,l)
+            # println("Node: $n")
+            # define where to save linkops
+            link = (parent_node(net,(l,n)),which_child(net,(l,n)))
+            coarse_ops = contract_ops(net, ttn0, link_ops, (l,n))
+            link_ops[link] = coarse_ops
+        end
+    end
+
+    return link_ops
+end
+
+function upflow_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_group, newroot::Tuple{Int,Int})
+
+    link_ops = populate_physical_link_ops(net, tpo)
+    # get path from top node to oc = newroot
+    top_node = (number_of_layers(net), 1)
+    connect_path = pushfirst!(connecting_path(net, top_node, newroot), top_node)
+
+    for pos in reverse_bfs_nodes(net, newroot)
+        layer, node = pos
+        # stop at the new root itself
+        if pos == newroot
+            return link_ops
+        end
+        # println("Layer: $layer, Node: $node")
+        # determine the link on which to store your contracted ops
+        if pos in connect_path
+            next_node = next_on_path(connect_path, pos)
+            link = (pos, which_child(net, next_node))
+            # println("Layer: $layer, Node: $node, Link re: $link")
+            if pos == top_node
+                coarse_ops = contract_linkops_on_topnode(net, ttn0, link_ops, top_node, next_node)
+            else
+                coarse_ops = contract_ops(net, ttn0, link_ops, pos; open_link = next_node)
+            end
+                
+        else
+            link = (parent_node(net, pos), which_child(net, pos))
+            # println("Layer: $layer, Node: $node, Link dev: $link")
+            coarse_ops = contract_ops(net, ttn0, link_ops, pos)
+        end
+        # contract the ops on this node:
+        
+        link_ops[link] = coarse_ops
+    end
+    return link_ops
+end
+
+function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link = pos)
+    (layer, node) = pos
+    if layer == 1
+        contract_ops_on_node(net, ttn0, link_ops, pos)
+    else
+        contract_linkops_on_node(net, ttn0, link_ops, pos; open_link = open_link)
+    end
+end
+
+function contract_ops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int})
+    (layer, node) = pos
     op_vec = Vector{OpGroup}()
     collaps_list = Vector{ITensor}()
-    id_collaps = Int[]
-    bucket = get_id_terms(net, link_ops, (layer, node))
-    tn = ttn0[(layer, node)]
-    tn_dag = dag(prime(tn))
+    
+    bucket = get_id_terms(net, link_ops, pos)
+    tn = ttn0[pos]
+    tn_dag = dag(prime(tn, ind(tn,3)))
 
-    for (idd, vec) in bucket
-        if length(vec) == 2 # && is_lca(vec[1],node,lca_id_map)
-            act_op1, act_op2 = vec[1].op, vec[2].op
-            len = vec[1].length # == vec[2].length
-            tensor_list = [tn, tn_dag, act_op1, act_op2]
-            opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            tn_con = contract(tensor_list; sequence = opcon_seq)
-            len -= 1
-            id_collaps = idd
-            # push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
-        else
-        # one-site or still two separate legs
-            act_op = vec[1].op
-            len = vec[1].length
-            i = which_child(net, vec[1].site) # 0, 1 or 2
-            tn_dag_p = noprime(tn_dag, ind(tn_dag, 3-i)) # unprime leg without op
-            tensor_list = [tn, tn_dag_p, act_op]
-            opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            tn_con = contract(tensor_list; sequence = opcon_seq)
-            # push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
+    for (idd, ops) in bucket
+        tn_p = tn_dag
+        tensor_list = [tn]
+        len_op = ops[1].length
+        len_con = length(ops)
+        for op in ops
+            ## prime index of acting op
+            i = which_child(net, op.site)
+            indi = ind(tn_p, i)
+            tn_p = prime(tn_p, indi)
+            push!(tensor_list, op.op)
         end
-        if len > 1
-            push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
+        push!(tensor_list, tn_p)
+        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        tn_con = contract(tensor_list; sequence = opcon_seq)
+        if len_con > 1
+            len_op -= (len_con - 1)
+        end
+        if len_op > 1
+            push!(op_vec, OpGroup(idd, (layer, node),tn_con, len_op))
         else
             push!(collaps_list, tn_con)
         end
     end
     # Collapse all tensors with length 1
     if length(collaps_list) > 0
-        tn_collaps = sum(collaps_list)
         # assign a fresh unique id
-        uid = new_opgroup_id()
-        push!(op_vec, OpGroup(uid, (layer, node), tn_collaps, 1))
+        push!(op_vec, OpGroup(new_opgroup_id(), (layer, node), sum(collaps_list), 1))
+    end
+    return op_vec
+end
+
+function contract_linkops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link = pos)
+
+    # (layer, node) = pos
+    op_vec = Vector{OpGroup}()
+    collaps_list = Vector{ITensor}()
+
+    bucket = get_id_terms(net, link_ops, pos)
+
+    tn = ttn0[pos]
+    
+    ## get sites of ITensor
+    tn_sites = extract_layer_node.(inds(tn))
+    ## find index of open / parent connection and prime
+    ## only valid for upflows
+    id_open = findfirst(x -> x == open_link, tn_sites)
+    ## general: prime index in oc direction
+    tn_dag = dag(prime(tn, ind(tn, id_open)))
+
+    for (idd, ops) in bucket
+        tn_p = tn_dag
+        tensor_list = [tn]
+        len_op = ops[1].length
+        len_con = length(ops)
+         for op in ops
+            ## prime index of acting op
+            op_site_id = findfirst(x -> x == op.site, tn_sites)
+            op_site_ind = ind(tn_p, op_site_id)
+            tn_p = prime(tn_p, op_site_ind)
+            push!(tensor_list, op.op)
+        end
+        push!(tensor_list, tn_p)
+        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        tn_con = contract(tensor_list; sequence = opcon_seq)
+        if len_con > 1
+            len_op -= (len_con - 1)
+        end
+        if len_op > 1
+            push!(op_vec, OpGroup(idd, open_link, tn_con, len_op))
+        else
+            push!(collaps_list, tn_con)
+        end
+    end
+    # Collapse all tensors with length 1
+    if length(collaps_list) > 0
+        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1))
+    end
+    return op_vec
+end
+
+function contract_linkops_on_topnode(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}, open_link::Tuple{Int,Int})
+    
+    op_vec = Vector{OpGroup}()
+    collaps_list = Vector{ITensor}()
+    # pos is supposed to be the top node
+    # pos = (number_of_layers(net), 1)
+
+    bucket = get_id_terms(net, link_ops, pos)
+    tn = ttn0[pos]
+    ## get sites of ITensor
+    tn_sites = extract_layer_node.(inds(tn))
+    tn_dag = dag(prime(tn))
+    # all ops have length one because they are on the top node
+    for (idd, ops) in bucket
+        tensor_list = [tn, tn_dag, ops[1].op]
+        len_op = ops[1].length
+        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        tn_con = contract(tensor_list; sequence = opcon_seq)
+        if len_op > 1
+            push!(op_vec, OpGroup(idd, open_link, tn_con, len_op))
+        else
+            push!(collaps_list, tn_con)
+        end
+    end
+    # Collapse all tensors with length 1
+    if length(collaps_list) > 0
+        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1))
     end
     return op_vec
 end
@@ -127,130 +298,13 @@ function extract_layer_node(index::Index)
             nl = parse(Int, split(tag, "=")[2])
         elseif startswith(tag, "np=")
             np = parse(Int, split(tag, "=")[2])
+        elseif startswith(tag, "n=")
+            nl = 0
+            np = parse(Int, split(tag, "=")[2])
         end
     end
     if isnothing(nl) || isnothing(np)
         error("Could not extract nl or np from index tags")
     end
     return nl, np
-end
-
-function contract_linkops_on_node(net::AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int})
-    op_vec = Vector{OpGroup}()
-    collaps_list = Vector{ITensor}()
-    bucket = get_id_terms(net, link_ops, (layer, node))
-    tn = ttn0[(layer, node)]
-    ## get sites of ITensor
-    tn_sites = extract_layer_node.(inds(tn))
-    ## find index of open / parent connection to prime
-    id_open = findfirst(x -> x == (layer, node), tn_sites)
-    tn_dag = dag(prime(tn, ind(tn, id_open)))
-
-    for (idd, op) in bucket
-        if length(op) == 2
-            len = op[1].length
-            op_site_id1 = findfirst(x -> x == op[1].site, tn_sites)
-            op_site_ind1 = ind(tn_dag, op_site_id1)
-            tn_dag_p1 = prime(tn_dag, op_site_ind1)
-
-            op_site_id2 = findfirst(x -> x == op[2].site, tn_sites)
-            op_site_ind2 = ind(tn_dag, op_site_id2)
-            tn_dag_p2 = prime(tn_dag_p1, op_site_ind2)
-
-            tensor_list = [tn, tn_dag_p2, op[1].op, op[2].op]
-            opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            tn_con = contract(tensor_list; sequence = opcon_seq)
-            len -= 1
-            # push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
-        else
-        # one-site or still two separate legs
-            act_op = op[1].op
-            len = op[1].length
-            op_site_id = findfirst(x -> x == op[1].site, tn_sites)
-            op_site_ind = ind(tn_dag, op_site_id)
-            tn_dag_p = prime(tn_dag, op_site_ind)
-            tensor_list = [tn, tn_dag_p, act_op]
-            opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-            tn_con = contract(tensor_list; sequence = opcon_seq)
-            # push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
-        end
-        if len > 1
-            push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
-        else
-            push!(collaps_list, tn_con)
-        end
-    end
-    # Collapse all tensors with length 1
-    if length(collaps_list) > 0
-        tn_collaps = sum(collaps_list)
-        # assign a fresh unique id
-        uid = new_opgroup_id()
-        push!(op_vec, OpGroup(uid, (layer, node), tn_collaps, 1))
-    end
-    return op_vec
-end
-
-
-## Grouping by LCA
-
-## Collect acting operators on leg 1 of node (1,1) i.e. (0,1) in the TPO
-# pTPO.link_ops[Link(1,1,1)]
-function contract_link_ops_by_lca(net::AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, lca_id_map::Dict{Int64, Dict{Tuple{Int64, Int64}, LCA}}, (layer,node)::Tuple{Int,Int})
-    # Contract all operators acting on the first leg of the node (1,1)
-    # and return a vector of OpGroup objects
-    # OpGroup(id, node, tensor)
-    # where id is the id of the operator in the TPO
-    # node is the node where the operator acts on
-    # tensor is the resulting tensor after contraction
-    println("Contracting link operators for node ($layer,$node)")
-    # Where to store next layer link operators
-    link = (parent_node(net,(layer, node)), which_child(net, (layer, node)))
-    op_vec = Vector{OpGroup}()
-    tn = ttn0[(layer, node)]
-    tn_dag = dag(prime(tn))
-
-    visited_ids = Set{Int}()
-    # Get all operators acting on the first leg of the node (1,1)
-    for (i, child) in enumerate(child_nodes(net, (layer, node)))
-        acting_ops = link_ops[(layer, node), i]
-        for op in acting_ops
-            idd = op.id
-            len = op.length
-            if idd in visited_ids
-                continue
-            else
-                if haskey(lca_id_map, op.id) == false
-                    println("ID: $idd: Contract directly")
-                    act_op = op.op
-                    tn_dag_p = noprime(tn_dag, ind(tn_dag, 3-i))
-                    tensor_list = [tn, tn_dag_p, act_op]
-                    opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-                    tn_con = contract(tensor_list; sequence = opcon_seq)
-                    push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
-                else
-                    if (layer, node) == lca_id_map[op.id][pTPO.oc].lca_node
-                        println("ID: $idd: Contract via LCA")
-                        # act_op1, act_op2 = get_id_terms(tpo, op.id)[1].ops[1], get_id_terms(tpo, op.id)[2].ops[1]
-                        act_op1, act_op2 = get_id_terms(net,link_ops, (layer, node), op.id)[1].op, get_id_terms(net,link_ops, (layer, node), op.id)[2].op
-                        tensor_list = [tn, tn_dag, act_op1, act_op2]
-                        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-                        tn_con = contract(tensor_list; sequence = opcon_seq)
-                        push!(op_vec, OpGroup(idd, (layer, node),tn_con, len-1))
-                    else
-                        println("ID: $idd: Contract directly and keep open link")
-                        act_op = op.op
-                        tn_dag_p = noprime(tn_dag, ind(tn_dag, 3-i))
-                        tensor_list = [tn, tn_dag_p, act_op]
-                        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-                        tn_con = contract(tensor_list; sequence = opcon_seq)
-                        push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
-                    end
-                end
-                push!(visited_ids, idd)
-            end
-        end
-    end
-    return op_vec
 end

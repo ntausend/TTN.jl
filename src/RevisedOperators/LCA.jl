@@ -30,6 +30,63 @@ function rerooted_parent_map(net::AbstractNetwork, root::Tuple{Int,Int})
     return parent
 end
 
+"""
+    reverse_bfs_nodes(net::AbstractNetwork, root::Tuple{Int,Int})
+
+Return a Vector of all nodes `(layer,node)` in the tree rooted at `root`,
+ordered by *decreasing* distance from `root` (i.e. reverse‐BFS order).
+If two nodes share the same distance, the one with the smaller `layer` comes first.
+Only nodes with `layer ≥ 1` are included.
+"""
+function reverse_bfs_nodes(net::TTN.AbstractNetwork, root::Tuple{Int,Int})
+    # 1) build the rerooted parent map
+    parent = rerooted_parent_map(net, root)
+
+    # 2) compute depth (distance) of every node to `root`
+    depths = Dict{Tuple{Int,Int}, Int}()
+    for node in keys(parent)
+        d = 0
+        cur = node
+        while cur != root
+            cur = parent[cur]
+            d += 1
+        end
+        depths[node] = d
+    end
+
+    # 3) collect only layer ≥ 1
+    allnodes = [n for n in keys(parent) if n[1] ≥ 1]
+
+    # 4) sort by (–depth, layer)
+    sort!(allnodes, by = n -> (-depths[n], n[1]))
+
+    return allnodes
+end
+
+"""
+    next_on_path(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
+
+Return the node that comes *after* `n` in `path`, or `nothing` if `n` is the last element.
+Throws an error if `n ∉ path`.
+"""
+function next_on_path(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
+    idx = findfirst(==(n), path)
+    @assert idx !== nothing "node $n is not in the path"
+    return idx < length(path) ? path[idx+1] : nothing
+end
+
+"""
+    subpath_from(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
+
+Return the slice of `path` starting at `n` (inclusive) through the end.
+Throws an error if `n ∉ path`.
+"""
+function subpath_from(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
+    idx = findfirst(==(n), path)
+    @assert idx !== nothing "node $n is not in the path"
+    return path[idx:end]
+end
+
 
 """
     lowest_common_ancestor_node_links(net, site1, site2, root)
