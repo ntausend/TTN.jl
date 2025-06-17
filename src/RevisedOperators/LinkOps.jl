@@ -135,6 +135,8 @@ function upflow_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwo
         # determine the link on which to store your contracted ops
         if pos in connect_path
             next_node = next_on_path(connect_path, pos)
+            # only valid because rerooting starts at the top node
+            # -> only downflows from the top node
             link = (pos, which_child(net, next_node))
             # println("Layer: $layer, Node: $node, Link re: $link")
             if pos == top_node
@@ -142,7 +144,6 @@ function upflow_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwo
             else
                 coarse_ops = contract_ops(net, ttn0, link_ops, pos; open_link = next_node)
             end
-                
         else
             link = (parent_node(net, pos), which_child(net, pos))
             # println("Layer: $layer, Node: $node, Link dev: $link")
@@ -155,9 +156,74 @@ function upflow_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwo
     return link_ops
 end
 
+"""
+    recalc_path_link_ops!(net, ttn0, tpo, link_ops, newroot)
+
+Recompute the link operators on the unique path that connects the original
+root (the top node) of `net` to `newroot`.
+
+The procedure is:
+  1. Find the path between `top_node` and `newroot` (both ends included).
+  2. Delete the stale link operators that live on that path from `link_ops`.
+  3. Traverse the path **top‑down**, recomputing the coarse‑grained operator
+     for each link that was just removed while keeping every off‑path operator
+     untouched.
+
+The implementation mirrors the logic of `upflow_rerooted` but is restricted to
+the connecting path, reducing the run‑time from *O(|net|)* to
+*O(length(path))*.
+"""
+function recalc_path_link_ops!(
+        net::BinaryNetwork,
+        ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+        link_ops::Dict,
+        oldroot::Tuple{Int,Int},
+        newroot::Tuple{Int,Int},
+    )
+
+    # 1. Determine the unique path from the original root to the new root
+    top_node = (number_of_layers(net), 1)
+    connect_path = pushfirst!(connecting_path(net, oldroot, newroot), oldroot)
+
+    # 2. Remove the existing link operators that live on this path
+    for pos in connect_path[1:end-1]          # skip the new root itself
+        nxt   = next_on_path(connect_path, pos)
+        if nxt[1] > pos[1]
+            # going up the tree
+            link = (nxt, which_child(net, pos))
+        else
+        # going down the tree
+            link = (pos, which_child(net, nxt))
+        end
+        # println("Position: $pos, Next: $nxt, Link: $link")
+        delete!(link_ops, link)   # silent if already absent
+    end
+
+    # 3. Recompute the link operators along the path (top‑down)
+    for pos in connect_path[1:end-1]
+        nxt  = next_on_path(connect_path, pos)
+        if nxt[1] > pos[1]
+            # going up the tree
+            link = (nxt, which_child(net, pos))
+            coarse_ops = contract_ops(net, ttn0, link_ops, pos)
+        else
+        # going down the tree
+            link = (pos, which_child(net, nxt))
+            coarse_ops = pos == top_node ?
+                contract_linkops_on_topnode(net, ttn0, link_ops, pos, nxt) :
+                contract_ops(net, ttn0, link_ops, pos; open_link = nxt)
+        end
+        # println("Position: $pos, Next: $nxt, Link: $link")
+        link_ops[link] = coarse_ops
+    end
+
+    return link_ops
+end
+
+
 function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
      link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link = pos)
-    (layer, node) = pos
+
     if layer == 1
         contract_ops_on_node(net, ttn0, link_ops, pos)
     else
@@ -167,7 +233,7 @@ end
 
 function contract_ops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
      link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int})
-    (layer, node) = pos
+    
     op_vec = Vector{OpGroup}()
     collaps_list = Vector{ITensor}()
     
@@ -194,7 +260,7 @@ function contract_ops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{
             len_op -= (len_con - 1)
         end
         if len_op > 1
-            push!(op_vec, OpGroup(idd, (layer, node),tn_con, len_op))
+            push!(op_vec, OpGroup(idd, pos,tn_con, len_op))
         else
             push!(collaps_list, tn_con)
         end
@@ -202,7 +268,7 @@ function contract_ops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{
     # Collapse all tensors with length 1
     if length(collaps_list) > 0
         # assign a fresh unique id
-        push!(op_vec, OpGroup(new_opgroup_id(), (layer, node), sum(collaps_list), 1))
+        push!(op_vec, OpGroup(new_opgroup_id(), pos, sum(collaps_list), 1))
     end
     return op_vec
 end

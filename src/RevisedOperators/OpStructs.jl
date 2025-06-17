@@ -10,21 +10,6 @@ new_opgroup_id() = begin
   return id
 end
 
-"""
-    LCA
-
-Stores the rerooted lowest common ancestor for a pair of sites under a given OC,
-along with the legs of the LCA node that each site connects through.
-
-Fields:
-- `lca_node`  : Tuple{Int,Int} — (layer, node) of the LCA
-- `legs`      : Tuple{Int,Int} — each in {0, 1, 2} = (parent, child1, child2)
-"""
-struct LCA
-  lca_node::Tuple{Int,Int}
-  legs::Tuple{Int,Int}
-end
-
 #=
 Link struct unnecessary, but kept for reference
 struct Link
@@ -119,7 +104,7 @@ struct ProjTPO_group
     tpo::TPO_group
     oc::Tuple{Int,Int}
     link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}} # ((layer, node), leg) => Vector of OpGroups
-    lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
+    # lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
 end
 
 # ─────────────────────────────────────────────
@@ -207,6 +192,28 @@ end
 function get_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
     # Filter groups where the target site is in the sites of the group
     return filter(op -> op.site == target_site, tpo.terms)
+end
+
+function get_site_terms(
+        net::AbstractNetwork,
+        link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}},
+        site::Tuple{Int,Int},
+    )::Vector{OpGroup}
+
+    terms = Vector{OpGroup}()
+
+    # 1. parent link (absent if `site` happens to be the global root)
+    if site != (number_of_layers(net), 1)
+        parent = parent_node(net, site)
+        link   = (parent, which_child(net, site))
+        append!(terms, get(link_ops, link, Vector{OpGroup}()))
+    end
+
+    # 2. on‑site link (child index == 0)
+    onsite_link = (site, 0)
+    append!(terms, get(link_ops, onsite_link, Vector{OpGroup}()))
+
+    return terms
 end
 
 # Find all operator groups by their unique ID

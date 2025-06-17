@@ -141,7 +141,7 @@ module TTN
     export populate_physical_link_ops, extract_layer_node
     export contract_upper_layer_linkops, contract_first_layer_linkops
     export complete_contraction, complete_contraction_rerooted
-    export upflow, upflow_rerooted
+    export upflow, upflow_rerooted, recalc_path_link_ops!
     export contract_ops, contract_ops_on_node, contract_linkops_on_topnode, contract_linkops_on_node
     include("./RevisedOperators/LinkOps.jl")
 
