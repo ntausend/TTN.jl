@@ -134,15 +134,13 @@ module TTN
     export get_site_terms, get_id_terms, get_length_terms, which_child
     export init_opgroup_id_counter!, new_opgroup_id
     include("./RevisedOperators/OpStructs.jl")
-    export rerooted_parent_map, lowest_common_ancestor_node_links, find_ops_by_id
+    export rerooted_parent_map, lowest_common_ancestor_node_links
     export build_lca_sites_map, build_lca_id_map
     export reverse_bfs_nodes, next_on_path, subpath_from
     include("./RevisedOperators/LCA.jl")
-    export populate_physical_link_ops, extract_layer_node
-    export contract_upper_layer_linkops, contract_first_layer_linkops
-    export complete_contraction, complete_contraction_rerooted
-    export upflow, upflow_rerooted, recalc_path_link_ops!
-    export contract_ops, contract_ops_on_node, contract_linkops_on_topnode, contract_linkops_on_node
+    export populate_physical_link_ops, link_tag, extract_layer_node
+    export upflow_to_root, recalc_path_flows!
+    export contract_ops
     include("./RevisedOperators/LinkOps.jl")
 
 end # module

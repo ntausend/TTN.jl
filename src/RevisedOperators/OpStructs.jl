@@ -42,6 +42,20 @@ end
 length(op::OpGroup) = op.length
 # OpGroup(id::Int, site::Tuple{Int,Int}, op::ITensor) = OpGroup(id, (site,), (op,))
 
+function ==(a::OpGroup, b::OpGroup)
+    a.id == b.id && # isnt necessarily equal due to global unique id counter
+    a.site == b.site &&
+    a.op == b.op
+    # all(==(true), isapprox.(a.op, b.op))  # or define more robust ITensor comparison
+end
+
+# function isapprox(a::OpGroup, b::OpGroup; atol=1e-12, rtol=1e-12)
+#     a.id == b.id &&
+#     a.site == b.site &&
+#     isapprox(a.op, b.op)
+#     # all(isapprox.(a.op, b.op; atol=atol, rtol=rtol))
+# end
+
 
 # ─────────────────────────────────────────────
 # Mid-level: Tree tensor product operator (TPO)
