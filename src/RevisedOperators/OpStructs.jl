@@ -29,23 +29,30 @@ Represents a one- or multi-site operator with metadata and a precomputed LCAmap.
 
 Fields:
 - `id`        : Unique identifier to associate parts of a multi-site operator
-- `sites`     : Tuple of site indices the operator acts on (site1, site2, ...)
-- `ops`       : Tuple of ITensors, one per site
+- `site`     : Tuple of site indices the operator acts on (site1, site2, ...)
+- `op`       : Tuple of ITensors, one per site
+- `original_length` : Original length of the operator (e.g. number of sites)
+- `length`   : Length of the operator after splitting (e.g. number of sites after splitting)
 """
 struct OpGroup
   id::Int
   site::Tuple{Int,Int}
   op::ITensor
-  length::Int 
+  original_length::Int
+  length::Int
 end
 
 length(op::OpGroup) = op.length
 # OpGroup(id::Int, site::Tuple{Int,Int}, op::ITensor) = OpGroup(id, (site,), (op,))
 
+op_reduction(op::OpGroup) = op.original_length - op.length
+
 function ==(a::OpGroup, b::OpGroup)
     a.id == b.id && # isnt necessarily equal due to global unique id counter
     a.site == b.site &&
-    a.op == b.op
+    a.op == b.op &&
+    a.original_length == b.original_length &&
+    a.length == b.length
     # all(==(true), isapprox.(a.op, b.op))  # or define more robust ITensor comparison
 end
 
@@ -158,7 +165,7 @@ function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
             op_t = factor * ITensors.op(physidx[siteidx_lin], opname;
                                      ITensors.params(op)...)
 
-            push!(op_s, OpGroup(op_id, (0, siteidx_lin), op_t, len))
+            push!(op_s, OpGroup(op_id, (0, siteidx_lin), op_t, len, len))
         end
         op_id += 1
     end
@@ -168,7 +175,7 @@ function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
 end
 
 
-# Find all operator groups by their length
+# Find all operator groups by their current length
 function get_length_terms(tpo::TPO_group, len::Int)
     return filter(op -> op.length == len, tpo.terms)
 end

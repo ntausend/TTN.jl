@@ -155,22 +155,26 @@ function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNe
     for (idd, ops) in bucket
         tn_p = tn_dag
         tensor_list = [tn]
-        len_op = ops[1].length
-        len_con = length(ops)
+        len_original = ops[1].original_length
+        len_op = len_original
+        len_con = length(ops) # max 2 for binary tree 
+        op_red = 0
         for op in ops
             ## prime index of acting op
             common_index = commonind(tn, op.op)
             tn_p = prime(tn_p, common_index)
             push!(tensor_list, op.op)
+            op_red += op_reduction(op) # summming current reductions
         end
         push!(tensor_list, tn_p)
         opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
         tn_con = contract(tensor_list; sequence = opcon_seq)
-        if len_con > 1
-            len_op -= (len_con - 1)
+        if len_con > 1 # one reduction per contraction of two operators
+            op_red += 1
         end
+        len_op -= op_red
         if len_op > 1
-            push!(op_vec, OpGroup(idd, open_link,tn_con, len_op))
+            push!(op_vec, OpGroup(idd, open_link, tn_con, len_original, len_op))
         else
             push!(collaps_list, tn_con)
         end
@@ -178,7 +182,7 @@ function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNe
     # Collapse all tensors with length 1
     if length(collaps_list) > 0
         # assign a fresh unique id
-        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1))
+        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1, 1))
     end
     return op_vec
 end
