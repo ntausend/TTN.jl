@@ -120,13 +120,26 @@ Fields:
 - `lca_map`    : Dict{(site1, site2) => Dict{(layer, node) => (lca_layer, lca_node, lca_links)}} mapping
                 each site to its rerooted lowest common ancestor (LCA) under the current OC.
 """
-struct ProjTPO_group
+mutable struct ProjTPO_group
     net::AbstractNetwork
     tpo::TPO_group
     oc::Tuple{Int,Int}
     link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}} # ((layer, node), leg) => Vector of OpGroups
     # lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
 end
+
+net(ptpo::ProjTPO_group)      = ptpo.net
+tpo(ptpo::ProjTPO_group)     = ptpo.tpo
+oc(ptpo::ProjTPO_group)         = ptpo.oc
+link_ops(ptpo::ProjTPO_group) = ptpo.link_ops
+
+function ProjTPO_group(net::AbstractNetwork,
+                       tpo::TPO_group, ttn::TreeTensorNetwork;
+                       oc = (number_of_layers(net), 1))   # default root = top node
+    link_ops = upflow_to_root(net, ttn, tpo, oc)       # first cache
+    return ProjTPO_group(net, tpo, oc, link_ops)
+end
+
 
 # ─────────────────────────────────────────────
 # Helper function to build a TPO from an OpSum 

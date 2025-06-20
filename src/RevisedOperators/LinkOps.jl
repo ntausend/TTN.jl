@@ -73,7 +73,7 @@ function upflow_to_root(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwor
 end
 
 """
-    recalc_path_link_ops!(net, ttn0, tpo, link_ops, newroot)
+    recalc_path_link_ops!(net, ttn0, link_ops, oldroot, newroot)
 
 Recompute the link operators on the unique path that connects the original
 root (the top node) of `net` to `newroot`.
@@ -91,7 +91,7 @@ the connecting path, reducing the run‑time from *O(|net|)* to
 """
 function recalc_path_flows!(
         net::BinaryNetwork,
-        ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+        ttn0::TreeTensorNetwork,
         link_ops::Dict,
         oldroot::Tuple{Int,Int},
         newroot::Tuple{Int,Int},
@@ -132,6 +132,19 @@ function recalc_path_flows!(
 
     return link_ops
 end
+
+# --------------------------------------------------
+# (iii)  update link-ops **along the OC-moving path only**
+# --------------------------------------------------
+function recalc_path_flows!(ptpo::ProjTPO_group,
+                            ttn::TreeTensorNetwork,
+                            newroot::Tuple{Int,Int})
+
+    recalc_path_flows!(ptpo.net, ttn, ptpo.link_ops, ptpo.oc, newroot)
+    ptpo.oc = newroot                                     # keep state consistent
+    return ptpo
+end
+
 
 function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
      link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link::Tuple{Int,Int} = pos)

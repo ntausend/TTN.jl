@@ -47,7 +47,7 @@ end
 
 using Test
 using IterTools
-@testset "Test up to 5-site operators" begin
+@testset "Test up to 3-5-site operators" begin
     dims = (2^2,2^2) # dimensions of the rectangle
     J = 2 # setting the model parameter
     maxdims = 6 # maximal bond dimension of the random tensor network
