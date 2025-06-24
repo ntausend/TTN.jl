@@ -133,11 +133,10 @@ tpo(ptpo::ProjTPO_group)     = ptpo.tpo
 oc(ptpo::ProjTPO_group)         = ptpo.oc
 link_ops(ptpo::ProjTPO_group) = ptpo.link_ops
 
-function ProjTPO_group(net::AbstractNetwork,
-                       tpo::TPO_group, ttn::TreeTensorNetwork;
-                       oc = (number_of_layers(net), 1))   # default root = top node
-    link_ops = upflow_to_root(net, ttn, tpo, oc)       # first cache
-    return ProjTPO_group(net, tpo, oc, link_ops)
+function ProjTPO_group(tpo::TPO_group, ttn::TreeTensorNetwork;
+                       oc = Tuple(ttn.ortho_center))
+    link_ops = upflow_to_root(ttn.net, ttn, tpo, oc)
+    return ProjTPO_group(ttn.net, tpo, oc, link_ops)
 end
 
 
@@ -185,6 +184,35 @@ function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
 
     init_opgroup_id_counter!(op_s)
     return TPO_group(op_s)
+end
+
+"""
+    ops_on_node(ptpo::ProjTPO_group, pos::Tuple{Int,Int}) -> Vector{OpGroup}
+
+Return all operator terms (`OpGroup`s) that are associated with any of the
+three links connected to `pos` = (layer, node) in the TTN:
+- parent link
+- first child link
+- second child link
+"""
+function ops_on_node(ptpo::ProjTPO_group, pos::Tuple{Int,Int})
+    net = ptpo.net
+    link_ops = ptpo.link_ops
+
+    links = Tuple{Tuple{Int,Int}, Int}[]
+    parent = parent_node(net, pos)
+    if parent ≠ nothing
+        push!(links, (parent, which_child(net, pos)))
+    end
+    for (i, child) in enumerate(child_nodes(net, pos))
+        push!(links, (pos, i))
+    end
+
+    ops = OpGroup[]
+    for link in links
+        append!(ops, get(link_ops, link, OpGroup[]))
+    end
+    return ops
 end
 
 

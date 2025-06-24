@@ -130,8 +130,8 @@ module TTN
 
     # Revised Operator structures including LCA
     export OpGroup, TPO_group, ProjTPO_group
-    export LCA, build_tpo_from_opsum, op_reduction
-    export get_site_terms, get_id_terms, get_length_terms, which_child
+    export build_tpo_from_opsum, op_reduction
+    export get_site_terms, get_id_terms, get_length_terms, which_child, ops_on_node
     export init_opgroup_id_counter!, new_opgroup_id
     include("./RevisedOperators/OpStructs.jl")
     export rerooted_parent_map, lowest_common_ancestor_node_links

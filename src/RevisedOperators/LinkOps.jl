@@ -42,6 +42,10 @@ function complete_contraction(net::BinaryNetwork, ttn0::TreeTensorNetwork{Binary
     return tn_exp
 end
 
+complete_contraction(ptpo::ProjTPO_group, ttn0::TreeTensorNetwork) =
+    complete_contraction(ptpo.net, ttn0, ptpo.link_ops, ptpo.oc)
+
+
 function upflow_to_root(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_group, root::Tuple{Int,Int})
 
     link_ops = populate_physical_link_ops(net, tpo)
@@ -133,9 +137,6 @@ function recalc_path_flows!(
     return link_ops
 end
 
-# --------------------------------------------------
-# (iii)  update link-ops **along the OC-moving path only**
-# --------------------------------------------------
 function recalc_path_flows!(ptpo::ProjTPO_group,
                             ttn::TreeTensorNetwork,
                             newroot::Tuple{Int,Int})
