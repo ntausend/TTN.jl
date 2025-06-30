@@ -19,18 +19,12 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
     obs = get(kwargs, :observer, NoObserver())
 
     outputlevel = get(kwargs, :outputlevel, 1)
+    name_ttn = get(kwargs, :name_ttn, nothing)
 
     svd_alg = get(kwargs, :svd_alg, nothing)
 
     # now start with the sweeping protocol
     initialize!(sp)
-    # measure!(
-    #     obs;
-    #     sweep_handler=sp,
-    #     outputlevel=outputlevel,
-    #     dt = 0,
-    # )
-    #sp = SimpleSweepProtocol(net, n_sweeps)
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
             println("Start sweep number $(sw)")
@@ -39,12 +33,6 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
         t_p = time()
         for pos in sp
             update!(sp, pos; svd_alg)
-            # measure!(
-            #     obs;
-            #     sweep_handler=sp,
-            #     pos=pos,
-            #     outputlevel=outputlevel
-            # )
         end
         t_f = time()
         measure!(
@@ -53,10 +41,18 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
             outputlevel=outputlevel,
             dt = t_f-t_p,
         )
+
+        if !isnothing(name_ttn)
+            mode = isfile(name_ttn * ".h5") ? "r+" : "w"
+            println("saving at t= $(round(sw,digits=3))")
+            h5open(name_ttn*".h5", mode) do file
+                write(file, "ttn/t=$(round(sw,digits=3))", cpu(sp.ttn))
+            end
+        end
+
         if outputlevel ≥ 1
             print("Finished sweep $sw. ")
             @printf("Needed Time %.3fs\n", t_f - t_p)
-            # additional info string provided by the sweephandler
             info_string(sp, outputlevel)
             @printf("\n")
             flush(stdout)
@@ -88,10 +84,10 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
     end
     #noise = vcat(abs.(noise), repeat(noise[end:end], n_sweeps - length(noise)+1))
 
-    eigsolve_tol = get(kwargs, :eigsolve_tol, DEFAULT_TOL_DMRG)
-    eigsolve_krylovdim = get(kwargs, :eigsolve_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
+    eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_DMRG)
+    eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_DMRG)
-    eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
+    #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_DMRG)
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
@@ -104,33 +100,12 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
                             ishermitian=ishermitian,
                             tol=eigsolve_tol,
                             krylovdim=eigsolve_krylovdim,
-                            maxiter=eigsolve_maxiter,
-			    verbosity=eigsolve_verbosity)
+                            maxiter=eigsolve_maxiter)
 
     sh = SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, noise, expander, outputlevel)
     return sweep(psic, sh; kwargs...)
 end
 
-"""
-```julia
-   dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
-```
-
-Performs a dmrg minimization of the initial guess `psi0` with respect to the local Hamiltonian defined by `tpo`, which can either be a MPOWrapper or a TPO object.
-`psi_ortho` are additional tensor to orthogonalize against.
-
-It returns a sweep object `sp` where one can extract the final tree with `sp.ttn` and the energy by `sp.current_energy`.
-
-# Keywords:
-
-- `expander`: A optional subspace expansion algorithm can be choosen by this keyword. Be careful as the subspace expansion might be expensive. Default: NoExpander. Possible other choice: DefaultExpander(p) with `p` being a Integer (number of included sectors) or a Float (percentage of the full two tensor update).
-- `maxdims`: Maximal bond dimension
-- `n_sweeps`: Number of full sweeps through the network. A full sweep contains a forward and backward sweep such that every tensor is optimized twice.
-- `weight`: weights for the orthogonalization against `psi_ortho`.
-- `eigsolve_tol`: Tolerance of the eigsolve procedure
-- `eigsolve_krylovdim`: dimensionality of the krylov space
-- `eigsolve_maxiter`: maximal iterations for the krylov algorithm
-"""
 function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
@@ -151,7 +126,7 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_DMRG)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_DMRG)
-    eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
+    #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_DMRG)
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
@@ -164,8 +139,7 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
                             ishermitian=ishermitian,
                             tol=eigsolve_tol,
                             krylovdim=eigsolve_krylovdim,
-                            maxiter=eigsolve_maxiter,
-			    verbosity=eigsolve_verbosity)
+                            maxiter=eigsolve_maxiter)
 
     if if_old_excitedSH
         sh = ExcitedSweepHandler(psic, psi_ortho, pTPO, func, n_sweeps, maxdims, noise, expander, weight)
@@ -177,24 +151,6 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
     return sweep(psic, sh; kwargs...)
 end
 
-"""
-```julia
-   tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
-```
-
-Performs a tdvp simulation of the state `psi0` with respect to the local Hamiltonian `tpo` defined either as a MPOWrapper or TPO object.
-The integration is based on \$-i\\partial_t\\psi  = H\\psi\$, and thus describes a real time evolution.
-
-It returns a sweep object `sp` where one can extract the final tree with `sp.ttn`.
-
-# Keywords:
-- `timestep`: time step for the integrator
-- `initialtime`: starting time for the integrator
-- `finaltime`: final time for the integrator
-- `eigsolve_tol`: Tolerance of the eigsolve procedure
-- `eigsolve_krylovdim`: dimensionality of the krylov space
-- `eigsolve_maxiter`: maximal iterations for the krylov algorithm
-"""
 function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_TDVP)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
@@ -210,7 +166,7 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
     pTPO = ProjectedTensorProductOperator(psic, tpo)
-    
+
     func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
                                            krylovdim = eigsolve_krylovdim,
                                            tol = eigsolve_tol, 
