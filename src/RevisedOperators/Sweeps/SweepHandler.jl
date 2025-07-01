@@ -1,45 +1,120 @@
-"""
-    ∂A(ptpo::ProjTPO_group, pos::Tuple{Int,Int})
+mutable struct SimpleSweepHandlerGPU <: AbstractRegularSweepHandler
+    const number_of_sweeps::Int
+    ttn::TreeTensorNetwork
+    pTPO::ProjTPO_GPU
+    func
+    # expander::AbstractSubspaceExpander
+        
+    maxdims::Vector{Int64}
+    # noise::Vector{Number}
 
-Return a closure `action(T)` that applies the part of the *projected*
-Hamiltonian living on node `pos` to an `ITensor T` on the **same** node.
+    dir::Symbol
+    current_sweep::Int
+    current_energy::Float64
+    current_spec::Spectrum
+    current_max_truncerr::Float64
+    outputlevel::Int
+    SimpleSweepHandlerGPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0) = 
+        new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., Spectrum(nothing, 0.0), 0.0, outputlevel)
+end
 
-For every operator–ID that still has support on one (or more) of the three
-links attached to `pos` (parent, first-child, second-child) the routine
+current_sweep(sh::SimpleSweepHandlerGPU) = sh.current_sweep
 
-  1. collects the corresponding `ITensor`s that represent that operator’s
-     pieces near `pos`;
-  2. builds the minimal contraction network `[T, op₁, op₂, …]`;
-  3. contracts it with an optimal sequence; and
-  4. finally sums all such contributions.
+function maxdim(sh::SimpleSweepHandlerGPU)
+    length(sh.maxdims) < current_sweep(sh) && return sh.maxdims[end]
+    return sh.maxdims[current_sweep(sh)]
+end
 
-This reproduces the behaviour of the original `∂A` but now talks to the new
-`ProjTPO_group` data model.
-"""
-function ∂A(ptpo::ProjTPO_group, pos::Tuple{Int,Int})
-    net      = ptpo.net
-    link_ops = ptpo.link_ops
+function info_string(sh::SimpleSweepHandlerGPU, output_level::Int)
+    e = sh.current_energy
+    trnc_wght = sh.current_max_truncerr
+    # todo ->  make a function for that .... which also can handle TensorKit
+    maxdim = maxlinkdim(sh.ttn)
+    output_level ≥ 1 && @printf("\tCurrent energy: %.15f.\n", e)
+    output_level ≥ 2 && @printf("\tTruncated Weigth: %.3e. Maximal bond dim = %i\n", trnc_wght, maxdim)
+    sh.current_max_truncerr = 0.0
+    nothing
+end
 
-    # ─────────────── gather the “environment” ────────────────
-    # Dict{Int, Vector{OpGroup}} keyed by the global operator id
-    id_bucket = get_id_terms(net, link_ops, pos)
+## probably not needed after reset
+function initialize!(sp::SimpleSweepHandlerGPU)
+    ttn = sp.ttn
+    pTPO = sp.pTPO
 
-    # Pre-extract the raw ITensors; cheap and avoids allocations
-    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+    #adjust the tree dimension to the first bond dimension
 
-    # ───────────────────── the action closure ─────────────────
-    function action(T::ITensor)
-        isempty(envs) && return zero(T)  # nothing acts on this node
+    # move to starting point of the sweep
+    ttn = move_ortho!(ttn, (1,1))
+    # update the environments accordingly
+    pTPO = set_position!(pTPO, ttn)
 
-        acc = nothing
-        for trm in envs
-            tensor_list = vcat(T, trm)                      # [T, op₁, …]
-            seq         = ITensors.optimal_contraction_sequence(tensor_list)
-            contrib     = noprime(contract(tensor_list; sequence = seq))
-            acc === nothing ? (acc = contrib) : (acc += contrib)
+    sp.ttn = ttn
+    sp.pTPO = pTPO
+    # get starting energy
+    return sp
+end
+
+# simple reset the sweep Handler and update the current sweep number
+# current number still needed?
+function update_next_sweep!(sp::SimpleSweepHandlerGPU)
+    sp.dir = :up
+    sp.current_sweep += 1 
+    return sp
+end
+
+function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = nothing)
+    @assert pos == ortho_center(sp.ttn)
+    ttn = sp.ttn
+    pTPO = sp.pTPO
+    
+    net = network(ttn)
+
+    # adjust the position of the projected operator, i.e. redefine the environemnts
+    pTPO = set_position!(pTPO, ttn)
+
+    t = ttn[pos]
+      
+    pn = next_position(sp,pos)
+    # if !isnothing(pn)
+    #     recalc_path_flows!(pTPO, ttn, pn)
+    # end
+    
+    action  = ∂A(pTPO, pos)
+    val, tn = sp.func(action, t)
+    sp.current_energy = real(val[1])
+    tn = tn[1]
+    
+    ttn[pos] = tn
+
+    # possible other arguments, which_decomp, svd_alg etc
+    # update the node and shift ttn.oc to next position
+    ttn, spec = update_node_and_move!(ttn,tn, pn;
+                                      maxdim = maxdim(sp),
+                                      normalize = true,
+                                      svd_alg)
+
+    sp.current_spec = spec
+    trncerr = truncerror(spec)
+    sp.current_max_truncerr = max(sp.current_max_truncerr, trncerr)
+    return sp
+end
+
+
+function next_position(sp::SimpleSweepHandlerGPU, cur_pos::Tuple{Int,Int})
+    cur_layer, cur_p = cur_pos
+    net = network(sp.ttn)
+    if sp.dir == :up
+        max_pos = number_of_tensors(net, cur_layer)
+        cur_p < max_pos && return (cur_layer, cur_p + 1)
+        if cur_layer == number_of_layers(net)
+            sp.dir = :down
+            return (cur_layer - 1, number_of_tensors(net, cur_layer - 1))
         end
-        return acc
+        return (cur_layer + 1, 1)
+    elseif sp.dir == :down
+        cur_p > 1 && return (cur_layer, cur_p - 1)
+        cur_layer == 1 && return nothing
+        return (cur_layer - 1, number_of_tensors(net, cur_layer - 1))
     end
-
-    return action
+    error("Invalid direction of the iterator: $(sp.dir)")
 end

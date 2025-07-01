@@ -1,4 +1,4 @@
-function dmrg(psi0::TreeTensorNetwork, tpo::TPO_group; expander = NoExpander(), kwargs...)
+function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kwargs...)
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
     maxdims::Union{Int64, Vector{Int64}}   = get(kwargs, :maxdims, 1)
@@ -10,10 +10,6 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_group; expander = NoExpander(), 
         maxdims = [maxdims]
     end
     #maxdims = vcat(maxdims, repeat(maxdims[end:end], n_sweeps - length(maxdims)+1))
-    if noise isa Float64
-        noise = [noise]
-    end
-    #noise = vcat(abs.(noise), repeat(noise[end:end], n_sweeps - length(noise)+1))
 
     eigsolve_tol = get(kwargs, :eigsolve_tol, DEFAULT_TOL_DMRG)
     eigsolve_krylovdim = get(kwargs, :eigsolve_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
@@ -23,11 +19,9 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_group; expander = NoExpander(), 
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
     psic = copy(psi0)
-    # set orthocenter to (1,1) to start
-    # later: set to first element of sweep path
     psic = move_ortho!(psic, (1,1))
 
-    pTPO = ProjTPO_group(tpo, psi0)
+    pTPO = ProjTPO_GPU(tpo, psic)
     func = (action, T) -> eigsolve(action, T, 1,
                             eigsolve_which_eigenvalue;
                             ishermitian=ishermitian,
@@ -36,6 +30,65 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_group; expander = NoExpander(), 
                             maxiter=eigsolve_maxiter,
 			    verbosity=eigsolve_verbosity)
 
-    sh = SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, noise, expander, outputlevel)
+    sh = SimpleSweepHandlerGPU(psic, pTPO, func, n_sweeps, maxdims, outputlevel)
     return sweep(psic, sh; kwargs...)
+end
+
+function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; kwargs...)
+    
+    obs = get(kwargs, :observer, NoObserver())
+
+    outputlevel = get(kwargs, :outputlevel, 1)
+
+    svd_alg = get(kwargs, :svd_alg, nothing)
+
+    # now start with the sweeping protocol
+    # already initialised to oc = (1,1) due to 
+    # initialize!(sp)
+    
+    # measure!(
+    #     obs;
+    #     sweep_handler=sp,
+    #     outputlevel=outputlevel,
+    #     dt = 0,
+    # )
+    #sp = SimpleSweepProtocol(net, n_sweeps)
+    for sw in sweeps(sp)
+        if outputlevel ≥ 2 
+            println("Start sweep number $(sw)")
+            flush(stdout)
+        end
+        t_p = time()
+        for pos in sp
+            update!(sp, pos; svd_alg)
+            # measure!(
+            #     obs;
+            #     sweep_handler=sp,
+            #     pos=pos,
+            #     outputlevel=outputlevel
+            # )
+        end
+        t_f = time()
+        measure!(
+            obs;
+            sweep_handler=sp,
+            outputlevel=outputlevel,
+            dt = t_f-t_p,
+        )
+        if outputlevel ≥ 1
+            print("Finished sweep $sw. ")
+            @printf("Needed Time %.3fs\n", t_f - t_p)
+            # additional info string provided by the sweephandler
+            info_string(sp, outputlevel)
+            @printf("\n")
+            flush(stdout)
+        end
+    isdone = checkdone!(
+			obs;
+			sweep_handler=sp,
+			outputlevel=outputlevel
+		)
+	isdone && break
+    end
+    return sp
 end

@@ -150,7 +150,7 @@ function lowest_common_ancestor_node_links(net::AbstractNetwork, site1, site2, r
 end
 
 
-function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
+function build_lca_id_map(net::AbstractNetwork, tpo::TPO_GPU)
     lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for idd in 1:tpo.terms[end].id
@@ -174,7 +174,7 @@ function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
     return lca_id_map
 end
 
-function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_group)
+function build_lca_sites_map(net::AbstractNetwork, tpo::TPO_GPU)
     lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for idd in 1:tpo.terms[end].id
@@ -201,7 +201,7 @@ end
 
 #=
 
-function build_lca_id_map_old(net::AbstractNetwork, tpo::TPO_group)
+function build_lca_id_map_old(net::AbstractNetwork, tpo::TPO_GPU)
     lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for op in tpo
@@ -224,7 +224,7 @@ function build_lca_id_map_old(net::AbstractNetwork, tpo::TPO_group)
     return lca_id_map
 end
 
-function build_lca_sites_map_old(net::AbstractNetwork, tpo::TPO_group)
+function build_lca_sites_map_old(net::AbstractNetwork, tpo::TPO_GPU)
     lca_sites_map = Dict{Tuple{Int,Int}, Dict{Tuple{Int,Int}, LCA}}()
     # Iterate over all pairs of sites in the TPO
     for op in tpo
@@ -251,7 +251,7 @@ end
 
 #=
 
-function build_lca_id_map(net::AbstractNetwork, tpo::TPO_group)
+function build_lca_id_map(net::AbstractNetwork, tpo::TPO_GPU)
     lca_id_map = Dict{Int, Dict{Tuple{Int,Int}, LCA}}()
 
     # Get sites map
@@ -272,10 +272,10 @@ end
 
 ## Get list of all paired sites in the TPO
 """
-    paired_sites(tpo::TPO_group)
+    paired_sites(tpo::TPO_GPU)
 Returns a Set of tuples representing pairs of sites in the TPO that are paired together.
 """
-function paired_sites(tpo::TPO_group)
+function paired_sites(tpo::TPO_GPU)
     pairs = Set{Tuple{Tuple{Int,Int}, Tuple{Int,Int}}}()
     for terms in tpo
         if length(terms.site) == 2

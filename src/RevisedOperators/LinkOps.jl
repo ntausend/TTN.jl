@@ -1,5 +1,5 @@
-function populate_physical_link_ops(net::AbstractNetwork, tpo::TPO_group)
-    link_ops = Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}}()
+function populate_physical_link_ops(net::BinaryNetwork, tpo::TPO_GPU)
+    link_ops = Dict{Tuple{Tuple{Int,Int},Int}, Vector{Op_GPU}}()
     # Iterate over each node of first layer
     for n in eachindex(net,1)
         # Get child nodes of the first layer nodes
@@ -15,7 +15,8 @@ function populate_physical_link_ops(net::AbstractNetwork, tpo::TPO_group)
     return link_ops
 end
 
-function complete_contraction(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, root::Tuple{Int,Int})
+
+function complete_contraction(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, root::Tuple{Int,Int})
     
     tn = ttn0[root]
     collaps_list = Vector{ITensor}()
@@ -42,14 +43,14 @@ function complete_contraction(net::BinaryNetwork, ttn0::TreeTensorNetwork{Binary
     return tn_exp
 end
 
-complete_contraction(ptpo::ProjTPO_group, ttn0::TreeTensorNetwork) =
-    complete_contraction(ptpo.net, ttn0, ptpo.link_ops, ptpo.oc)
+complete_contraction(ptpo::ProjTPO_GPU, ttn0::TreeTensorNetwork) =
+    complete_contraction(ptpo.net, ttn0, ptpo.link_ops, ptpo.ortho_center)
 
 
-function upflow_to_root(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_group, root::Tuple{Int,Int})
+function upflow_to_root(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_GPU, root::Tuple{Int,Int})
 
     link_ops = populate_physical_link_ops(net, tpo)
-    # get path from top node to oc = newroot
+    # get path from top node to ortho_center = newroot
     top_node = (number_of_layers(net), 1)
     connect_path = pushfirst!(connecting_path(net, top_node, root), top_node)
     node_order = root == top_node ? NodeIterator(net) : reverse_bfs_nodes(net, root)
@@ -137,20 +138,20 @@ function recalc_path_flows!(
     return link_ops
 end
 
-function recalc_path_flows!(ptpo::ProjTPO_group,
+function recalc_path_flows!(ptpo::ProjTPO_GPU,
                             ttn::TreeTensorNetwork,
                             newroot::Tuple{Int,Int})
 
-    recalc_path_flows!(ptpo.net, ttn, ptpo.link_ops, ptpo.oc, newroot)
-    ptpo.oc = newroot                                     # keep state consistent
+    recalc_path_flows!(ptpo.net, ttn, ptpo.link_ops, ptpo.ortho_center, newroot)
+    ptpo.ortho_center = newroot                                     # keep state consistent
     return ptpo
 end
 
 
-function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link::Tuple{Int,Int} = pos)
+function contract_ops(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, pos::Tuple{Int,Int}; open_link::Tuple{Int,Int} = pos)
 
-    op_vec = Vector{OpGroup}()
+    op_vec = Vector{Op_GPU}()
     collaps_list = Vector{ITensor}()
     
     bucket = get_id_terms(net, link_ops, pos)
@@ -188,7 +189,7 @@ function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNe
         end
         len_op -= op_red
         if len_op > 1
-            push!(op_vec, OpGroup(idd, open_link, tn_con, len_original, len_op))
+            push!(op_vec, Op_GPU(idd, open_link, tn_con, len_original, len_op))
         else
             push!(collaps_list, tn_con)
         end
@@ -196,7 +197,7 @@ function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNe
     # Collapse all tensors with length 1
     if length(collaps_list) > 0
         # assign a fresh unique id
-        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1, 1))
+        push!(op_vec, Op_GPU(new_Op_GPU_id(), open_link, sum(collaps_list), 1, 1))
     end
     return op_vec
 end

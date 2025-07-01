@@ -1,5 +1,5 @@
 
-function upflow(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_group)
+function upflow(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_GPU)
     link_ops = populate_physical_link_ops(net, tpo)
     # link_ops = contract_first_layer_linkops(net, ttn0, link_ops)
     # link_ops = contract_upper_layer_linkops(net, ttn0, link_ops)
@@ -20,7 +20,7 @@ function upflow(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.Si
 end
 
 function contract_ops(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link = pos)
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, pos::Tuple{Int,Int}; open_link = pos)
 
     if layer == 1
         contract_ops_on_node(net, ttn0, link_ops, pos; open_link = open_link)
@@ -31,9 +31,9 @@ end
 
 
 function contract_linkops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}; open_link::Tuple{Int,Int} = pos)
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, pos::Tuple{Int,Int}; open_link::Tuple{Int,Int} = pos)
 
-    op_vec = Vector{OpGroup}()
+    op_vec = Vector{Op_GPU}()
     collaps_list = Vector{ITensor}()
 
     bucket = get_id_terms(net, link_ops, pos)
@@ -69,7 +69,7 @@ function contract_linkops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetw
             len_op -= (len_con - 1)
         end
         if len_op > 1
-            push!(op_vec, OpGroup(idd, open_link, tn_con, len_op))
+            push!(op_vec, Op_GPU(idd, open_link, tn_con, len_op))
         else
             push!(collaps_list, tn_con)
         end
@@ -77,16 +77,16 @@ function contract_linkops_on_node(net::TTN.AbstractNetwork, ttn0::TreeTensorNetw
     # Collapse all tensors with length 1
     if length(collaps_list) > 0
         # assign a fresh unique id
-        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1))
+        push!(op_vec, Op_GPU(new_Op_GPU_id(), open_link, sum(collaps_list), 1))
     end
     return op_vec
 end
 
 
 function contract_linkops_on_topnode(net::TTN.AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, pos::Tuple{Int,Int}, open_link::Tuple{Int,Int})
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, pos::Tuple{Int,Int}, open_link::Tuple{Int,Int})
     
-    op_vec = Vector{OpGroup}()
+    op_vec = Vector{Op_GPU}()
     collaps_list = Vector{ITensor}()
     # pos is supposed to be the top node
     # pos = (number_of_layers(net), 1)
@@ -102,19 +102,19 @@ function contract_linkops_on_topnode(net::TTN.AbstractNetwork, ttn0::TreeTensorN
         opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
         tn_con = contract(tensor_list; sequence = opcon_seq)
         if len_op > 1
-            push!(op_vec, OpGroup(idd, open_link, tn_con, len_op))
+            push!(op_vec, Op_GPU(idd, open_link, tn_con, len_op))
         else
             push!(collaps_list, tn_con)
         end
     end
     # Collapse all tensors with length 1
     if length(collaps_list) > 0
-        push!(op_vec, OpGroup(new_opgroup_id(), open_link, sum(collaps_list), 1))
+        push!(op_vec, Op_GPU(new_Op_GPU_id(), open_link, sum(collaps_list), 1))
     end
     return op_vec
 end
 
-function complete_contraction_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, root::Tuple{Int64, Int64})
+function complete_contraction_rerooted(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, root::Tuple{Int64, Int64})
     
     tn = ttn0[root]
     collaps_list = Vector{ITensor}()
@@ -160,17 +160,17 @@ end
 
 ## Collect acting operators on leg 1 of node (1,1) i.e. (0,1) in the TPO
 function contract_link_ops_by_lca(net::AbstractNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, lca_id_map::Dict{Int64, Dict{Tuple{Int64, Int64}, LCA}}, (layer,node)::Tuple{Int,Int})
+     link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, lca_id_map::Dict{Int64, Dict{Tuple{Int64, Int64}, LCA}}, (layer,node)::Tuple{Int,Int})
     # Contract all operators acting on the first leg of the node (1,1)
-    # and return a vector of OpGroup objects
-    # OpGroup(id, node, tensor)
+    # and return a vector of Op_GPU objects
+    # Op_GPU(id, node, tensor)
     # where id is the id of the operator in the TPO
     # node is the node where the operator acts on
     # tensor is the resulting tensor after contraction
     println("Contracting link operators for node ($layer,$node)")
     # Where to store next layer link operators
     link = (parent_node(net,(layer, node)), which_child(net, (layer, node)))
-    op_vec = Vector{OpGroup}()
+    op_vec = Vector{Op_GPU}()
     tn = ttn0[(layer, node)]
     tn_dag = dag(prime(tn))
 
@@ -191,7 +191,7 @@ function contract_link_ops_by_lca(net::AbstractNetwork, ttn0::TreeTensorNetwork{
                     tensor_list = [tn, tn_dag_p, act_op]
                     opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
                     tn_con = contract(tensor_list; sequence = opcon_seq)
-                    push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
+                    push!(op_vec, Op_GPU(idd, (layer, node),tn_con, len))
                 else
                     if (layer, node) == lca_id_map[op.id][pTPO.oc].lca_node
                         println("ID: $idd: Contract via LCA")
@@ -200,7 +200,7 @@ function contract_link_ops_by_lca(net::AbstractNetwork, ttn0::TreeTensorNetwork{
                         tensor_list = [tn, tn_dag, act_op1, act_op2]
                         opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
                         tn_con = contract(tensor_list; sequence = opcon_seq)
-                        push!(op_vec, OpGroup(idd, (layer, node),tn_con, len-1))
+                        push!(op_vec, Op_GPU(idd, (layer, node),tn_con, len-1))
                     else
                         println("ID: $idd: Contract directly and keep open link")
                         act_op = op.op
@@ -208,7 +208,7 @@ function contract_link_ops_by_lca(net::AbstractNetwork, ttn0::TreeTensorNetwork{
                         tensor_list = [tn, tn_dag_p, act_op]
                         opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
                         tn_con = contract(tensor_list; sequence = opcon_seq)
-                        push!(op_vec, OpGroup(idd, (layer, node),tn_con, len))
+                        push!(op_vec, Op_GPU(idd, (layer, node),tn_con, len))
                     end
                 end
                 push!(visited_ids, idd)
@@ -218,7 +218,7 @@ function contract_link_ops_by_lca(net::AbstractNetwork, ttn0::TreeTensorNetwork{
     return op_vec
 end 
 
-function contract_first_layer_linkops(net::BinaryNetwork, tpo::TPO_group, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor})
+function contract_first_layer_linkops(net::BinaryNetwork, tpo::TPO_GPU, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor})
     link_ops = populate_physical_link_ops(net, tpo);
     layer = 1
     println("layer: $layer")
@@ -232,7 +232,7 @@ function contract_first_layer_linkops(net::BinaryNetwork, tpo::TPO_group, ttn0::
     return link_ops
 end
 
-function contract_upper_layer_linkops(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}})
+function contract_upper_layer_linkops(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}})
     for l in 2:number_of_layers(net)-1
         println("layer: $l")
         for n in eachindex(net,l)

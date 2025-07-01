@@ -1,12 +1,12 @@
-const NEXT_OPGROUP_ID = Ref{Int}(0)
+const NEXT_Op_GPU_ID = Ref{Int}(0)
 
 """
-new_opgroup_id()
+new_Op_GPU_id()
 — return a fresh unique id; increments the counter.
 """
-new_opgroup_id() = begin
-  id = NEXT_OPGROUP_ID[]
-  NEXT_OPGROUP_ID[] += 1
+new_Op_GPU_id() = begin
+  id = NEXT_Op_GPU_ID[]
+  NEXT_Op_GPU_ID[] += 1
   return id
 end
 
@@ -34,7 +34,7 @@ Fields:
 - `original_length` : Original length of the operator (e.g. number of sites)
 - `length`   : Length of the operator after splitting (e.g. number of sites after splitting)
 """
-struct OpGroup
+struct Op_GPU
   id::Int
   site::Tuple{Int,Int}
   op::ITensor
@@ -42,12 +42,12 @@ struct OpGroup
   length::Int
 end
 
-length(op::OpGroup) = op.length
-# OpGroup(id::Int, site::Tuple{Int,Int}, op::ITensor) = OpGroup(id, (site,), (op,))
+length(op::Op_GPU) = op.length
+# Op_GPU(id::Int, site::Tuple{Int,Int}, op::ITensor) = Op_GPU(id, (site,), (op,))
 
-op_reduction(op::OpGroup) = op.original_length - op.length
+op_reduction(op::Op_GPU) = op.original_length - op.length
 
-function ==(a::OpGroup, b::OpGroup)
+function ==(a::Op_GPU, b::Op_GPU)
     a.id == b.id && # isnt necessarily equal due to global unique id counter
     a.site == b.site &&
     a.op == b.op &&
@@ -56,7 +56,7 @@ function ==(a::OpGroup, b::OpGroup)
     # all(==(true), isapprox.(a.op, b.op))  # or define more robust ITensor comparison
 end
 
-# function isapprox(a::OpGroup, b::OpGroup; atol=1e-12, rtol=1e-12)
+# function isapprox(a::Op_GPU, b::Op_GPU; atol=1e-12, rtol=1e-12)
 #     a.id == b.id &&
 #     a.site == b.site &&
 #     isapprox(a.op, b.op)
@@ -76,30 +76,30 @@ Stores a list of custom `Op` terms derived from the original `OpSum`.
 Fields:
 - `terms` :: Vector{Op}
 """
-struct TPO_group
-    terms::Vector{OpGroup}
+struct TPO_GPU
+    terms::Vector{Op_GPU}
 end
 
 
-getindex(tpo::TPO_group, i::Int) = tpo.terms[i]
-length(tpo::TPO_group) = length(tpo.terms)
-iterate(tpo::TPO_group, state=1) = state > length(tpo) ? nothing : (tpo[state], state+1)
-firstindex(tpo::TPO_group) = 1
-lastindex(tpo::TPO_group) = length(tpo)
+getindex(tpo::TPO_GPU, i::Int) = tpo.terms[i]
+length(tpo::TPO_GPU) = length(tpo.terms)
+iterate(tpo::TPO_GPU, state=1) = state > length(tpo) ? nothing : (tpo[state], state+1)
+firstindex(tpo::TPO_GPU) = 1
+lastindex(tpo::TPO_GPU) = length(tpo)
 
 """
-init_opgroup_id_counter!(tpo::Vector{OpGroup})
+init_Op_GPU_id_counter!(tpo::Vector{Op_GPU})
 — after you build your TPO (and have assigned its original ids),
   call this to seed the counter one above the max you’ve used.
 """
 
-function init_opgroup_id_counter!(tpo::Vector{OpGroup})
+function init_Op_GPU_id_counter!(tpo::Vector{Op_GPU})
   if isempty(tpo)
-    NEXT_OPGROUP_ID[] = 1
+    NEXT_Op_GPU_ID[] = 1
   else
-    NEXT_OPGROUP_ID[] = maximum(g.id for g in tpo) + 1
+    NEXT_Op_GPU_ID[] = maximum(g.id for g in tpo) + 1
   end
-  return NEXT_OPGROUP_ID[]
+  return NEXT_Op_GPU_ID[]
 end
 
 
@@ -110,33 +110,36 @@ end
 """
     ProjTPO
 
-Encapsulates the TTN network, current OC, and link operators needed for sweeping.
+Encapsulates the TTN network, current ortho_center, and link operators needed for sweeping.
 
 Fields:
-- `net`        : tree network structure, e.g. `BinaryNetwork`
-- `tpo`        : Tree product operator
-- `oc`         : Tuple{layer, node} denoting the orthogonality center
-- `link_ops`   : Dict{((layer, node), leg) => Vector{ITensor}} with link-operators
-- `lca_map`    : Dict{(site1, site2) => Dict{(layer, node) => (lca_layer, lca_node, lca_links)}} mapping
+- `net`          : tree network structure, e.g. `BinaryNetwork`
+- `tpo`          : Tree product operator
+- `ortho_center` : Tuple{layer, node} denoting the orthogonality center
+- `link_ops`     : Dict{((layer, node), leg) => Vector{ITensor}} with link-operators
+- `lca_map`      : Dict{(site1, site2) => Dict{(layer, node) => (lca_layer, lca_node, lca_links)}} mapping
                 each site to its rerooted lowest common ancestor (LCA) under the current OC.
 """
-mutable struct ProjTPO_group
-    net::AbstractNetwork
-    tpo::TPO_group
-    oc::Tuple{Int,Int}
-    link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}} # ((layer, node), leg) => Vector of OpGroups
-    # lca_map::Dict{Int, Dict{Tuple{Int,Int}, LCA}}
+mutable struct ProjTPO_GPU{N<:AbstractNetwork, T} <: AbstractProjTPO{N, T}
+    net::N
+    tpo::TPO_GPU
+    ortho_center::Tuple{Int,Int}
+    link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{Op_GPU}}
 end
 
-net(ptpo::ProjTPO_group)      = ptpo.net
-tpo(ptpo::ProjTPO_group)     = ptpo.tpo
-oc(ptpo::ProjTPO_group)         = ptpo.oc
-link_ops(ptpo::ProjTPO_group) = ptpo.link_ops
+# function ProjTPO_GPU(net::N, tpo::TPO_GPU, oc::Tuple{Int,Int}, link_ops::Dict{Tuple{Tuple{Int,Int}, Int}, Vector{Op_GPU}}) where {N<:AbstractNetwork}
+#     return ProjTPO_GPU{N, ITensor}(net, tpo, oc, link_ops)
+# end
 
-function ProjTPO_group(tpo::TPO_group, ttn::TreeTensorNetwork;
-                       oc = Tuple(ttn.ortho_center))
+# network(ptpo::ProjTPO_GPU)      = ptpo.net
+# tpo(ptpo::ProjTPO_GPU)     = ptpo.tpo
+# oc(ptpo::ProjTPO_GPU)         = ptpo.oc
+link_ops(ptpo::ProjTPO_GPU) = ptpo.link_ops
+
+function ProjTPO_GPU(tpo::TPO_GPU, ttn::TreeTensorNetwork{N, T};
+                       oc = Tuple(ttn.ortho_center)) where {N, T}
     link_ops = upflow_to_root(ttn.net, ttn, tpo, oc)
-    return ProjTPO_group(ttn.net, tpo, oc, link_ops)
+    return ProjTPO_GPU{N, T}(ttn.net, tpo, oc, link_ops)
 end
 
 
@@ -146,18 +149,18 @@ end
 
 """
     build_tpo_from_opsum(ampo::OpSum, lat)
-Builds a `TPO_group` from an `OpSum` by extracting terms and converting them to `OpGroup`.
+Builds a `TPO_GPU` from an `OpSum` by extracting terms and converting them to `Op_GPU`.
 
 `ampo` is an `OpSum` containing the operator terms, and `lat` is the lattice structure.
 
-This function constructs `OpGroup` instances for each term,
-and returns a `TPO_group` containing all the operator groups.
-N-site operators are splitted into individual `OpGroup` instances matched by their unique ID.
+This function constructs `Op_GPU` instances for each term,
+and returns a `TPO_GPU` containing all the operator groups.
+N-site operators are splitted into individual `Op_GPU` instances matched by their unique ID.
 """
 
 function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
     physidx = siteinds(lat)
-    op_s    = OpGroup[]
+    op_s    = Op_GPU[]
     terms   = filter(t -> !isapprox(coefficient(t),0),
                      ITensorMPS.terms(ITensorMPS.sortmergeterms(ampo)))
 
@@ -177,25 +180,25 @@ function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
             op_t = factor * ITensors.op(physidx[siteidx_lin], opname;
                                      ITensors.params(op)...)
 
-            push!(op_s, OpGroup(op_id, (0, siteidx_lin), op_t, len, len))
+            push!(op_s, Op_GPU(op_id, (0, siteidx_lin), op_t, len, len))
         end
         op_id += 1
     end
 
-    init_opgroup_id_counter!(op_s)
-    return TPO_group(op_s)
+    init_Op_GPU_id_counter!(op_s)
+    return TPO_GPU(op_s)
 end
 
 """
-    ops_on_node(ptpo::ProjTPO_group, pos::Tuple{Int,Int}) -> Vector{OpGroup}
+    ops_on_node(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}) -> Vector{Op_GPU}
 
-Return all operator terms (`OpGroup`s) that are associated with any of the
+Return all operator terms (`Op_GPU`s) that are associated with any of the
 three links connected to `pos` = (layer, node) in the TTN:
 - parent link
 - first child link
 - second child link
 """
-function ops_on_node(ptpo::ProjTPO_group, pos::Tuple{Int,Int})
+function ops_on_node(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int})
     net = ptpo.net
     link_ops = ptpo.link_ops
 
@@ -208,27 +211,27 @@ function ops_on_node(ptpo::ProjTPO_group, pos::Tuple{Int,Int})
         push!(links, (pos, i))
     end
 
-    ops = OpGroup[]
+    ops = Op_GPU[]
     for link in links
-        append!(ops, get(link_ops, link, OpGroup[]))
+        append!(ops, get(link_ops, link, Op_GPU[]))
     end
     return ops
 end
 
 
-# Find all operator groups by their current length
-function get_length_terms(tpo::TPO_group, len::Int)
+# Find all operators by their current length
+function get_length_terms(tpo::TPO_GPU, len::Int)
     return filter(op -> op.length == len, tpo.terms)
 end
 
-function get_length_terms(group::Vector{OpGroup}, len::Int)
-    filter(g -> g.length == len, group)
+function get_length_terms(ops::Vector{Op_GPU}, len::Int)
+    filter(g -> g.length == len, ops)
 end
 
-function get_length_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int}, len::Int)
-    # gather all OpGroup objects by length len
+function get_length_terms(net::BinaryNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, (layer, node)::Tuple{Int,Int}, len::Int)
+    # gather all Op_GPU objects by length len
     # of (layer,node) and on the link to its parentS
-    bucket = Dict{Int, Vector{OpGroup}}()
+    bucket = Dict{Int, Vector{Op_GPU}}()
 
     # the three links we care about
     links = (
@@ -239,10 +242,10 @@ function get_length_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64
     )
 
     for link in links
-        # get(link_ops, link, Vector{OpGroup}()) → empty vector if link not present
-        for op in get(link_ops, link, Vector{OpGroup}())
+        # get(link_ops, link, Vector{Op_GPU}()) → empty vector if link not present
+        for op in get(link_ops, link, Vector{Op_GPU}())
             if op.length == len
-                push!(get!(bucket, op.length, Vector{OpGroup}()), op)
+                push!(get!(bucket, op.length, Vector{Op_GPU}()), op)
             end
         end
     end
@@ -251,55 +254,55 @@ function get_length_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64
 end
 
 # Collect all terms acting on a specific site
-function get_site_terms(tpo::TPO_group, target_site::Tuple{Int,Int})
+function get_site_terms(tpo::TPO_GPU, target_site::Tuple{Int,Int})
     # Filter groups where the target site is in the sites of the group
     return filter(op -> op.site == target_site, tpo.terms)
 end
 
 function get_site_terms(
-        net::AbstractNetwork,
-        link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{OpGroup}},
+        net::BinaryNetwork,
+        link_ops::Dict{Tuple{Tuple{Int,Int},Int}, Vector{Op_GPU}},
         site::Tuple{Int,Int},
-    )::Vector{OpGroup}
+    )::Vector{Op_GPU}
 
-    terms = Vector{OpGroup}()
+    terms = Vector{Op_GPU}()
 
     # 1. parent link (absent if `site` happens to be the global root)
     if site != (number_of_layers(net), 1)
         parent = parent_node(net, site)
         link   = (parent, which_child(net, site))
-        append!(terms, get(link_ops, link, Vector{OpGroup}()))
+        append!(terms, get(link_ops, link, Vector{Op_GPU}()))
     end
 
     # 2. on‑site link (child index == 0)
     onsite_link = (site, 0)
-    append!(terms, get(link_ops, onsite_link, Vector{OpGroup}()))
+    append!(terms, get(link_ops, onsite_link, Vector{Op_GPU}()))
 
     return terms
 end
 
 # Find all operator groups by their unique ID
-function get_id_terms(tpo::TPO_group, target_id::Int)
+function get_id_terms(tpo::TPO_GPU, target_id::Int)
     return filter(op -> op.id == target_id, tpo.terms)
 end
 
 """
-    filter_id_term(link_ops, (layer, node), id) -> Vector{OpGroup}
+    filter_id_term(link_ops, (layer, node), id) -> Vector{Op_GPU}
 
-Return all `OpGroup`s whose `op.id == id` that act on the two child links
+Return all `Op_GPU`s whose `op.id == id` that act on the two child links
 of `(layer, node)` or the link to its parent.  If no such operators are
 present, an empty vector is returned.
 """
-function get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int}, id)
-    # collect every OpGroup on the three relevant links,
+function get_id_terms(net::BinaryNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, (layer, node)::Tuple{Int,Int}, id::Int)
+    # collect every Op_GPU on the three relevant links,
     # then pull out the bucket for the requested id
-    get(get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)), id, Vector{OpGroup}())
+    get(get_id_terms(net::BinaryNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, (layer, node)), id, Vector{Op_GPU}())
 end
 
-function get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{OpGroup}}, (layer, node)::Tuple{Int,Int})
-    # gather all OpGroup objects whose id appears on the two child links
+function get_id_terms(net::BinaryNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, (layer, node)::Tuple{Int,Int})
+    # gather all Op_GPU objects whose id appears on the two child links
     # of (layer,node) and on the link to its parent
-    bucket = Dict{Int, Vector{OpGroup}}()
+    bucket = Dict{Int, Vector{Op_GPU}}()
     if layer == number_of_layers(net)
         links = (
         ((layer, node), 1),                 # first-child link
@@ -313,9 +316,9 @@ function get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, In
          which_child(net, (layer, node))))  # parent link
     end
     for link in links
-        # get(link_ops, link, Vector{OpGroup}()) → empty vector if link not present
-        for op in get(link_ops, link, Vector{OpGroup}())
-            push!(get!(bucket, op.id, Vector{OpGroup}()), op)
+        # get(link_ops, link, Vector{Op_GPU}()) → empty vector if link not present
+        for op in get(link_ops, link, Vector{Op_GPU}())
+            push!(get!(bucket, op.id, Vector{Op_GPU}()), op)
         end
     end
 
@@ -323,7 +326,7 @@ function get_id_terms(net::AbstractNetwork, link_ops::Dict{Tuple{Tuple{Int64, In
 end
 
 # which_child(net, parent, child) = findfirst(==(child), child_nodes(net, parent))
-which_child(net::AbstractNetwork, child::Tuple{Int,Int}) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
+which_child(net::BinaryNetwork, child::Tuple{Int,Int}) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
 
 ## Find the index of a child node in the parent's child list
 """

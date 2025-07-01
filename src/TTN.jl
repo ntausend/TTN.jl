@@ -129,10 +129,10 @@ module TTN
 
 
     # Revised Operator structures including LCA
-    export OpGroup, TPO_group, ProjTPO_group
+    export Op_GPU, TPO_GPU, ProjTPO_GPU
     export build_tpo_from_opsum, op_reduction
     export get_site_terms, get_id_terms, get_length_terms, which_child, ops_on_node
-    export init_opgroup_id_counter!, new_opgroup_id
+    export init_Op_GPU_id_counter!, new_Op_GPU_id
     include("./RevisedOperators/OpStructs.jl")
     export rerooted_parent_map, lowest_common_ancestor_node_links
     export build_lca_sites_map, build_lca_id_map
@@ -142,5 +142,8 @@ module TTN
     export upflow_to_root, recalc_path_flows!
     export contract_ops, complete_contraction
     include("./RevisedOperators/LinkOps.jl")
-
+    # export dmrg_GPU
+    include("./RevisedOperators/Sweeps/SweepHandler.jl")
+    include("./RevisedOperators/Sweeps/dmrg.jl")
+    include("./RevisedOperators/Overloads.jl")
 end # module
