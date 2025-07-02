@@ -14,9 +14,11 @@ mutable struct SimpleSweepHandlerGPU <: AbstractRegularSweepHandler
     current_spec::Spectrum
     current_max_truncerr::Float64
     outputlevel::Int
-    SimpleSweepHandlerGPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0) = 
-        new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., Spectrum(nothing, 0.0), 0.0, outputlevel)
+    use_gpu::Bool
+    SimpleSweepHandlerGPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0, use_gpu = false) = 
+        new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., Spectrum(nothing, 0.0), 0.0, outputlevel, use_gpu)
 end
+
 
 current_sweep(sh::SimpleSweepHandlerGPU) = sh.current_sweep
 
@@ -61,7 +63,7 @@ function update_next_sweep!(sp::SimpleSweepHandlerGPU)
     sp.current_sweep += 1 
     return sp
 end
-
+#=
 function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = nothing)
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
@@ -98,6 +100,36 @@ function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = noth
     sp.current_max_truncerr = max(sp.current_max_truncerr, trncerr)
     return sp
 end
+=#
+function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = nothing)
+    @assert pos == ortho_center(sp.ttn)
+    ttn = sp.ttn
+    pTPO = sp.pTPO
+
+    pTPO = set_position!(pTPO, ttn)
+
+    T = ttn[pos]
+    action = ∂A_GPU(pTPO, pos; use_gpu=sp.use_gpu)
+
+    val, tn = sp.func(action, T)
+    sp.current_energy = real(val[1])
+    tn = tn[1]
+
+    # always store result on CPU
+    ttn[pos] = cpu(tn)
+
+    pn = next_position(sp, pos)
+    ttn, spec = update_node_and_move!(ttn, ttn[pos], pn;
+                                      maxdim=maxdim(sp),
+                                      normalize=true,
+                                      svd_alg, use_gpu=sp.use_gpu)
+
+    sp.ttn = ttn
+    sp.current_spec = spec
+    sp.current_max_truncerr = max(sp.current_max_truncerr, truncerror(spec))
+    return sp
+end
+
 
 
 function next_position(sp::SimpleSweepHandlerGPU, cur_pos::Tuple{Int,Int})
@@ -117,4 +149,57 @@ function next_position(sp::SimpleSweepHandlerGPU, cur_pos::Tuple{Int,Int})
         return (cur_layer - 1, number_of_tensors(net, cur_layer - 1))
     end
     error("Invalid direction of the iterator: $(sp.dir)")
+end
+
+
+function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing};
+                               normalize = nothing,
+                               which_decomp = nothing,
+                               mindim = nothing,
+                               maxdim = nothing,
+                               cutoff = nothing,
+                               eigen_perturbation = nothing,
+                               svd_alg = nothing,
+                               use_gpu::Bool = false)
+
+    normalize = replace_nothing(normalize, false)
+    @assert is_orthogonalized(ttn)
+
+    pos = ortho_center(ttn)
+    if isnothing(position_next)
+        ttn[pos] = use_gpu ? cpu(A) : A
+        return ttn, Spectrum(nothing, 0.0)
+    end
+
+    net = network(ttn)
+    posnext = connecting_path(net, pos, position_next)[1]
+    idx_r = commonind(ttn[pos], ttn[posnext])
+    idx_l = uniqueinds(A, idx_r)
+
+    A_ = use_gpu ? convert_cu(A, A) : A
+    tags_r = tags(idx_r)
+
+    if svd_alg == :krylov
+        Q, R, spec = factorize_svdsolve(A_, idx_l, maxdim; tags = tags_r)
+    else
+        Q, R, spec = factorize(A_, idx_l;
+                               tags = tags_r,
+                               mindim,
+                               maxdim,
+                               cutoff,
+                               which_decomp,
+                               eigen_perturbation,
+                               svd_alg)
+    end
+
+    Q_ = use_gpu ? cpu(Q) : Q
+    R_ = use_gpu ? cpu(R) : R
+
+    ttn[pos] = Q_
+    ttn[posnext] = ttn[posnext] * R_
+
+    normalize && (ttn[posnext] ./= norm(ttn[posnext]))
+    ttn.ortho_center .= posnext
+
+    return move_ortho!(ttn, position_next), spec
 end

@@ -53,6 +53,12 @@ function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     ortho_directionc = deepcopy(ttn.ortho_direction)
     return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
 end
+
+function cpu(T::ITensor)
+    return adapt(Array, T)
+end
+
+
 """
 ```julia
     gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
@@ -71,6 +77,7 @@ function gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     ortho_directionc = deepcopy(ttn.ortho_direction)
     return TreeTensorNetwork(datagpu, ortho_directionc, ortho_centerc, netc)
 end
+
 
 #=
 function gpu(mpo::MPOWrapper{L, M}; type::Type = ComplexF64) where{L,M}

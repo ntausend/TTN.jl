@@ -47,6 +47,7 @@ links attached to `pos` (parent, first-child, second-child) the routine
 This reproduces the behaviour of the original `∂A` but now talks to the new
 `ProjTPO_GPU` data model.
 """
+#=
 function ∂A(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int})
     net      = ptpo.net
     link_ops = ptpo.link_ops
@@ -74,3 +75,48 @@ function ∂A(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int})
 
     return action
 end
+=#
+
+function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
+    net      = ptpo.net
+    link_ops = ptpo.link_ops
+    id_bucket = get_id_terms(net, link_ops, pos)
+
+    # Pre-extract the raw ITensors from all Op_GPU environments
+    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+
+    if use_gpu
+        action = function (T::ITensor)
+            isempty(envs) && return zero(T)
+
+            acc_gpu = nothing
+            T_gpu = convert_cu(T, T)
+
+            for trm in envs
+                ops_gpu = convert_cu(trm, trm[1])
+                tensor_list = vcat(T_gpu, ops_gpu)
+                seq = ITensors.optimal_contraction_sequence(tensor_list)
+                contrib_gpu = noprime(contract(tensor_list; sequence = seq))
+                acc_gpu === nothing ? (acc_gpu = contrib_gpu) : (acc_gpu += contrib_gpu)
+            end
+            return cpu(acc_gpu)
+        end
+    else
+        action = function (T::ITensor)
+            isempty(envs) && return zero(T)
+
+            acc = nothing
+            for trm in envs
+                tensor_list = vcat(T, trm)
+                seq         = ITensors.optimal_contraction_sequence(tensor_list)
+                contrib     = noprime(contract(tensor_list; sequence = seq))
+                acc === nothing ? (acc = contrib) : (acc += contrib)
+            end
+            return acc
+        end
+    end
+
+    return action
+end
+
+

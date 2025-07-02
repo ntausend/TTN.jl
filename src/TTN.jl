@@ -145,5 +145,6 @@ module TTN
     # export dmrg_GPU
     include("./RevisedOperators/Sweeps/SweepHandler.jl")
     include("./RevisedOperators/Sweeps/dmrg.jl")
+    export ∂A_GPU
     include("./RevisedOperators/Overloads.jl")
 end # module

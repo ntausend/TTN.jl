@@ -5,6 +5,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
     noise::Union{<:Real, Vector{<:Real}} = get(kwargs, :noise, 0.0)
 
     outputlevel = get(kwargs, :outputlevel, 1)
+    use_gpu = get(kwargs, :use_gpu, false)
 
     if maxdims isa Int64
         maxdims = [maxdims]
@@ -19,18 +20,23 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
     psic = copy(psi0)
+    ## later: move_ortho to first tensor of sweep order
+    ## sweep_order = collect(TTN.NodeIterator(net))
+    ## sweep_order[1]
     psic = move_ortho!(psic, (1,1))
 
     pTPO = ProjTPO_GPU(tpo, psic)
-    func = (action, T) -> eigsolve(action, T, 1,
-                            eigsolve_which_eigenvalue;
-                            ishermitian=ishermitian,
-                            tol=eigsolve_tol,
-                            krylovdim=eigsolve_krylovdim,
-                            maxiter=eigsolve_maxiter,
-			    verbosity=eigsolve_verbosity)
+    func = (action, T) -> begin
+        T_ = use_gpu ? convert_cu(T, T) : T
+        eigsolve(action, T_, 1, eigsolve_which_eigenvalue;
+             ishermitian=ishermitian,
+             tol=eigsolve_tol,
+             krylovdim=eigsolve_krylovdim,
+             maxiter=eigsolve_maxiter,
+             verbosity=eigsolve_verbosity)
+    end
 
-    sh = SimpleSweepHandlerGPU(psic, pTPO, func, n_sweeps, maxdims, outputlevel)
+    sh = SimpleSweepHandlerGPU(psic, pTPO, func, n_sweeps, maxdims, outputlevel, use_gpu)
     return sweep(psic, sh; kwargs...)
 end
 
@@ -61,12 +67,6 @@ function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; kwargs...)
         t_p = time()
         for pos in sp
             update!(sp, pos; svd_alg)
-            # measure!(
-            #     obs;
-            #     sweep_handler=sp,
-            #     pos=pos,
-            #     outputlevel=outputlevel
-            # )
         end
         t_f = time()
         measure!(
