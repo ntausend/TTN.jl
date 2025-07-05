@@ -47,59 +47,33 @@ links attached to `pos` (parent, first-child, second-child) the routine
 This reproduces the behaviour of the original `∂A` but now talks to the new
 `ProjTPO_GPU` data model.
 """
+
 #=
-function ∂A(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int})
-    net      = ptpo.net
-    link_ops = ptpo.link_ops
-
-    # ─────────────── gather the environment ────────────────
-    # Dict{Int, Vector{Op_GPU}} keyed by the global operator id
-    id_bucket = get_id_terms(net, link_ops, pos)
-
-    # Pre-extract the raw ITensors; cheap and avoids allocations
-    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
-
-    # ───────────────────── the action closure ─────────────────
-    function action(T::ITensor)
-        isempty(envs) && return zero(T)  # nothing acts on this node
-
-        acc = nothing
-        for trm in envs
-            tensor_list = vcat(T, trm)                      # [T, op₁, …]
-            seq         = ITensors.optimal_contraction_sequence(tensor_list)
-            contrib     = noprime(contract(tensor_list; sequence = seq))
-            acc === nothing ? (acc = contrib) : (acc += contrib)
-        end
-        return acc
-    end
-
-    return action
-end
-=#
-
 function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
     net      = ptpo.net
     link_ops = ptpo.link_ops
     id_bucket = get_id_terms(net, link_ops, pos)
 
-    # Pre-extract the raw ITensors from all Op_GPU environments
     envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
 
     if use_gpu
         action = function (T::ITensor)
             isempty(envs) && return zero(T)
 
-            acc_gpu = nothing
-            T_gpu = convert_cu(T, T)
+            T_gpu = gpu(T)
+            @assert is_cu(T_gpu) "T is not on GPU"
+            # @info "∂A_GPU: T storage" typeof(storage(T_gpu))
 
+            acc_gpu = nothing
             for trm in envs
-                ops_gpu = convert_cu(trm, trm[1])
+                ops_gpu = gpu(trm)
+                # @info "∂A_GPU: op storage" typeof(storage(ops_gpu[1]))
                 tensor_list = vcat(T_gpu, ops_gpu)
                 seq = ITensors.optimal_contraction_sequence(tensor_list)
                 contrib_gpu = noprime(contract(tensor_list; sequence = seq))
                 acc_gpu === nothing ? (acc_gpu = contrib_gpu) : (acc_gpu += contrib_gpu)
             end
-            return cpu(acc_gpu)
+            return acc_gpu
         end
     else
         action = function (T::ITensor)
@@ -118,5 +92,56 @@ function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
 
     return action
 end
+=#
+
+function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
+    return use_gpu ? _∂A_impl(ptpo, pos, Val(:gpu)) : _∂A_impl(ptpo, pos, Val(:cpu))
+end
+
+
+function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
+    net      = ptpo.net
+    link_ops = ptpo.link_ops
+    id_bucket = get_id_terms(net, link_ops, pos)
+    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+
+    return function (T::ITensor)
+        isempty(envs) && return zero(T)
+
+        T_gpu = gpu(T)
+        @assert is_cu(T_gpu) "T is not on GPU"
+
+        acc_gpu = nothing
+        for trm in envs
+            ops_gpu = gpu.(trm)
+            tensor_list = vcat(T_gpu, ops_gpu)
+            seq = ITensors.optimal_contraction_sequence(tensor_list)
+            contrib_gpu = noprime(contract(tensor_list; sequence = seq))
+            acc_gpu === nothing ? (acc_gpu = contrib_gpu) : (acc_gpu += contrib_gpu)
+        end
+        return acc_gpu  # let caller decide if/when to move back to CPU
+    end
+end
+
+function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
+    net      = ptpo.net
+    link_ops = ptpo.link_ops
+    id_bucket = get_id_terms(net, link_ops, pos)
+    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+
+    return function (T::ITensor)
+        isempty(envs) && return zero(T)
+
+        acc = nothing
+        for trm in envs
+            tensor_list = vcat(T, trm)
+            seq         = ITensors.optimal_contraction_sequence(tensor_list)
+            contrib     = noprime(contract(tensor_list; sequence = seq))
+            acc === nothing ? (acc = contrib) : (acc += contrib)
+        end
+        return acc
+    end
+end
+
 
 

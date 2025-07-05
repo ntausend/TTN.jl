@@ -53,11 +53,11 @@ function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     ortho_directionc = deepcopy(ttn.ortho_direction)
     return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
 end
-
+ #=
 function cpu(T::ITensor)
     return adapt(Array, T)
 end
-
+=#
 
 """
 ```julia
@@ -101,3 +101,11 @@ function gpu(tpo::TPO{L}, ttn::TreeTensorNetwork) where L
 end
 =#
 
+### Additions
+
+cpu(T::ITensor) = is_cu(T) ? adapt(Array, T) : T
+gpu(T::ITensor) = is_cu(T) ? T : adapt(CuArray, T)
+
+function gpu(T::Vector{ITensor})
+    return map(t -> gpu(t), T)
+end

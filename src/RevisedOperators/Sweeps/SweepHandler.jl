@@ -101,7 +101,10 @@ function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = noth
     return sp
 end
 =#
-function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = nothing)
+function update!(sp::SimpleSweepHandlerGPU,
+                 pos::Tuple{Int, Int};
+                 svd_alg = nothing,
+                 use_gpu::Bool=false)
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
     pTPO = sp.pTPO
@@ -109,9 +112,12 @@ function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = noth
     pTPO = set_position!(pTPO, ttn)
 
     T = ttn[pos]
-    action = ∂A_GPU(pTPO, pos; use_gpu=sp.use_gpu)
+    # loading to GPU already done in func definition in dmrg call
+    # T_ = use_gpu ? gpu(T) : T
+    action = ∂A_GPU(pTPO, pos; use_gpu = sp.use_gpu)
 
     val, tn = sp.func(action, T)
+    # sp.current_energy = real(Array(val[1]))
     sp.current_energy = real(val[1])
     tn = tn[1]
 
@@ -119,7 +125,7 @@ function update!(sp::SimpleSweepHandlerGPU, pos::Tuple{Int, Int}; svd_alg = noth
     ttn[pos] = cpu(tn)
 
     pn = next_position(sp, pos)
-    ttn, spec = update_node_and_move!(ttn, ttn[pos], pn;
+    ttn, spec = update_node_and_move_gpu!(ttn, ttn[pos], pn;
                                       maxdim=maxdim(sp),
                                       normalize=true,
                                       svd_alg, use_gpu=sp.use_gpu)
@@ -152,7 +158,7 @@ function next_position(sp::SimpleSweepHandlerGPU, cur_pos::Tuple{Int,Int})
 end
 
 
-function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing};
+function update_node_and_move_gpu!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing};
                                normalize = nothing,
                                which_decomp = nothing,
                                mindim = nothing,
@@ -176,7 +182,7 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
     idx_r = commonind(ttn[pos], ttn[posnext])
     idx_l = uniqueinds(A, idx_r)
 
-    A_ = use_gpu ? convert_cu(A, A) : A
+    A_ = use_gpu ? gpu(A) : A
     tags_r = tags(idx_r)
 
     if svd_alg == :krylov
@@ -192,11 +198,15 @@ function update_node_and_move!(ttn::TreeTensorNetwork, A::ITensor, position_next
                                svd_alg)
     end
 
-    Q_ = use_gpu ? cpu(Q) : Q
-    R_ = use_gpu ? cpu(R) : R
-
+    if use_gpu
+        Q_ = cpu(Q)  # store Q on CPU
+        R_ = R       # keep R on GPU
+        ttn[posnext] = cpu(gpu(ttn[posnext]) * R_)  # GPU contraction
+    else
+        Q_ = Q
+        ttn[posnext] = ttn[posnext] * R
+    end
     ttn[pos] = Q_
-    ttn[posnext] = ttn[posnext] * R_
 
     normalize && (ttn[posnext] ./= norm(ttn[posnext]))
     ttn.ortho_center .= posnext

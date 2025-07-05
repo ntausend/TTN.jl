@@ -137,8 +137,9 @@ end
 link_ops(ptpo::ProjTPO_GPU) = ptpo.link_ops
 
 function ProjTPO_GPU(tpo::TPO_GPU, ttn::TreeTensorNetwork{N, T};
-                       oc = Tuple(ttn.ortho_center)) where {N, T}
-    link_ops = upflow_to_root(ttn.net, ttn, tpo, oc)
+                       oc = Tuple(ttn.ortho_center), use_gpu::Bool = false) where {N, T}
+
+    link_ops = upflow_to_root(ttn.net, ttn, tpo, oc; use_gpu = use_gpu)
     return ProjTPO_GPU{N, T}(ttn.net, tpo, oc, link_ops)
 end
 

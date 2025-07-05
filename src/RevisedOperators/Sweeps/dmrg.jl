@@ -25,9 +25,9 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
     ## sweep_order[1]
     psic = move_ortho!(psic, (1,1))
 
-    pTPO = ProjTPO_GPU(tpo, psic)
+    pTPO = ProjTPO_GPU(tpo, psic; use_gpu = use_gpu)
     func = (action, T) -> begin
-        T_ = use_gpu ? convert_cu(T, T) : T
+        T_ = use_gpu ? gpu(T) : T
         eigsolve(action, T_, 1, eigsolve_which_eigenvalue;
              ishermitian=ishermitian,
              tol=eigsolve_tol,
