@@ -23,6 +23,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
     ## later: move_ortho to first tensor of sweep order
     ## sweep_order = collect(TTN.NodeIterator(net))
     ## sweep_order[1]
+    ## move_ortho! and inner functions have to be adapted for GPU
     psic = move_ortho!(psic, (1,1))
 
     pTPO = ProjTPO_GPU(tpo, psic; use_gpu = use_gpu)

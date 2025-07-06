@@ -103,8 +103,7 @@ end
 =#
 function update!(sp::SimpleSweepHandlerGPU,
                  pos::Tuple{Int, Int};
-                 svd_alg = nothing,
-                 use_gpu::Bool=false)
+                 svd_alg = nothing)
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
     pTPO = sp.pTPO
@@ -112,12 +111,11 @@ function update!(sp::SimpleSweepHandlerGPU,
     pTPO = set_position!(pTPO, ttn)
 
     T = ttn[pos]
-    # loading to GPU already done in func definition in dmrg call
+    # loading to GPU already done in func definition via dmrg call
     # T_ = use_gpu ? gpu(T) : T
     action = ∂A_GPU(pTPO, pos; use_gpu = sp.use_gpu)
 
     val, tn = sp.func(action, T)
-    # sp.current_energy = real(Array(val[1]))
     sp.current_energy = real(val[1])
     tn = tn[1]
 
@@ -125,10 +123,15 @@ function update!(sp::SimpleSweepHandlerGPU,
     ttn[pos] = cpu(tn)
 
     pn = next_position(sp, pos)
-    ttn, spec = update_node_and_move_gpu!(ttn, ttn[pos], pn;
+    ttn, spec = update_node_and_move_gpu!(ttn, tn, pn;
                                       maxdim=maxdim(sp),
                                       normalize=true,
-                                      svd_alg, use_gpu=sp.use_gpu)
+                                      svd_alg, use_gpu = sp.use_gpu)
+
+    # ttn, spec = update_node_and_move_gpu!(ttn, ttn[pos], pn;
+    #                                   maxdim=maxdim(sp),
+    #                                   normalize=true,
+    #                                   svd_alg, use_gpu = sp.use_gpu)
 
     sp.ttn = ttn
     sp.current_spec = spec
@@ -173,7 +176,8 @@ function update_node_and_move_gpu!(ttn::TreeTensorNetwork, A::ITensor, position_
 
     pos = ortho_center(ttn)
     if isnothing(position_next)
-        ttn[pos] = use_gpu ? cpu(A) : A
+        # ttn[pos] = use_gpu ? cpu(A) : A
+        ttn[pos] = cpu(A)
         return ttn, Spectrum(nothing, 0.0)
     end
 
@@ -182,6 +186,7 @@ function update_node_and_move_gpu!(ttn::TreeTensorNetwork, A::ITensor, position_
     idx_r = commonind(ttn[pos], ttn[posnext])
     idx_l = uniqueinds(A, idx_r)
 
+    ## should be already on gpu 
     A_ = use_gpu ? gpu(A) : A
     tags_r = tags(idx_r)
 
@@ -210,6 +215,6 @@ function update_node_and_move_gpu!(ttn::TreeTensorNetwork, A::ITensor, position_
 
     normalize && (ttn[posnext] ./= norm(ttn[posnext]))
     ttn.ortho_center .= posnext
-
+    ## move_ortho for longer path?
     return move_ortho!(ttn, position_next), spec
 end

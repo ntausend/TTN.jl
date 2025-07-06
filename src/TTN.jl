@@ -142,9 +142,6 @@ module TTN
     export upflow_to_root, recalc_path_flows!
     export contract_ops, complete_contraction
     include("./RevisedOperators/LinkOps.jl")
-    # export dmrg_GPU
     include("./RevisedOperators/Sweeps/SweepHandler.jl")
     include("./RevisedOperators/Sweeps/dmrg.jl")
-    export ∂A_GPU
-    include("./RevisedOperators/Overloads.jl")
 end # module
