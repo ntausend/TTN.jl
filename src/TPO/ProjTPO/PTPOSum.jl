@@ -211,10 +211,6 @@ function ∂A(projTPO::ProjTPOSum, pos::Tuple{Int,Int}; factors=ones(length(proj
   # getting the enviornments of the current position
   envsSum = map(env -> env[pos[1]][pos[2]], projTPO.environments)
 
-  @show "action1"
-  @show (length(envsSum))
-  @show (length(factors))
-  @show (factors)
   function action(T::ITensor)
     mapreduce(+, zip(factors,envsSum)) do (f,envs)
       return f*mapreduce(+, envs) do trm
@@ -259,11 +255,6 @@ Returns the local action of the hamiltonian projected onto the link between the 
 """
 function ∂A2(projTPO::ProjTPOSum, isom::ITensor, posi::Tuple{Int,Int}; factors=ones(length(projTPO.environments)))
   envsSum = map(env -> env[posi[1]][posi[2]], projTPO.environments)
-
-  @show "action2"
-  @show (length(envsSum))
-  @show (length(factors))
-  @show (factors)
 
   function action(link::ITensor)
     mapreduce(+, zip(factors, envsSum)) do (f,envs)
