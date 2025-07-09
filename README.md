@@ -6,7 +6,7 @@
 
 This is a package for working with tree tensor networks based on [ITensors.jl](https://github.com/ITensor/ITensors.jl) library. It provides basic tools for defining quantum states in arbitrary dimensions using a hierarchic structure without loops, called a tree. This includes the calculation of local observables, correlation functions, and entanglement entropy of bipartitions, as well as providing a toolbox for finding the ground state of local Hamiltonians and calculating the time evolution of quantum states with respect to local Hamiltonians.
 
-Our code is compatible with all features provided by `ITensors.jl`. This includes abelian symmetries (CPU only) and GPU computations (non-symmetric tensors only).
+Our code is compatible with all features provided by `ITensors.jl`. This includes abelian symmetries (CPU only) and GPU computations.
 
 
 ## Installation
