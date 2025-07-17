@@ -90,7 +90,7 @@ function _tdvpforward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache 
     Δ = nextpos .- pos
 
     if use_gpu
-        T = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn[pos])
+        T = node_cache[pos]
         Tnext = haskey(node_cache, nextpos) ? node_cache[nextpos] : gpu(ttn[nextpos])
     else
         T = ttn[pos]
@@ -165,7 +165,7 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
     Δ = nextpos .- pos
 
     if use_gpu
-        T = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn[pos])
+        T = node_cache[pos]
         Tnext = haskey(node_cache, nextpos) ? node_cache[nextpos] : gpu(ttn[nextpos])
     else
         T = ttn[pos]
@@ -199,10 +199,6 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
         else
             ttn[pos] = Qn
         end
-        # println("pos inds", inds(T))
-        # println("nextpos inds", inds(Tnext))
-        # println("Qn inds", inds(Qn))
-        # println("L inds", inds(L))
 
         # reverse time evolution for R tensor between pos and nextpos
 
@@ -211,8 +207,6 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
 
         # multiply new L tensor on tensor at nextpos
         nextQ = Tnext* Ln
-        # println("nextQ inds", inds(nextQ))
-        # println("Position = $pos Next position = $nextpos")
         # update environments & time evolve tensor at nextpos
         pTPO = recalc_path_flows!(pTPO, ttn, pos, nextpos; use_gpu = use_gpu)
         action2 = ∂A_GPU(pTPO, nextpos; use_gpu = use_gpu)
@@ -242,7 +236,7 @@ function _tdvptopnode!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache 
     use_gpu = sp.use_gpu
 
     if use_gpu
-        T = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn[pos])
+        T = node_cache[pos]
     else
         T = ttn[pos]
     end
@@ -261,6 +255,7 @@ end
 
 # kwargs for being compatible with additional arguments
 function update!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache= Doct(), kwargs...)
+
     if sp.dirloop == :forward
         # println("Forward", pos)
         _tdvpforward!(sp, pos; node_cache = node_cache)

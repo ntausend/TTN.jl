@@ -69,7 +69,11 @@ function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; node_cache = 
         end
         t_p = time()
         for pos in sp
+            if sp.use_gpu && !haskey(node_cache, pos)
+                node_cache[pos] = gpu(psi0[pos])
+            end
             update!(sp, pos; svd_alg, node_cache = node_cache)
+            sp.use_gpu && delete!(node_cache, pos)
         end
         t_f = time()
         measure!(
@@ -92,6 +96,7 @@ function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; node_cache = 
 			outputlevel=outputlevel
 		)
 	    isdone && break
+        # GC.gc()
     end
     return sp
 end
@@ -153,7 +158,11 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache = Di
         end
         t_p = time()
         for pos in sp
+            if sp.use_gpu && !haskey(node_cache, pos)
+                node_cache[pos] = gpu(psi0[pos])
+            end
             update!(sp, pos; svd_alg, node_cache = node_cache)
+            sp.use_gpu && delete!(node_cache, pos)
         end
         t_f = time()
         measure!(
@@ -176,6 +185,8 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache = Di
 			outputlevel=outputlevel
 		)
 	    isdone && break
+        ## manual gc a good idea?
+        # GC.gc()
     end
     return sp
 end

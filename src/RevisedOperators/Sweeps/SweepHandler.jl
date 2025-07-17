@@ -79,6 +79,8 @@ function update!(sp::SimpleSweepHandlerGPU,
     # pTPO = set_position!(pTPO, ttn; use_gpu = use_gpu, node_cache = node_cache)
     if use_gpu
         T = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn[pos])
+        ## change to just:
+        # T = node_cache[pos]
     else
         T = ttn[pos]
     end
@@ -106,7 +108,7 @@ function update!(sp::SimpleSweepHandlerGPU,
     pTPO = set_position!(pTPO, ttn; use_gpu = use_gpu, node_cache = node_cache)
 
     use_gpu && delete!(node_cache, pos)
-    # GC.gc()
+    
     ## needed for truncation after SubspaceExpansion or noise
     #=
     ttn, spec = update_node_and_move_gpu!(ttn, ttn[pos], pn;
