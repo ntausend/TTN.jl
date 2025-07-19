@@ -116,23 +116,34 @@ function tdvp(psi0::TreeTensorNetwork, tpo::TPO_GPU; kwargs...)
     use_gpu = get(kwargs, :use_gpu, false)
 
     psic = copy(psi0)
-    psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
-    node_cache = Dict{Tuple{Int,Int}, ITensor}()
-
-    pTPO = ProjTPO_GPU(tpo, psic; use_gpu = use_gpu)
-    
-    func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
-                                           krylovdim = eigsolve_krylovdim,
-                                           tol = eigsolve_tol, 
-                                           maxiter = eigsolve_maxiter,
-                                           ishermitian = ishermitian,
-                                           eager = eigsolve_eager);  
-    sh = TDVPSweepHandlerGPU(psic, pTPO, timestep, initialtime, finaltime, func, use_gpu)
-    return sweep(psic, sh; node_cache = node_cache, kwargs...);
+    if use_gpu 
+        node_cache = Dict{Tuple{Int,Int}, ITensor}()
+        psic = move_ortho!(psic, (number_of_layers(network(psic)),1), node_cache)
+        pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
+        func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                            krylovdim = eigsolve_krylovdim,
+                                            tol = eigsolve_tol, 
+                                            maxiter = eigsolve_maxiter,
+                                            ishermitian = ishermitian,
+                                            eager = eigsolve_eager);  
+        sh = TDVPSweepHandlerGPU(psic, pTPO, timestep, initialtime, finaltime, func)
+        return sweep(psic, sh; node_cache = node_cache, kwargs...)
+    else 
+        psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
+        pTPO = ProjTPO_GPU(tpo, psic; use_gpu = false)
+        func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                            krylovdim = eigsolve_krylovdim,
+                                            tol = eigsolve_tol, 
+                                            maxiter = eigsolve_maxiter,
+                                            ishermitian = ishermitian,
+                                            eager = eigsolve_eager);  
+        sh = TDVPSweepHandlerCPU(psic, pTPO, timestep, initialtime, finaltime, func)
+        return sweep(psic, sh;kwargs...)
+    end
 end
 
-function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache = Dict(), kwargs...)
+function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache::Dict, kwargs...)
     
     obs = get(kwargs, :observer, NoObserver())
 
@@ -141,16 +152,6 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache = Di
     svd_alg = get(kwargs, :svd_alg, nothing)
 
     # now start with the sweeping protocol
-    # already initialised to oc = (1,1) due to 
-    # initialize!(sp)
-    
-    # measure!(
-    #     obs;
-    #     sweep_handler=sp,
-    #     outputlevel=outputlevel,
-    #     dt = 0,
-    # )
-    #sp = SimpleSweepProtocol(net, n_sweeps)
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
             println("Start sweep number $(sw)")
@@ -158,11 +159,11 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache = Di
         end
         t_p = time()
         for pos in sp
-            if sp.use_gpu && !haskey(node_cache, pos)
+            if !haskey(node_cache, pos)
                 node_cache[pos] = gpu(psi0[pos])
             end
             update!(sp, pos; svd_alg, node_cache = node_cache)
-            sp.use_gpu && delete!(node_cache, pos)
+            delete!(node_cache, pos)
         end
         t_f = time()
         measure!(
@@ -187,6 +188,50 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache = Di
 	    isdone && break
         ## manual gc a good idea?
         # GC.gc()
+    end
+    return sp
+end
+
+function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerCPU; kwargs...)
+
+    obs = get(kwargs, :observer, NoObserver())
+
+    outputlevel = get(kwargs, :outputlevel, 1)
+
+    svd_alg = get(kwargs, :svd_alg, nothing)
+
+    # now start with the sweeping protocol 
+
+    for sw in sweeps(sp)
+        if outputlevel ≥ 2 
+            println("Start sweep number $(sw)")
+            flush(stdout)
+        end
+        t_p = time()
+        for pos in sp
+            update!(sp, pos; svd_alg)
+        end
+        t_f = time()
+        measure!(
+            obs;
+            sweep_handler=sp,
+            outputlevel=outputlevel,
+            dt = t_f-t_p,
+        )
+        if outputlevel ≥ 1
+            print("Finished sweep $sw. ")
+            @printf("Needed Time %.3fs\n", t_f - t_p)
+            # additional info string provided by the sweephandler
+            info_string(sp, outputlevel)
+            @printf("\n")
+            flush(stdout)
+        end
+        isdone = checkdone!(
+			obs;
+			sweep_handler=sp,
+			outputlevel=outputlevel
+		)
+	    isdone && break
     end
     return sp
 end

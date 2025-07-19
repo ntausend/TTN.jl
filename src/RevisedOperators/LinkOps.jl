@@ -51,12 +51,12 @@ end
 complete_contraction(ptpo::ProjTPO_GPU, ttn0::TreeTensorNetwork) =
     complete_contraction(ptpo.net, ttn0, ptpo.link_ops, ptpo.ortho_center)
 
-
 function upflow_to_root(net::BinaryNetwork,
                         ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
                         tpo::TPO_GPU,
                         root::Tuple{Int,Int};
-                        use_gpu::Bool = false)
+                        use_gpu::Bool = false,
+                        node_cache = Dict())
 
     link_ops = populate_physical_link_ops(net, tpo)
     # get path from top node to ortho_center = newroot
@@ -75,10 +75,10 @@ function upflow_to_root(net::BinaryNetwork,
             # only valid because rerooting starts at the top node
             # -> only downflows from the top node
             link = (pos, which_child(net, next_node))
-            coarse_ops = contract_ops(net, ttn0, link_ops, pos; open_link = next_node, use_gpu = use_gpu)
+            coarse_ops = contract_ops(net, ttn0, link_ops, pos; open_link = next_node, use_gpu = use_gpu, node_cache = node_cache)
         else
             link = (parent_node(net, pos), which_child(net, pos))
-            coarse_ops = contract_ops(net, ttn0, link_ops, pos; use_gpu = use_gpu)
+            coarse_ops = contract_ops(net, ttn0, link_ops, pos; use_gpu = use_gpu, node_cache = node_cache)
         end
         
         link_ops[link] = coarse_ops

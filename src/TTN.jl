@@ -143,7 +143,8 @@ module TTN
     export contract_ops, complete_contraction
     include("./RevisedOperators/LinkOps.jl")
     export TDVPSweepHandlerGPU, tdvp
-    include("./RevisedOperators/Sweeps/TDVPHandler.jl")
+    include("./RevisedOperators/Sweeps/TDVPHandlerGPU.jl")
+    include("./RevisedOperators/Sweeps/TDVPHandlerCPU.jl")
     include("./RevisedOperators/Sweeps/SweepHandler.jl")
     include("./RevisedOperators/Sweeps/GPU_sweeps.jl")
 

@@ -1,4 +1,6 @@
-mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHandler
+abstract type AbstractTDVPSweepHandler <: AbstractRegularSweepHandler end
+
+mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractTDVPSweepHandler
     const initialtime::Float64
     const finaltime::Float64
     const timestep::Float64
@@ -27,15 +29,15 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHan
     end
 end
 
-current_sweep(sh::TDVPSweepHandler) = sh.current_time
+current_sweep(sh::AbstractTDVPSweepHandler) = sh.current_time
 
 # iterating through the ttn
-function Base.iterate(sp::TDVPSweepHandler)
+function Base.iterate(sp::AbstractTDVPSweepHandler)
     pos = start_position(sp)
     return (pos, 1)
 end
 
-function Base.iterate(sp::TDVPSweepHandler, state)
+function Base.iterate(sp::AbstractTDVPSweepHandler, state)
     (next_pos, next_state) = next_position(sp, state)
     if isnothing(next_pos)
         update_next_sweep!(sp)
@@ -45,13 +47,13 @@ function Base.iterate(sp::TDVPSweepHandler, state)
 end
 
 # return time sweeps
-sweeps(sp::TDVPSweepHandler) = (sp.initialtime):(sp.timestep):(sp.finaltime)
+sweeps(sp::AbstractTDVPSweepHandler) = (sp.initialtime):(sp.timestep):(sp.finaltime)
 # initial position of the sweep
-start_position(sp::TDVPSweepHandler) = (sp.path[1])
-initialize!(::TDVPSweepHandler) = nothing
+start_position(sp::AbstractTDVPSweepHandler) = (sp.path[1])
+initialize!(::AbstractTDVPSweepHandler) = nothing
 
 # update the current time of the sweep
-function update_next_sweep!(sp::TDVPSweepHandler)
+function update_next_sweep!(sp::AbstractTDVPSweepHandler)
     sp.current_time += sp.timestep 
     return sp
 end
@@ -75,7 +77,7 @@ end
 
 # forward mode of the TDVP sweep
 # the tensor at position pos is only updated if the next step goes a layer up in the network, otherwise we just move the isometry center
-function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
+function _tdvpforward!(sp::AbstractTDVPSweepHandler, pos::Tuple{Int,Int})
     ttn = sp.ttn
     pTPO = sp.pTPO
     net = network(ttn)
@@ -128,7 +130,7 @@ end
 
 # backward mode of the TDVP sweep
 # the tensor at position pos is only updated if the next step goes a layer down in the network, otherwise we just move the isometry center
-function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
+function _tdvpbackward!(sp::AbstractTDVPSweepHandler, pos::Tuple{Int,Int})
     ttn = sp.ttn
     pTPO = sp.pTPO
     net = network(ttn)
@@ -178,7 +180,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 end
 
 # time evolution of top-node
-function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
+function _tdvptopnode!(sp::AbstractTDVPSweepHandler, pos::Tuple{Int,Int})
     ttn = sp.ttn
     pTPO = sp.pTPO
     T = ttn[pos]
@@ -189,7 +191,7 @@ function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 end
 
 # kwargs for being compatible with additional arguments
-function update!(sp::TDVPSweepHandler, pos::Tuple{Int,Int}; kwargs...)
+function update!(sp::AbstractTDVPSweepHandler, pos::Tuple{Int,Int}; kwargs...)
     if sp.dirloop == :forward
         _tdvpforward!(sp, pos)
     elseif sp.dirloop == :topnode
@@ -200,7 +202,7 @@ function update!(sp::TDVPSweepHandler, pos::Tuple{Int,Int}; kwargs...)
 end
 
 # returns the next position in the sweep, based on the current mode and position
-function next_position(sp::TDVPSweepHandler, state::Int)
+function next_position(sp::AbstractTDVPSweepHandler, state::Int)
     len = length(sp.path) - 1
     net = network(sp.ttn)
 
@@ -236,7 +238,7 @@ function next_position(sp::TDVPSweepHandler, state::Int)
 end
 
 #=
-function _tdvpforward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
+function _tdvpforward!(sp::AbstractTDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
 
     ttn = sp.ttn
     pTPO = sp.pTPO
@@ -292,7 +294,7 @@ function _tdvpforward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) w
     end
 end
 
-function _tdvpbackward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
+function _tdvpbackward!(sp::AbstractTDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) where {N}
 
     ttn = sp.ttn
     pTPO = sp.pTPO
