@@ -1,3 +1,98 @@
+# map version of populate_physical_link_ops
+function populate_physical_link_ops(net::BinaryNetwork, tpo::TPO_GPU)
+    layer = 1
+    keys_and_values = Iterators.flatmap(eachindex(net, layer)) do n
+        parent = (layer, n)
+        childs = TTN.child_nodes(net, parent)
+        map(enumerate(childs)) do (i, child)
+            link = (parent, i)
+            link => get_site_terms(tpo, child)
+        end
+    end
+    return Dict(keys_and_values)
+end
+
+# contraction without action by contracting with all operators on node directly
+function complete_contraction(net::BinaryNetwork,
+                              ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
+                              link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}},
+                              root::Tuple{Int,Int})
+    
+    tn = ttn0[root]
+    collaps_list = Vector{ITensor}()
+    bucket = get_id_terms(net, link_ops, root)
+    ## get sites of ITensor
+    tn_sites = extract_layer_node.(inds(tn))
+    ## find index of open / parent connection to prime
+
+    for (idd, ops) in bucket
+        tn_p = tn
+        tensor_list = [tn]
+        for op in ops            
+            op_site_id = findfirst(x -> x == op.site, tn_sites)
+            op_site_ind = ind(tn_p, op_site_id)
+            tn_p = prime(tn_p, op_site_ind)
+            push!(tensor_list, op.op)
+        end
+        push!(tensor_list, dag(tn_p))
+        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        tn_con = contract(tensor_list; sequence = opcon_seq)
+        push!(collaps_list, tn_con)
+    end
+    tn_exp = sum(collaps_list)
+    return tn_exp
+end
+
+complete_contraction(ptpo::ProjTPO_GPU, ttn0::TreeTensorNetwork) =
+    complete_contraction(ptpo.net, ttn0, ptpo.link_ops, ptpo.ortho_center)
+
+# Original version of recalc_path_flows!
+function recalc_path_flows!(
+        net::BinaryNetwork,
+        ttn0::TreeTensorNetwork,
+        link_ops::Dict,
+        oldroot::Tuple{Int,Int},
+        newroot::Tuple{Int,Int};
+        use_gpu::Bool = false,
+        node_cache = Dict()
+    )
+
+    # 1. Determine the unique path from the original root to the new root
+    # top_node = (number_of_layers(net), 1)
+    connect_path = pushfirst!(connecting_path(net, oldroot, newroot), oldroot)
+
+    # 2. Remove the existing link operators that live on this path
+    for pos in connect_path[1:end-1]          # skip the new root itself
+        nxt   = next_on_path(connect_path, pos)
+        if nxt[1] > pos[1]
+            # going up the tree
+            link = (nxt, which_child(net, pos))
+        else
+        # going down the tree
+            link = (pos, which_child(net, nxt))
+        end
+        # println("Position: $pos, Next: $nxt, Link: $link")
+        delete!(link_ops, link)   # silent if already absent
+    end
+
+    # 3. Recompute the link operators along the path (top‑down)
+    for pos in connect_path[1:end-1]
+        nxt  = next_on_path(connect_path, pos)
+        if nxt[1] > pos[1] # layer of next node is greater than current node
+            # going up the tree
+            link = (nxt, which_child(net, pos))
+            coarse_ops = contract_ops(net, ttn0, link_ops, pos; use_gpu = use_gpu, node_cache = node_cache)
+        else
+            # going down the tree
+            link = (pos, which_child(net, nxt))
+            coarse_ops = contract_ops(net, ttn0, link_ops, pos; open_link = nxt, use_gpu = use_gpu, node_cache = node_cache)
+        end
+        # println("Position: $pos, Next: $nxt, Link: $link")
+        link_ops[link] = coarse_ops
+    end
+
+    return link_ops
+end
 
 function upflow(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor}, tpo::TPO_GPU)
     link_ops = populate_physical_link_ops(net, tpo)

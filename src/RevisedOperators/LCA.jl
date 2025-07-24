@@ -75,18 +75,6 @@ function next_on_path(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
     return idx < length(path) ? path[idx+1] : nothing
 end
 
-"""
-    subpath_from(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
-
-Return the slice of `path` starting at `n` (inclusive) through the end.
-Throws an error if `n ∉ path`.
-"""
-function subpath_from(path::Vector{Tuple{Int,Int}}, n::Tuple{Int,Int})
-    idx = findfirst(==(n), path)
-    @assert idx !== nothing "node $n is not in the path"
-    return path[idx:end]
-end
-
 
 """
     lowest_common_ancestor_node_links(net, site1, site2, root)

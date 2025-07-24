@@ -326,21 +326,7 @@ function get_id_terms(net::BinaryNetwork, link_ops::Dict{Tuple{Tuple{Int64, Int6
     return bucket
 end
 
+## Find the index of a child node in the parent's child list
 # which_child(net, parent, child) = findfirst(==(child), child_nodes(net, parent))
 which_child(net::BinaryNetwork, child::Tuple{Int,Int}) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
 
-## Find the index of a child node in the parent's child list
-"""
-    which_child(net, parent, child)
-"""
-#=
-function which_child(net, parent, child)
-    children = child_nodes(net, parent)
-    for (i, c) in enumerate(children)
-        if c == child
-            return i
-        end
-    end
-    error("Node $child is not a child of $parent")
-end
-=#

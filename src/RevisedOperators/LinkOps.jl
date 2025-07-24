@@ -1,5 +1,4 @@
-function populate_physical_link_ops(net::BinaryNetwork,
-                                    tpo::TPO_GPU)
+function populate_physical_link_ops(net::BinaryNetwork, tpo::TPO_GPU)
 
     link_ops = Dict{Tuple{Tuple{Int,Int},Int}, Vector{Op_GPU}}()
     # Iterate over each node of first layer
@@ -17,49 +16,11 @@ function populate_physical_link_ops(net::BinaryNetwork,
     return link_ops
 end
 
-
-function complete_contraction(net::BinaryNetwork,
-                              ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-                              link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}},
-                              root::Tuple{Int,Int})
-    
-    tn = ttn0[root]
-    collaps_list = Vector{ITensor}()
-    bucket = get_id_terms(net, link_ops, root)
-    ## get sites of ITensor
-    tn_sites = extract_layer_node.(inds(tn))
-    ## find index of open / parent connection to prime
-
-    for (idd, ops) in bucket
-        tn_p = tn
-        tensor_list = [tn]
-        for op in ops            
-            op_site_id = findfirst(x -> x == op.site, tn_sites)
-            op_site_ind = ind(tn_p, op_site_id)
-            tn_p = prime(tn_p, op_site_ind)
-            push!(tensor_list, op.op)
-        end
-        push!(tensor_list, dag(tn_p))
-        opcon_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        tn_con = contract(tensor_list; sequence = opcon_seq)
-        push!(collaps_list, tn_con)
-    end
-    tn_exp = sum(collaps_list)
-    return tn_exp
-end
-
-complete_contraction(ptpo::ProjTPO_GPU, ttn0::TreeTensorNetwork) =
-    complete_contraction(ptpo.net, ttn0, ptpo.link_ops, ptpo.ortho_center)
-
-function upflow_to_root(net::BinaryNetwork,
-                        ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-                        tpo::TPO_GPU,
-                        root::Tuple{Int,Int};
-                        use_gpu::Bool = false,
-                        node_cache = Dict())
+function upflow_to_root(net::BinaryNetwork, ttn0::TreeTensorNetwork, tpo::TPO_GPU, root::Tuple{Int,Int};
+                        use_gpu::Bool = false, node_cache = Dict())
 
     link_ops = populate_physical_link_ops(net, tpo)
-    # get path from top node to ortho_center = newroot
+    # get path from top node to new root = ortho_center
     top_node = (number_of_layers(net), 1)
     connect_path = pushfirst!(connecting_path(net, top_node, root), top_node)
     node_order = root == top_node ? NodeIterator(net) : reverse_bfs_nodes(net, root)
@@ -91,93 +52,61 @@ end
 
 Recompute the link operators on the unique path that connects the original
 root (the top node) of `net` to `newroot`.
-
-The procedure is:
   1. Find the path between `top_node` and `newroot` (both ends included).
   2. Delete the stale link operators that live on that path from `link_ops`.
   3. Traverse the path **top‑down**, recomputing the coarse‑grained operator
      for each link that was just removed while keeping every off‑path operator
      untouched.
-
-The implementation mirrors the logic of `upflow_rerooted` but is restricted to
-the connecting path, reducing the run‑time from *O(|net|)* to
-*O(length(path))*.
 """
-function recalc_path_flows!(
-        net::BinaryNetwork,
-        ttn0::TreeTensorNetwork,
-        link_ops::Dict,
-        oldroot::Tuple{Int,Int},
-        newroot::Tuple{Int,Int};
-        use_gpu::Bool = false,
-        node_cache = Dict()
-    )
 
-    # 1. Determine the unique path from the original root to the new root
-    # top_node = (number_of_layers(net), 1)
-    connect_path = pushfirst!(connecting_path(net, oldroot, newroot), oldroot)
+function recalc_path_flows!(net::BinaryNetwork, ttn0::TreeTensorNetwork, link_ops::Dict,
+                            oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int};
+                            use_gpu::Bool = false, node_cache = Dict())
 
-    # 2. Remove the existing link operators that live on this path
-    for pos in connect_path[1:end-1]          # skip the new root itself
-        nxt   = next_on_path(connect_path, pos)
-        if nxt[1] > pos[1]
-            # going up the tree
-            link = (nxt, which_child(net, pos))
-        else
-        # going down the tree
-            link = (pos, which_child(net, nxt))
-        end
-        # println("Position: $pos, Next: $nxt, Link: $link")
-        delete!(link_ops, link)   # silent if already absent
+    oldroot == newroot && return link_ops
+
+    path = pushfirst!(connecting_path(net, oldroot, newroot), oldroot)
+
+    link_between(pos, nxt) = nxt[1] > pos[1] ? (nxt, which_child(net, pos)) : (pos, which_child(net, nxt))
+
+    # Remove stale operators
+    for i in 1:length(path)-1
+        delete!(link_ops, link_between(path[i], path[i+1]))
     end
 
-    # 3. Recompute the link operators along the path (top‑down)
-    for pos in connect_path[1:end-1]
-        nxt  = next_on_path(connect_path, pos)
-        if nxt[1] > pos[1] # layer of next node is greater than current node
-            # going up the tree
-            link = (nxt, which_child(net, pos))
-            coarse_ops = contract_ops(net, ttn0, link_ops, pos; use_gpu = use_gpu, node_cache = node_cache)
-        else
-            # going down the tree
-            link = (pos, which_child(net, nxt))
-            coarse_ops = contract_ops(net, ttn0, link_ops, pos; open_link = nxt, use_gpu = use_gpu, node_cache = node_cache)
-        end
-        # println("Position: $pos, Next: $nxt, Link: $link")
+    # Recompute fresh operators
+    for i in 1:length(path)-1
+        pos, nxt = path[i], path[i+1]
+        link = link_between(pos, nxt)
+
+        coarse_ops = nxt[1] > pos[1] ?
+            contract_ops(net, ttn0, link_ops, pos; use_gpu = use_gpu, node_cache = node_cache) :
+            contract_ops(net, ttn0, link_ops, pos; open_link = nxt, use_gpu = use_gpu, node_cache = node_cache)
+
         link_ops[link] = coarse_ops
     end
 
     return link_ops
 end
 
-function recalc_path_flows!(ptpo::ProjTPO_GPU,
-                            ttn::TreeTensorNetwork,
-                            newroot::Tuple{Int,Int};
-                            use_gpu::Bool = false,
-                            node_cache = Dict()
-                            )
+function recalc_path_flows!(ptpo::ProjTPO_GPU, ttn::TreeTensorNetwork, newroot::Tuple{Int,Int};
+                            use_gpu::Bool = false, node_cache = Dict())
 
     recalc_path_flows!(ptpo.net, ttn, ptpo.link_ops, ptpo.ortho_center, newroot; use_gpu = use_gpu, node_cache = node_cache)
-    ptpo.ortho_center = newroot                                     # keep state consistent
+    ptpo.ortho_center = newroot
     return ptpo
 end
-function recalc_path_flows!(ptpo::ProjTPO_GPU,
-                            ttn::TreeTensorNetwork,
-                            oldroot::Tuple{Int,Int},
-                            newroot::Tuple{Int,Int};
-                            use_gpu::Bool = false,
-                            node_cache = Dict()
-                            )
+function recalc_path_flows!(ptpo::ProjTPO_GPU, ttn::TreeTensorNetwork,
+                            oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int};
+                            use_gpu::Bool = false, node_cache = Dict())
 
     @assert oldroot == ptpo.ortho_center
     recalc_path_flows!(ptpo.net, ttn, ptpo.link_ops, oldroot, newroot; use_gpu = use_gpu, node_cache = node_cache)
-    ptpo.ortho_center = newroot                                     # keep state consistent
+    ptpo.ortho_center = newroot
     return ptpo
 end
 
-# function contract_ops(net::BinaryNetwork, ttn0::TreeTensorNetwork{BinaryNetwork{TTN.SimpleLattice{2, Index, Int64}}, ITensor},
-#      link_ops::Dict{Tuple{Tuple{Int64, Int64}, Int64}, Vector{Op_GPU}}, pos::Tuple{Int,Int}; open_link::Tuple{Int,Int} = pos)
-
+# Original version of contract_ops
 function contract_ops(net::BinaryNetwork,
                       ttn0::TreeTensorNetwork,
                       link_ops::Dict,
@@ -222,14 +151,18 @@ function contract_ops(net::BinaryNetwork,
         end
 
         push!(tensor_list, tn_p)
-        opcon_seq = optimal_contraction_sequence(tensor_list)
-        tn_con = contract(tensor_list; sequence = opcon_seq)
+        seq = length(tensor_list) > 3 ? [[[1,2],3],4] : [[1,2],3] # op first, then tn_p should always be optimal
+        # @assert sum(ITensors.contraction_cost(tensor_list; sequence = seq)) == sum(ITensors.contraction_cost(tensor_list; sequence = optimal_contraction_sequence(tensor_list))) "manual sequence does not match optimal sequence"
+        # opt_seq = optimal_contraction_sequence(tensor_list)
+        tn_con = contract(tensor_list; sequence = seq)
 
-        if len_con > 1
-            op_red += 1
-        end
-        len_op -= op_red
+        # if len_con > 1
+        #     op_red += 1
+        # end
+        # len_op -= op_red
 
+        # reduce op length by previous reductions and current contraction
+        len_op = len_original - op_red - (len_con > 1 ? 1 : 0)
 
         if len_op > 1
             tn_con = cpu(tn_con)
@@ -246,52 +179,6 @@ function contract_ops(net::BinaryNetwork,
     end
 
     return op_vec
-end
-
-function extract_layer_node(index::Index)
-
-    taglist = string.(collect(tags(index)))  # Vector{String}
-    nl = nothing
-    np = nothing
-    for tag in taglist
-        if startswith(tag, "nl=")
-            nl = parse(Int, split(tag, "=")[2])
-        elseif startswith(tag, "np=")
-            np = parse(Int, split(tag, "=")[2])
-        elseif startswith(tag, "n=")
-            nl = 0
-            np = parse(Int, split(tag, "=")[2])
-        end
-    end
-    if isnothing(nl) || isnothing(np)
-        error("Could not extract nl or np from index tags")
-    end
-    return nl, np
-end
-
-function link_tag(nl::Int, np::Int)
-    if nl > 0
-        return "Link,nl=$(nl),np=$(np)"
-    else
-        return "Site,SpinHalf,n=$(np)"
-    end
-end
-
-function full_contraction(ttn::TreeTensorNetwork, tpo::TPO_GPU)
-    ptpo = ProjTPO_GPU(ttn, tpo)
-    return full_contraction(ttn, ptpo)
-end
-
-function full_contraction(ttn::TreeTensorNetwork, ptpo::ProjTPO_GPU)
-    # set the ptpo to the correct position of the ttn
-    ptpo = set_position!(ptpo, ttn)
-    oc = ortho_center(ttn)
-
-    # get the action of the operator on the orthogonlity center
-    action = ∂A(ptpo, oc)
-    T = ttn[oc]
-    # build the contraction
-    return dot(T, action(T))
 end
 
 function set_position!(pTPO::ProjTPO_GPU{N,T}, ttn::TreeTensorNetwork{N,T}; use_gpu::Bool = false, node_cache = Dict()) where {N,T}
@@ -327,81 +214,37 @@ This reproduces the behaviour of the original `∂A` but now talks to the new
 `ProjTPO_GPU` data model.
 """
 
-#=
-function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
-    net      = ptpo.net
-    link_ops = ptpo.link_ops
-    id_bucket = get_id_terms(net, link_ops, pos)
-
-    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
-
-    if use_gpu
-        action = function (T::ITensor)
-            isempty(envs) && return zero(T)
-
-            T_gpu = gpu(T)
-            @assert is_cu(T_gpu) "T is not on GPU"
-            # @info "∂A_GPU: T storage" typeof(storage(T_gpu))
-
-            acc_gpu = nothing
-            for trm in envs
-                ops_gpu = gpu(trm)
-                # @info "∂A_GPU: op storage" typeof(storage(ops_gpu[1]))
-                tensor_list = vcat(T_gpu, ops_gpu)
-                seq = ITensors.optimal_contraction_sequence(tensor_list)
-                contrib_gpu = noprime(contract(tensor_list; sequence = seq))
-                acc_gpu === nothing ? (acc_gpu = contrib_gpu) : (acc_gpu += contrib_gpu)
-            end
-            return acc_gpu
-        end
-    else
-        action = function (T::ITensor)
-            isempty(envs) && return zero(T)
-
-            acc = nothing
-            for trm in envs
-                tensor_list = vcat(T, trm)
-                seq         = ITensors.optimal_contraction_sequence(tensor_list)
-                contrib     = noprime(contract(tensor_list; sequence = seq))
-                acc === nothing ? (acc = contrib) : (acc += contrib)
-            end
-            return acc
-        end
-    end
-
-    return action
-end
-=#
-
 # _∂A_impl wrapper for type-stability
 function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
     return use_gpu ? _∂A_impl(ptpo, pos, Val(:gpu)) : _∂A_impl(ptpo, pos, Val(:cpu))
 end
 
+# map and manual contraction sequence version
 function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
-    net      = ptpo.net
+    net = ptpo.net
     link_ops = ptpo.link_ops
     id_bucket = get_id_terms(net, link_ops, pos)
-    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+
+    # Preload operators to GPU
+    envs = [gpu.([g.op for g in grp]) for grp in values(id_bucket)]
 
     return function (T::ITensor)
         isempty(envs) && return zero(T)
 
         T_gpu = gpu(T)
-        @assert is_cu(T_gpu) "T is not on GPU"
 
-        acc_gpu = ITensor(inds(T)...)
-        for trm in envs
-            ops_gpu = gpu.(trm)
-            tensor_list = vcat(T_gpu, ops_gpu)
-            seq = ITensors.optimal_contraction_sequence(tensor_list)
-            contrib_gpu = noprime(contract(tensor_list; sequence = seq))
-            acc_gpu += contrib_gpu
+        contributions = map(envs) do ops_gpu
+            tensors = (T_gpu, ops_gpu...)
+            # seq = optimal_contraction_sequence(tensors)
+            # left to right contraction is optimal
+            noprime(contract(tensors))
         end
-        return acc_gpu
+
+        return isempty(contributions) ? zero(T_gpu) : reduce(+, contributions)
     end
 end
 
+## write similar to the gpu version
 function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
     net      = ptpo.net
     link_ops = ptpo.link_ops
@@ -415,8 +258,9 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
         acc = nothing
         for trm in envs
             tensor_list = vcat(T, trm)
-            seq         = ITensors.optimal_contraction_sequence(tensor_list)
-            contrib     = noprime(contract(tensor_list; sequence = seq))
+            # seq         = ITensors.optimal_contraction_sequence(tensor_list)
+            # left to right contraction is optimal
+            contrib     = noprime(contract(tensor_list))
             # acc += contrib
             acc === nothing ? (acc = contrib) : (acc += contrib)
         end
@@ -424,47 +268,52 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
     end
 end
 
+# _∂A2_impl wrapper for type-stability
 function ∂A2_GPU(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}; use_gpu::Bool=false)
     return use_gpu ? _∂A2_impl(ptpo, isom, pos, Val(:gpu)) : _∂A2_impl(ptpo, isom, pos, Val(:cpu))
 end
 
+# manual contraction sequence version
 function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Val{:gpu})
-
     id_bucket = get_id_terms(ptpo.net, ptpo.link_ops, pos)
 
     function action(link::ITensor)
+        acc = ITensor(inds(link)...)  # preallocate accumulator
 
-        acc = ITensor(inds(link)...)
-
-        isom = gpu(isom)
-        link = gpu(link)
+        isom_gpu = gpu(isom)
+        link_gpu = gpu(link)
 
         for (_, ops) in id_bucket
+            isom_ops = ITensor[]
+            link_ops = ITensor[]
 
-            tensor_list = ITensor[]
-            push!(tensor_list, isom, link)
+            isom_p = prime(isom_gpu, commonind(isom_gpu, link_gpu))
 
-            isom_p = prime(isom, commonind(isom, link))
-            
             for op in ops
                 op_tensor = gpu(op.op)
-                push!(tensor_list, op_tensor)
-
-                common_index = commonind(op_tensor, isom_p)
-                if !isnothing(common_index)
-                    isom_p = prime(isom_p, common_index)
+                idx = commonind(op_tensor, isom_p)
+                if !isnothing(idx)
+                    isom_p = prime(isom_p, idx)
+                    push!(isom_ops, op_tensor)
+                else
+                    push!(link_ops, op_tensor)
                 end
             end
 
-            push!(tensor_list, dag(isom_p))
+            # Contract isometry leg first (including dag(isom_p))
+            isom_con = isempty(isom_ops) ? isom_gpu * dag(isom_p) : contract([isom_gpu, isom_ops..., dag(isom_p)])
 
-            seq = optimal_contraction_sequence(tensor_list)
-            contrib = noprime(contract(tensor_list; sequence = seq))
+            # Contract link leg
+            link_con = isempty(link_ops) ? link_gpu : link_gpu * link_ops[1]
 
+            # Combine both
+            contrib = noprime(isom_con * link_con)
             acc += contrib
         end
+
         return acc
     end
+
     return action
 end
 
@@ -505,4 +354,13 @@ function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Va
         return acc
     end
     return action
+end
+
+# Helper function to create a link tag
+function link_tag(nl::Int, np::Int)
+    if nl > 0
+        return "Link,nl=$(nl),np=$(np)"
+    else
+        return "Site,SpinHalf,n=$(np)"
+    end
 end
