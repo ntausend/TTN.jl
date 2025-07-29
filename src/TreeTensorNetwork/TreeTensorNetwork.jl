@@ -278,18 +278,18 @@ Base.setindex!(ttn::TreeTensorNetwork{N, T}, tn::T, pos::Tuple{Int, Int}) where{
 
 # makes `pos` orthogonal by splitting between domain and codomain as T = QR and shifting
 # R into the parent node
-_orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}; regularize = false) = _orthogonalize_to_parent!(ttn, network(ttn), pos; regularize = regularize)
+_orthogonalize_to_parent!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}; regularize = false, save_to_cpu=false) = _orthogonalize_to_parent!(ttn, network(ttn), pos; regularize = regularize, save_to_cpu)
 
-function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}; regularize = false)
+function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}; regularize = false, save_to_cpu = false)
     @assert 0 < pos[1] ≤ number_of_layers(net)
 
     pos[1] == number_of_layers(net) && (return ttn)
 
     # getting the child tensor
-    tn_child = ttn[pos]
+    tn_child = save_to_cpu ? TTN.convert_cu(ttn[pos]) : ttn[pos]
     # getting the parent node
     pos_parent = parent_node(net, pos)
-    tn_parent = ttn[pos_parent]
+    tn_parent = save_to_cpu ? TTN.convert_cu(ttn[pos_parent]) : ttn[pos_parent]
 
     # the left index for the splitting is simply the not commoninds of tn_child
     idx_r = commonind(tn_child, tn_parent)
@@ -302,9 +302,9 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork,
     if regularize
         R .= R./norm(R)
     end
-    res = R*tn_parent
-    ttn[pos] = Q
-    ttn[pos_parent] = res
+
+    ttn[pos] = save_to_cpu ? TTN.convert_cpu(Q) : Q
+    ttn[pos_parent] = save_to_cpu ? TTN.convert_cpu(R * tn_parent) : R*tn_parent
 
     ttn.ortho_direction[pos[1]][pos[2]] = number_of_child_nodes(net, pos) + 1
     ttn.ortho_direction[pos_parent[1]][pos_parent[2]] = -1
@@ -313,10 +313,10 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork,
 end
 
 # orhtogonalize towards the n-th child of this node
-_orthogonalize_to_child!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}, n_child::Int) = _orthogonalize_to_child!(ttn, network(ttn), pos, n_child) 
+_orthogonalize_to_child!(ttn::TreeTensorNetwork, pos::Tuple{Int, Int}, n_child::Int; save_to_cpu=false) = _orthogonalize_to_child!(ttn, network(ttn), pos, n_child; save_to_cpu) 
 
 # general function for arbitrary Abstract Networks, maybe specified by special networks like binary trees etc
-function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}, n_child::Int)
+function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, pos::Tuple{Int, Int}, n_child::Int; save_to_cpu=false)
     # change to good Exception type, also proper handle of pos[1] being the lowest layer...
     @assert 0 < n_child ≤ number_of_child_nodes(net, pos)
     @assert 0 < pos[1] ≤ number_of_layers(net)
@@ -327,8 +327,8 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, 
     pos_child = child_nodes(net, pos)[n_child]
     
     # getting tensors
-    tn_parent = ttn[pos] 
-    tn_child  = ttn[pos_child]
+    tn_parent = save_to_cpu ? TTN.convert_cu(ttn[pos]) : ttn[pos]
+    tn_child  = save_to_cpu ? TTN.convert_cu(ttn[pos_child]) : ttn[pos_child]
 
     # the indices we need to have of the left hand from the splitting needs to be all except
     # the chared index to the child index
@@ -337,9 +337,8 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, 
     #Q,R = qr(tn_parent, idx_l, tags = tags(idx_r))
     Q,R  = factorize(tn_parent, idx_l; tags = tags(idx_r))
 
-    ttn[pos_child] = tn_child * R
-
-    ttn[pos] = Q
+    ttn[pos] = save_to_cpu ? TTN.convert_cpu(Q) : Q
+    ttn[pos_child] = save_to_cpu ? TTN.convert_cpu(tn_child * R) : tn_child * R
 
     ttn.ortho_direction[pos[1]][pos[2]] = n_child
     ttn.ortho_direction[pos_child[1]][pos_child[2]] = -1
@@ -515,7 +514,6 @@ function adjust_tree_tensor_dimensions!(ttn::TreeTensorNetwork, maxdim::Int;
     end
     # if ttn was orthogonal, restore the original oc center
     if reorthogonalize
-        @show reorthogonalize
         ttn = _reorthogonalize!(ttn)
         ttn = move_ortho!(ttn, oc)
     end

@@ -209,6 +209,7 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
     
     ttn_new = _initialize_empty_ttn(net)
 
+
     domains, codomains = _build_domains_and_codomains(net, maxdim)
 
     for (ll,pp) in NodeIterator(net)
@@ -222,6 +223,7 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
         end
         ttn_new[ll][pp] = (ll == number_of_layers(net)) ? ITensor(elT, data_temp, codom...) : ITensor(elT, data_temp, codom..., dom)
     end
+
 
     ortho_direction = _initialize_ortho_direction(net)
     ttnc = TreeTensorNetwork(ttn_new, ortho_direction, [-1,-1], net)

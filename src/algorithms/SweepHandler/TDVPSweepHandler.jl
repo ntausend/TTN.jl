@@ -10,6 +10,7 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHan
     dirloop::Symbol # forward/backward-loop or topnode
     dir::Int #index of child for the next position in the path, 0 for parent node
     current_time::Float64
+    save_to_cpu::Bool
 
     function TDVPSweepHandler(
         ttn::TreeTensorNetwork{N,T},
@@ -17,13 +18,14 @@ mutable struct TDVPSweepHandler{N<:AbstractNetwork,T} <: AbstractRegularSweepHan
         timestep,
         initialtime,
         finaltime,
-        func,
+        func;
+        save_to_cpu=false,
     ) where {N,T}
         path = _tdvp_path(network(ttn))
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?
             index_of_child(network(ttn), path[2]) : 0
-        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
+        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime, save_to_cpu)
     end
 end
 
@@ -84,11 +86,13 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
     Δ = nextpos .- pos
 
+    println("=========================== ", pos, " ==============================")
+
     # if going down, just move ortho center to the next tensor and update environment
     if Δ[1] == -1
         # orthogonalize to child
         n_child = index_of_child(net, nextpos)
-        _orthogonalize_to_child!(ttn, pos, n_child)
+        _orthogonalize_to_child!(ttn, pos, n_child; save_to_cpu=sp.save_to_cpu)
 
         #update environments
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
@@ -99,6 +103,11 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     elseif Δ[1] == 1
         # effective Hamiltonian for tensor at pos
         action = ∂A(pTPO, pos)
+        # println("==========================================================")
+        # println("pos: ", pos)
+        T = TTN.convert_cu(T)
+        # @show Base.summarysize(TTN.convert_cpu(T)) * 1e-9
+        # CUDA.pool_status()
         (Tn,_) = sp.func(action, sp.timestep/2, T) 
 
         # QR-decompose time evolved tensor at pos
@@ -111,11 +120,11 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         (Rn,_) = sp.func(action2, -sp.timestep/2, R)
 
         # multiply new R tensor onto tensor at nextpos
-        nextTn = Rn * ttn[nextpos]
+        nextTn = Rn * TTN.convert_cu(ttn[nextpos])
 
         # set new tensors
-        ttn[pos] = Qn
-        ttn[nextpos] = nextTn
+        ttn[pos] = sp.save_to_cpu ? TTN.convert_cpu(Qn) : Qn
+        ttn[nextpos] = sp.save_to_cpu ? TTN.convert_cpu(nextTn) : nextTn
 
         # move orthocenter (just for consistency), update ttnc and environments
         ttn.ortho_center[1] = nextpos[1]
@@ -140,7 +149,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     # if going up, just move ortho center to the next tensor and update environment
     if Δ[1] == 1
         # orthogonalize to parent
-        _orthogonalize_to_parent!(ttn, pos)
+        _orthogonalize_to_parent!(ttn, pos; save_to_cpu=sp.save_to_cpu)
 
         #update environments and ortho center
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
@@ -149,18 +158,20 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 
     # if going down perform time step algorithm
     elseif Δ[1] == -1
+        T = TTN.convert_cu(T)
         # QR decomposition in direction of the TDVP-step
         idx_r = commonind(T, ttn[nextpos])
         idx_l = uniqueinds(T, idx_r)
         Qn, L = factorize(T, idx_l; tags = tags(idx_r))
-        ttn[pos] = Qn
+        ttn[pos] = TTN.convert_cpu(Qn)
+        ttn[pos] = sp.save_to_cpu ? TTN.convert_cpu(Qn) : Qn
 
         # reverse time evolution for R tensor between pos and nextpos
         action = ∂A2(pTPO, Qn, pos)
         (Ln,_) = sp.func(action, -sp.timestep/2, L) 
 
         # multiply new L tensor on tensor at nextpos
-        nextQ = ttn[nextpos] * Ln
+        nextQ = TTN.convert_cu(ttn[nextpos]) * Ln
 
         # update environments & time evolve tensor at nextpos
         pTPO = update_environments!(pTPO, Qn, pos, nextpos)
@@ -168,7 +179,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         (nextTn, _) = sp.func(action2, sp.timestep / 2, nextQ)
 
         # set new tensor and move orthocenter (just for consistency)
-        ttn[nextpos] = nextTn
+        ttn[nextpos] = sp.save_to_cpu ? TTN.convert_cpu(nextTn) : nextTn
         ttn.ortho_center[1] = nextpos[1]
         ttn.ortho_center[2] = nextpos[2]
 
@@ -181,11 +192,11 @@ end
 function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     ttn = sp.ttn
     pTPO = sp.pTPO
-    T = ttn[pos]
+    T = TTN.convert_cu(ttn[pos])
 
     action = ∂A(pTPO, pos)
     (Tn, _) = sp.func(action, sp.timestep, T)
-    ttn[pos] = Tn
+    ttn[pos] = sp.save_to_cpu ? TTN.convert_cpu(T) : T
 end
 
 # kwargs for being compatible with additional arguments
@@ -249,7 +260,7 @@ function _tdvpforward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) w
     if Δ[1] == -1
         # orthogonalize to child
         n_child = index_of_child(net, nextpos)
-        _orthogonalize_to_child!(ttn, pos, n_child)
+        _orthogonalize_to_child!(ttn, pos, n_child; save_to_cpu=sp.save_to_cpu)
 
         #update environments
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)
@@ -304,7 +315,7 @@ function _tdvpbackward!(sp::TDVPSweepHandler{N,TensorMap}, pos::Tuple{Int,Int}) 
 
     if Δ[1] == 1
         # orthogonalize to parent
-        _orthogonalize_to_parent!(ttn, pos)
+        _orthogonalize_to_parent!(ttn, pos; save_to_cpu=sp.save_to_cpu)
 
         #update environments
         pTPO = update_environments!(pTPO, ttn[pos], pos, nextpos)

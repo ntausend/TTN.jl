@@ -21,6 +21,11 @@ function convert_cu(T::ITensor, T_type::ITensor)
     return adapt(CuArray, T)
 end
 
+
+function convert_cu(T::ITensor)
+    return adapt(CuArray, T)
+end
+
 convert_cu(T::ITensor, ttn::TreeTensorNetwork) = convert_cu(T, ttn[(1,1)])
 
 function convert_cpu(T::ITensor)
@@ -109,8 +114,7 @@ Copy the data of the tree tensor network onto the GPU.
 function gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     datac = deepcopy(ttn.data)
     datagpu = map(datac) do layerdata
-        map(T -> adapt(CuArray, T), layerdata)
-        # map(T -> cu(T), layerdata)
+        return map(T -> adapt(CuArray, T), layerdata)
     end
     ortho_centerc = deepcopy(ttn.ortho_center)
     netc = deepcopy(ttn.net)

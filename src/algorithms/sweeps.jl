@@ -71,7 +71,7 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
     return sp
 end
 
-function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
+function dmrg(psic::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
 
     n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
     maxdims::Union{Int64, Vector{Int64}}   = get(kwargs, :maxdims, 1)
@@ -95,7 +95,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_DMRG)
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
-    psic = copy(psi0)
+    # psic = copy(psi0)
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
     pTPO = ProjectedTensorProductOperator(psic, tpo)
@@ -175,6 +175,110 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
     return sweep(psic, sh; kwargs...)
 end
 
+function exponentiate_two_pass(H::Function, v, dt::Number, m::Int; 
+                              tol::Real=1e-12, verbose::Bool=false)
+    # Pass 1: Build tridiagonal matrix without storing basis
+    beta0 = norm(v)
+    beta0 < tol && return zero(v)
+    
+    # Initialize Lanczos vectors
+    q_prev = zero(v)
+    q_curr = v / beta0
+    alphas = zeros(m)
+    betas = zeros(m-1)
+    # println(Base.summarysize(TTN.convert_cpu(v)))
+    # CUDA.pool_status()
+    
+    # Lanczos iteration
+    actual_m = m
+    for j in 1:m
+        println("j=", j)
+        # println("q_prev:", Base.summarysize(TTN.convert_cpu(q_prev)))
+        # println("q_curr:", Base.summarysize(TTN.convert_cpu(q_curr)))
+        # println("result:", Base.summarysize(TTN.convert_cpu(result)))
+        CUDA.poolJstatus()
+
+        # Apply Hamiltonian
+        
+        w = H(q_curr)
+        #  println(" =============== create w ===================== ")
+        # println(Base.summarysize(TTN.convert_cpu(w)))
+        # CUDA.pool_status()
+        
+        # Orthogonalize against previous vectors
+        if j > 1
+            w -= betas[j-1] * q_prev
+        end
+        
+        # Compute alpha
+        alphas[j] = real(dot(q_curr, w))  # Real for Hermitian H
+        
+        # Form new vector
+        w -= alphas[j] * q_curr
+        
+        # Check for breakdown
+        if j < m
+            beta_j = norm(w)
+            if beta_j < tol
+                actual_m = j
+                verbose && println("Early breakdown at m=$j")
+                break
+            end
+            betas[j] = beta_j
+            
+            # Update vectors
+            q_prev, q_curr = q_curr, w / beta_j
+        end
+    end
+    
+    # Adjust sizes if early breakdown
+    alphas = alphas[1:actual_m]
+    betas = betas[1:min(actual_m-1, length(betas))]
+    
+    # Build tridiagonal matrix
+    T = actual_m == 1 ? [alphas[1]] : SymTridiagonal(alphas, betas)
+    
+    # Compute exponential action on first basis vector
+    e1 = zeros(actual_m)
+    e1[1] = 1.0
+    u = exp(-im * dt * T) * e1
+    
+    # Pass 2: Reconstruct state
+    result = zero(v)
+    q_prev = zero(v)
+    q_curr = v / beta0
+    prev_beta = beta0
+    
+    # Accumulate result
+    for j in 1:actual_m
+        # println("j=", j)
+        # println("q_prev:", Base.summarysize(TTN.convert_cpu(q_prev)))
+        # println("q_curr:", Base.summarysize(TTN.convert_cpu(q_curr)))
+        # println("result:", Base.summarysize(TTN.convert_cpu(result)))
+        # Add current vector contribution
+        # println(Base.summarysize(TTN.convert_cpu(result)))
+        # CUDA.pool_status()
+        result += u[j] * q_curr
+        
+        # Stop if last vector
+        j == actual_m && break
+        
+        # Compute next vector
+        w = H(q_curr)
+        w -= alphas[j] * q_curr
+        w -= prev_beta * q_prev  # Safe for j=1 (q_prev=0)
+        println("w:", Base.summarysize(TTN.convert_cpu(q_prev)))
+        
+        # Normalize and update
+        q_next = w / betas[j]
+        q_prev, q_curr = q_curr, q_next
+        prev_beta = betas[j]
+    end
+    
+    # Scale by initial norm
+    return beta0 * result, nothing
+end
+
 """
 ```julia
    tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
@@ -195,7 +299,7 @@ It returns a sweep object `sp` where one can extract the final tree with `sp.ttn
 """
 function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwargs...)
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_TDVP)
-    eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
+    eigsolve_krylovdim = get(kwargs, :eigsolve_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
     #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_TDVP)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_TDVP)
@@ -207,17 +311,28 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
 
     save_to_cpu = get(kwargs, :save_to_cpu, false)
 
-    psic = copy(psi0)
+    psic = TTN.gpu(copy(psi0))
     psic = move_ortho!(psic, (number_of_layers(network(psic)),1))
 
     pTPO = ProjectedTensorProductOperator(psic, tpo; save_to_cpu)
 
-    func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
-                                           krylovdim = eigsolve_krylovdim,
-                                           tol = eigsolve_tol, 
-                                           maxiter = eigsolve_maxiter,
-                                           ishermitian = ishermitian,
-                                           eager = eigsolve_eager);  
+    if !save_to_cpu
+        func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                               krylovdim = eigsolve_krylovdim,
+                                               tol = eigsolve_tol, 
+                                               maxiter = eigsolve_maxiter,
+                                               ishermitian = ishermitian,
+                                               eager = eigsolve_eager);  
+    else
+        psic = TTN.cpu(psic)
+        func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
+                                               krylovdim = eigsolve_krylovdim,
+                                               # tol = eigsolve_tol, 
+                                               # maxiter = eigsolve_maxiter,
+                                               # ishermitian = ishermitian,
+                                               # eager = false,
+                                               );  
+    end
 
-    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func); kwargs...);
+    return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func; save_to_cpu=save_to_cpu); kwargs...);
 end

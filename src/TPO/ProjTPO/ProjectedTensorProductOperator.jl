@@ -107,6 +107,7 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
 
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
+    isom = TTN.convert_cu(isom)
     
     
     # get the envrionments of the current position

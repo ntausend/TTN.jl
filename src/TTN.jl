@@ -5,10 +5,12 @@ module TTN
     using ITensorMPS
     using CUDA
     using Distributions: Multinomial
-    using KrylovKit: exponentiate, eigsolve, svdsolve
+    using KrylovKit
+    # using KrylovKit: exponentiate, eigsolve, svdsolve
     using LinearAlgebra
     using Printf
     using HDF5
+    # using VectorInterface
 
     ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
     #include("factorize_workaround.jl")
@@ -48,7 +50,7 @@ module TTN
 
     # imports
     import Base: eachindex, size, ==, getindex, setindex, iterate, length, show, copy, eltype
-    import ITensors: state, op, space, siteinds
+    import ITensors: state, op, space, siteinds, inner
     #import ITensorMPS: expect
     using ITensorMPS: sortmergeterms, determineValType
     using ITensors: terms, which_op, site, params
@@ -79,6 +81,7 @@ module TTN
     include("./Network/AbstractNetwork.jl")
     include("./Network/BinaryNetwork.jl")
     include("./Network/TernaryNetwork.jl")
+    include("./Network/TwelveNetwork.jl")
 
     
 
@@ -125,5 +128,6 @@ module TTN
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+    include("./algorithms/custom_krylov.jl")
 
 end # module
