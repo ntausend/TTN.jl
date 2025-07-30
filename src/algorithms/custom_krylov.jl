@@ -2,7 +2,7 @@ using LinearAlgebra
 using SparseArrays
 
 # exponentiate_twopass(A, t::Number, v; kwargs...) = expintegrator_twopass(A, t, v; kwargs...)
-function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-3)
+function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-5)
     m = krylovdim
     # Pass 1: Build tridiagonal matrix
     beta0 = norm(v)

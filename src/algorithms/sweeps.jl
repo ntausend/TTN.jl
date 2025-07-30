@@ -317,14 +317,12 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     pTPO = ProjectedTensorProductOperator(psic, tpo; save_to_cpu)
 
     if !save_to_cpu
-        func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
-                                               krylovdim = eigsolve_krylovdim,
-                                               tol = eigsolve_tol, 
-                                               maxiter = eigsolve_maxiter,
-                                               ishermitian = ishermitian,
-                                               eager = eigsolve_eager);  
-    else
-        psic = TTN.cpu(psic)
+        # func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+        #                                        krylovdim = eigsolve_krylovdim,
+        #                                        tol = eigsolve_tol, 
+        #                                        maxiter = eigsolve_maxiter,
+        #                                        ishermitian = ishermitian,
+        #                                        eager = eigsolve_eager);  
         func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
                                                krylovdim = eigsolve_krylovdim,
                                                # tol = eigsolve_tol, 
@@ -332,6 +330,37 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
                                                # ishermitian = ishermitian,
                                                # eager = false,
                                                );  
+    else
+        psic = TTN.cpu(psic)
+        # func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
+        #                                        krylovdim = eigsolve_krylovdim,
+        #                                        # tol = eigsolve_tol, 
+        #                                        # maxiter = eigsolve_maxiter,
+        #                                        # ishermitian = ishermitian,
+        #                                        # eager = false,
+        #                                        );  
+
+        function func(action, dt, T) 
+            res = exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
+                                               krylovdim = eigsolve_krylovdim,
+                                               # tol = eigsolve_tol, 
+                                               # maxiter = eigsolve_maxiter,
+                                               # ishermitian = ishermitian,
+                                               # eager = false,
+                                               );  
+            ref = exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                               krylovdim = eigsolve_krylovdim,
+                                               tol = eigsolve_tol, 
+                                               maxiter = eigsolve_maxiter,
+                                               ishermitian = ishermitian,
+                                               eager = eigsolve_eager);  
+            norm_diff = norm(array(first(res)) .- array(first(ref))) / norm(array(first(ref)))
+            if norm_diff>1e-10
+                println("norm diff: ", norm_diff)
+            end
+            return res
+        end
+        
     end
 
     return sweep(psic, TDVPSweepHandler(psic, pTPO, timestep, initialtime, finaltime, func; save_to_cpu=save_to_cpu); kwargs...);

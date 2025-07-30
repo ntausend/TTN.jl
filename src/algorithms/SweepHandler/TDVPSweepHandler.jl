@@ -86,7 +86,7 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
     Δ = nextpos .- pos
 
-    println("=========================== ", pos, " ==============================")
+    # println("=========================== ", pos, " ==============================")
 
     # if going down, just move ortho center to the next tensor and update environment
     if Δ[1] == -1
