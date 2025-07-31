@@ -271,8 +271,8 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 			environments[ll][pp] = _collapse_onsite(env_n)
 		end		
 	end
-	save_to_cpu || return environments
-    return convert_cpu(environments)
+	save_to_cpu && return convert_cpu(environments)
+    return environments
 end
 
 

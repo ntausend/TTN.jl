@@ -139,6 +139,7 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
 		sid  = only(unique(getindex.(prm, :sm)))
         op_length = only(unique(getindex.(prm, :op_length)))
         is_identity = all(getindex.(prm, :is_identity))
+        
 		Op(_rg_op, pos; sm = sid, op_length = op_length-op_reduction, is_identity = is_identity)
     end
     # collapse the onsite operators
@@ -174,7 +175,7 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
     env_n_onsite = reduce(*, vcat(filter(T -> site(T) != site(rg_flw_onsite), env_onsite_old), rg_flw_onsite), init = Prod{Op}())
     
     # rest of the interaction terms are handled similar
-    env_n_int = map(rg_flw_int) do rg_trm
+    env_n_int = map(enumerate(rg_flw_int)) do (i,rg_trm)
         trms_old = only(filter(terms.(envs_target)) do trm
             trm_smid = only(unique(getindex.(params.(trm),:sm)))
             trm_smid == getindex(params(rg_trm), :sm)
@@ -198,31 +199,15 @@ Returns the local action of the hamiltonian projected onto the `pos` node in the
 """
 function ∂A(projTPO::ProjTPO, pos::Tuple{Int,Int})
     # getting the enviornments of the current position
-    # envs = projTPO[pos]
-    envs = projTPO.save_to_cpu ? convert_cu(copy(projTPO[pos])) : projTPO[pos]
-    # println("action")
-    # println("save_to_cpu: ", projTPO.save_to_cpu)
-    # println()
-    # println("========================== first ===========================")
-    # println()
-    # @show isnothing(envs)
+    envs = projTPO.save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
 
     function action(T::ITensor)
-        # println()
-        # println("========================== before ===========================")
-        # println()
-        # @show isnothing(envs)
         result = mapreduce(+, envs) do trm
-            # println()
-            # println("========================== in function ===========================")
-            # println()
-            # @show isnothing(envs)
             _ops = which_op.(trm)
             tensor_list = vcat(T, _ops)
             opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
             return noprime(contract(tensor_list; sequence = opt_seq))
         end
-        # projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
         return result
     end
 end
@@ -258,17 +243,14 @@ end
 Returns the local action of the hamiltonian projected onto the link between the tensor at the node `pos` and `isom` which is assumed to be placed at one of the nodes connected to `pos` (NOT CHECKT!)
 """
 function ∂A2(projTPO::ProjTPO, isom::ITensor, posi::Tuple{Int,Int})
-    # envs = projTPO[posi]
-    # println("action2")
-    # println("save_to_cpu: ", projTPO.save_to_cpu)
-    envs = projTPO.save_to_cpu ? convert_cu(copy(projTPO[posi])) : projTPO[posi]
+    envs = projTPO.save_to_cpu ? convert_cu(projTPO[posi]) : projTPO[posi]
+
     function action(link::ITensor)
         result = mapreduce(+, envs) do trm 
             tensor_list = vcat(isom, dag(prime(isom)), link, which_op.(trm))
             opt_seq = optimal_contraction_sequence(tensor_list)
             return noprime(contract(tensor_list; sequence = opt_seq))
         end
-        # projTPO.save_to_cpu && (envs = nothing) # CUDA.unsafe_free!(envs)
         return result
     end
     return action
@@ -387,7 +369,6 @@ end
 function ∂A(proj_ttn::ProjTTN, pos::Tuple{Int,Int})
 
     function action(T::ITensor)
-        #println("using projttn action")
         tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
         opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
         return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))

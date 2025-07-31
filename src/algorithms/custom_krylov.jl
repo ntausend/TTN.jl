@@ -81,13 +81,6 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-5)
         # Compute next vector
         w = H(q_curr)
 
-        # q_next_cpu = Array(array(w))
-        # if abs(u[j]) < 1e-14 && j > 1
-        #     println("truncating reconstruction at j = $(j)")
-        #     display(q_next_cpu)
-        #     # break
-        # end
-
         w .-= alphas[j] .* q_curr
         if j > 1
             w .-= betas[j-1] .* q_prev
@@ -103,23 +96,11 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-5)
         beta_expected = j <= length(betas) ? betas[j] : 0
 
         if abs(beta_actual - beta_expected) > 1e-4
-            println("actual: ", beta_actual, " expected: ", beta_expected, " diff: ", abs(beta_actual - beta_expected))
             break
         end
 
         # Prepare next iteration
         q_next = w / betas[j]
-        # q_next_cpu = Array(array(q_next))
-        # if any(isnan, q_next_cpu) || any(isinf, q_next_cpu)
-        #     @warn "Numerical instability in vector update at step $j"
-        #     break
-        # end
-        q_prev, q_curr = q_curr, q_next
-        # q_next_cpu = Array(array(q_prev))
-        # if any(isnan, q_next_cpu) || any(isinf, q_next_cpu)
-        #     @warn "Numerical instability in vector q_prev at step $j"
-        #     break
-        # end
     end
 
     return beta0 .* result, nothing

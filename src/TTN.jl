@@ -5,8 +5,8 @@ module TTN
     using ITensorMPS
     using CUDA
     using Distributions: Multinomial
-    using KrylovKit
-    # using KrylovKit: exponentiate, eigsolve, svdsolve
+    # using KrylovKit
+    using KrylovKit: exponentiate, eigsolve, svdsolve
     using LinearAlgebra
     using Printf
     using HDF5

@@ -86,8 +86,6 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     nextpos = sp.dir > 0 ? child_nodes(net, pos)[sp.dir] : parent_node(net, pos)
     Δ = nextpos .- pos
 
-    # println("=========================== ", pos, " ==============================")
-
     # if going down, just move ortho center to the next tensor and update environment
     if Δ[1] == -1
         # orthogonalize to child
@@ -103,11 +101,7 @@ function _tdvpforward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
     elseif Δ[1] == 1
         # effective Hamiltonian for tensor at pos
         action = ∂A(pTPO, pos)
-        # println("==========================================================")
-        # println("pos: ", pos)
         T = TTN.convert_cu(T)
-        # @show Base.summarysize(TTN.convert_cpu(T)) * 1e-9
-        # CUDA.pool_status()
         (Tn,_) = sp.func(action, sp.timestep/2, T) 
 
         # QR-decompose time evolved tensor at pos
@@ -163,7 +157,6 @@ function _tdvpbackward!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
         idx_r = commonind(T, ttn[nextpos])
         idx_l = uniqueinds(T, idx_r)
         Qn, L = factorize(T, idx_l; tags = tags(idx_r))
-        ttn[pos] = TTN.convert_cpu(Qn)
         ttn[pos] = sp.save_to_cpu ? TTN.convert_cpu(Qn) : Qn
 
         # reverse time evolution for R tensor between pos and nextpos
@@ -196,7 +189,7 @@ function _tdvptopnode!(sp::TDVPSweepHandler, pos::Tuple{Int,Int})
 
     action = ∂A(pTPO, pos)
     (Tn, _) = sp.func(action, sp.timestep, T)
-    ttn[pos] = sp.save_to_cpu ? TTN.convert_cpu(T) : T
+    ttn[pos] = sp.save_to_cpu ? TTN.convert_cpu(Tn) : Tn
 end
 
 # kwargs for being compatible with additional arguments

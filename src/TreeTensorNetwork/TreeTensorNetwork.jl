@@ -304,7 +304,7 @@ function _orthogonalize_to_parent!(ttn::TreeTensorNetwork, net::AbstractNetwork,
     end
 
     ttn[pos] = save_to_cpu ? TTN.convert_cpu(Q) : Q
-    ttn[pos_parent] = save_to_cpu ? TTN.convert_cpu(R * tn_parent) : R*tn_parent
+    ttn[pos_parent] = save_to_cpu ? TTN.convert_cpu(R * tn_parent) : R * tn_parent
 
     ttn.ortho_direction[pos[1]][pos[2]] = number_of_child_nodes(net, pos) + 1
     ttn.ortho_direction[pos_parent[1]][pos_parent[2]] = -1
