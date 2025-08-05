@@ -47,6 +47,68 @@ function upflow_to_root(net::BinaryNetwork, ttn0::TreeTensorNetwork, tpo::TPO_GP
     return link_ops
 end
 
+function upflow_root_threads(net::BinaryNetwork, ttn0::TreeTensorNetwork, tpo::TPO_GPU, root::Tuple{Int,Int};
+                        use_gpu::Bool = false, node_cache = Dict())
+
+    link_ops = populate_physical_link_ops(net, tpo)
+    # get path from top node to new root = ortho_center
+    top_node = (number_of_layers(net), 1)
+    connect_path = pushfirst!(connecting_path(net, top_node, root), top_node)
+    node_order = root == top_node ? NodeIterator(net) : reverse_bfs_nodes(net, root)
+
+    for pos in node_order
+        # stop at the new root itself
+        if pos == root
+            return link_ops
+        end
+        # determine the link on which to store your contracted ops
+        if pos in connect_path
+            next_node = next_on_path(connect_path, pos)
+            # only valid because rerooting starts at the top node
+            # -> only downflows from the top node
+            link = (pos, which_child(net, next_node))
+            coarse_ops = contract_ops_threads(net, ttn0, link_ops, pos; open_link = next_node, use_gpu = use_gpu, node_cache = node_cache)
+        else
+            link = (parent_node(net, pos), which_child(net, pos))
+            coarse_ops = contract_ops_threads(net, ttn0, link_ops, pos; use_gpu = use_gpu, node_cache = node_cache)
+        end
+        
+        link_ops[link] = coarse_ops
+    end
+    return link_ops
+end
+
+function upflow_root_spawn(net::BinaryNetwork, ttn0::TreeTensorNetwork, tpo::TPO_GPU, root::Tuple{Int,Int};
+                        use_gpu::Bool = false, node_cache = Dict())
+
+    link_ops = populate_physical_link_ops(net, tpo)
+    # get path from top node to new root = ortho_center
+    top_node = (number_of_layers(net), 1)
+    connect_path = pushfirst!(connecting_path(net, top_node, root), top_node)
+    node_order = root == top_node ? NodeIterator(net) : reverse_bfs_nodes(net, root)
+
+    for pos in node_order
+        # stop at the new root itself
+        if pos == root
+            return link_ops
+        end
+        # determine the link on which to store your contracted ops
+        if pos in connect_path
+            next_node = next_on_path(connect_path, pos)
+            # only valid because rerooting starts at the top node
+            # -> only downflows from the top node
+            link = (pos, which_child(net, next_node))
+            coarse_ops = contract_ops_spawn(net, ttn0, link_ops, pos; open_link = next_node, use_gpu = use_gpu, node_cache = node_cache)
+        else
+            link = (parent_node(net, pos), which_child(net, pos))
+            coarse_ops = contract_ops_spawn(net, ttn0, link_ops, pos; use_gpu = use_gpu, node_cache = node_cache)
+        end
+        
+        link_ops[link] = coarse_ops
+    end
+    return link_ops
+end
+
 """
     recalc_path_link_ops!(net, ttn0, link_ops, oldroot, newroot)
 
@@ -107,6 +169,7 @@ function recalc_path_flows!(ptpo::ProjTPO_GPU, ttn::TreeTensorNetwork,
 end
 
 # Original version of contract_ops
+
 function contract_ops(net::BinaryNetwork,
                       ttn0::TreeTensorNetwork,
                       link_ops::Dict,
@@ -151,15 +214,12 @@ function contract_ops(net::BinaryNetwork,
         end
 
         push!(tensor_list, tn_p)
-        seq = length(tensor_list) > 3 ? [[[1,2],3],4] : [[1,2],3] # op first, then tn_p should always be optimal
+
+        # seq = length(tensor_list) > 3 ? [[[1,2],3],4] : [[1,2],3] # op first, then tn_p should always be optimal
         # @assert sum(ITensors.contraction_cost(tensor_list; sequence = seq)) == sum(ITensors.contraction_cost(tensor_list; sequence = optimal_contraction_sequence(tensor_list))) "manual sequence does not match optimal sequence"
         # opt_seq = optimal_contraction_sequence(tensor_list)
-        tn_con = contract(tensor_list; sequence = seq)
-
-        # if len_con > 1
-        #     op_red += 1
-        # end
-        # len_op -= op_red
+        # default left to right is optimal
+        tn_con = contract(tensor_list)
 
         # reduce op length by previous reductions and current contraction
         len_op = len_original - op_red - (len_con > 1 ? 1 : 0)
@@ -174,12 +234,185 @@ function contract_ops(net::BinaryNetwork,
 
     if !isempty(collaps_list)
         sum_collapse = sum(collaps_list)
-        # sum_collapse = use_gpu ? cpu(sum_collapse) : sum_collapse
         push!(op_vec, Op_GPU(new_Op_GPU_id(), open_link, cpu(sum_collapse), 1, 1))
     end
 
     return op_vec
 end
+
+# Threads parallelized version
+function contract_ops_threads(net::BinaryNetwork,
+                              ttn0::TreeTensorNetwork,
+                              link_ops::Dict,
+                              pos::Tuple{Int,Int};
+                              open_link::Tuple{Int,Int} = pos,
+                              use_gpu::Bool = false,
+                              node_cache = Dict())
+
+    # 1) Build bucket and load center tensor
+    bucket = get_id_terms(net, link_ops, pos)
+    tn0 = ttn0[pos]
+    if use_gpu && haskey(node_cache, pos)
+        tn0 = gpu(node_cache[pos])
+    elseif use_gpu
+        tn0 = gpu(tn0)
+    end
+
+    # 2) Prepare the primed DAG
+    open_tag = link_tag(open_link...)
+    idx = findfirst(i -> hastags(i, open_tag), inds(tn0))
+    @assert idx !== nothing "Could not find open link $open_tag"
+    tn_dag_base = dag(prime(tn0, ind(tn0, idx)))
+
+    # 3) Thread-local result buffers
+    ids         = collect(keys(bucket))
+    N           = length(ids)
+    ops_per_th  = Vector{Vector{Op_GPU}}(undef, N)
+    coll_per_th = Vector{Vector{ITensor}}(undef, N)
+
+    # 4) Parallel loop
+    @threads for ti in 1:N
+        idd = ids[ti]
+        ops = bucket[idd]
+
+        local_ops  = Op_GPU[]
+        local_coll = ITensor[]
+
+        # copy inputs
+        tn     = tn0
+        tn_dag = tn_dag_base
+        len_orig = ops[1].original_length
+        total_red = 0
+
+        # build contraction list
+        T = ITensor[tn]
+        for op in ops
+            t_op = use_gpu ? gpu(op.op) : op.op
+            ci   = commonind(tn, t_op)
+            tn_dag = prime(tn_dag, ci)
+            push!(T, t_op)
+            total_red += op_reduction(op)
+        end
+        push!(T, tn_dag)
+
+        # do the contraction
+        tn_con = contract(T)
+
+        # compute new length
+        len_contr = length(ops) > 1 ? 1 : 0
+        len_new   = len_orig - total_red - len_contr
+
+        if len_new > 1
+            tn_con = cpu(tn_con)
+            push!(local_ops, Op_GPU(idd, open_link, tn_con, len_orig, len_new))
+        else
+            push!(local_coll, tn_con)
+        end
+
+        ops_per_th[ti]   = local_ops
+        coll_per_th[ti]  = local_coll
+    end
+
+    # 5) Gather and finalize
+    op_vec   = vcat(ops_per_th...)
+    all_coll = vcat(coll_per_th...)
+
+    # proper GPU sync
+    if use_gpu
+        CUDA.synchronize()
+    end
+
+    if !isempty(all_coll)
+        s = sum(all_coll)
+        push!(op_vec, Op_GPU(new_Op_GPU_id(), open_link, cpu(s), 1, 1))
+    end
+
+    return op_vec
+end
+
+# Spawn parallelized version
+function contract_ops_spawn(net::BinaryNetwork,
+                            ttn0::TreeTensorNetwork,
+                            link_ops::Dict,
+                            pos::Tuple{Int,Int};
+                            open_link::Tuple{Int,Int} = pos,
+                            use_gpu::Bool = false,
+                            node_cache = Dict())
+
+    # 1) Build bucket and load center tensor
+    bucket = get_id_terms(net, link_ops, pos)
+    tn0 = ttn0[pos]
+    if use_gpu && haskey(node_cache, pos)
+        tn0 = gpu(node_cache[pos])
+    elseif use_gpu
+        tn0 = gpu(tn0)
+    end
+
+    # 2) Prepare the primed DAG
+    open_tag = link_tag(open_link...)
+    idx = findfirst(i -> hastags(i, open_tag), inds(tn0))
+    @assert idx !== nothing "Could not find open link $open_tag"
+    tn_dag_base = dag(prime(tn0, ind(tn0, idx)))
+
+    # 3) Spawn one Task per bucket entry
+    futures = Dict{Int,Task}()
+    for (idd, ops) in bucket
+        futures[idd] = @spawn begin
+            local_ops  = Op_GPU[]
+            local_coll = ITensor[]
+
+            tn     = tn0
+            tn_dag = tn_dag_base
+            len_orig  = ops[1].original_length
+            total_red = 0
+
+            T = ITensor[tn]
+            for op in ops
+                t_op = use_gpu ? gpu(op.op) : op.op
+                ci   = commonind(tn, t_op)
+                tn_dag = prime(tn_dag, ci)
+                push!(T, t_op)
+                total_red += op_reduction(op)
+            end
+            push!(T, tn_dag)
+
+            tn_con = contract(T)
+
+            len_contr = length(ops) > 1 ? 1 : 0
+            len_new   = len_orig - total_red - len_contr
+
+            if len_new > 1
+                push!(local_ops, Op_GPU(idd, open_link, cpu(tn_con), len_orig, len_new))
+            else
+                push!(local_coll, tn_con)
+            end
+
+            return (ops = local_ops, coll = local_coll)
+        end
+    end
+
+    # 4) Fetch results and finalize
+    op_vec   = Op_GPU[]
+    all_coll = ITensor[]
+    for fut in values(futures)
+        res = fetch(fut)
+        append!(op_vec, res.ops)
+        append!(all_coll, res.coll)
+    end
+
+     # proper GPU sync
+    if use_gpu
+        CUDA.synchronize()
+    end
+
+    if !isempty(all_coll)
+        s = sum(all_coll)
+        push!(op_vec, Op_GPU(new_Op_GPU_id(), open_link, cpu(s), 1, 1))
+    end
+
+    return op_vec
+end
+
 
 function set_position!(pTPO::ProjTPO_GPU{N,T}, ttn::TreeTensorNetwork{N,T}; use_gpu::Bool = false, node_cache = Dict()) where {N,T}
     oc_projtpo = ortho_center(pTPO)
@@ -219,6 +452,70 @@ function ∂A_GPU(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
     return use_gpu ? _∂A_impl(ptpo, pos, Val(:gpu)) : _∂A_impl(ptpo, pos, Val(:cpu))
 end
 
+
+# original with manual contraction sequence
+function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
+    net      = ptpo.net
+    link_ops = ptpo.link_ops
+    id_bucket = get_id_terms(net, link_ops, pos)
+    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+
+    return function (T::ITensor)
+        isempty(envs) && return zero(T)
+
+        T_gpu = gpu(T)
+
+        acc_gpu = ITensor(inds(T)...)
+        for trm in envs
+            ops_gpu = gpu.(trm)
+            tensor_list = vcat(T_gpu, ops_gpu)
+            # seq = ITensors.optimal_contraction_sequence(tensor_list)
+            # left to right contraction is optimal
+            contrib_gpu = noprime(contract(tensor_list))
+            acc_gpu += contrib_gpu
+        end
+        return acc_gpu
+    end
+end
+
+#=
+# original with manual contraction sequence - parallelized (memory issues)
+function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
+    net      = ptpo.net
+    link_ops = ptpo.link_ops
+    id_bucket = get_id_terms(net, link_ops, pos)
+    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+
+    return function (T::ITensor)
+        isempty(envs) && return zero(T)
+
+        T_gpu = gpu(T)
+
+        # Preallocate vector for tasks
+        tasks = Vector{Task}(undef, length(envs))
+
+        for i in eachindex(envs)
+            trm = envs[i]
+            tasks[i] = @spawn begin
+                ops_gpu = gpu.(trm)
+                tensor_list = vcat(T_gpu, ops_gpu)
+                contrib_gpu = noprime(contract(tensor_list))  # manual left-to-right contraction
+                return contrib_gpu
+            end
+        end
+
+        # Accumulate results
+        acc_gpu = ITensor(inds(T)...)
+        for task in tasks
+            acc_gpu += fetch(task)
+        end
+
+        return acc_gpu
+    end
+end
+=#
+
+#=
 # map and manual contraction sequence version
 function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
     net = ptpo.net
@@ -243,6 +540,7 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
         return isempty(contributions) ? zero(T_gpu) : reduce(+, contributions)
     end
 end
+=#
 
 ## write similar to the gpu version
 function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})

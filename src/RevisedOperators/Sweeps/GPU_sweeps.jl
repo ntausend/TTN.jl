@@ -121,12 +121,17 @@ function tdvp(psi0::TreeTensorNetwork, tpo::TPO_GPU; kwargs...)
         node_cache = Dict{Tuple{Int,Int}, ITensor}()
         psic = move_ortho!(psic, (number_of_layers(network(psic)),1), node_cache)
         pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
-        func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
-                                            krylovdim = eigsolve_krylovdim,
-                                            tol = eigsolve_tol, 
-                                            maxiter = eigsolve_maxiter,
-                                            ishermitian = ishermitian,
-                                            eager = eigsolve_eager);  
+
+        # func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+        #                                     krylovdim = eigsolve_krylovdim,
+        #                                     tol = eigsolve_tol, 
+        #                                     maxiter = eigsolve_maxiter,
+        #                                     ishermitian = ishermitian,
+        #                                     eager = eigsolve_eager);
+        
+        func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
+                                               krylovdim = eigsolve_krylovdim);
+
         sh = TDVPSweepHandlerGPU(psic, pTPO, timestep, initialtime, finaltime, func)
         return sweep(psic, sh; node_cache = node_cache, kwargs...)
     else 
@@ -158,13 +163,35 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache::Dic
             flush(stdout)
         end
         t_p = time()
+        # for pos in sp
+        #     if !haskey(node_cache, pos)
+        #         node_cache[pos] = gpu(psi0[pos])
+        #         println("Load tensor at pos: $pos in pos sweep")
+        #     end
+        #     update!(sp, pos; svd_alg, node_cache = node_cache)
+        #     delete!(node_cache, pos)
+        # end
+
         for pos in sp
             if !haskey(node_cache, pos)
-                node_cache[pos] = gpu(psi0[pos])
+                tensor = gpu(psi0[pos])
+                
+                # Attach safe finalizer to see when tensor is collected
+                finalizer(tensor) do x
+                    @async println("Finalizer: node_cache[$pos] was collected.")
+                end
+
+                node_cache[pos] = tensor
+                println("Load tensor at pos: $pos in pos sweep")
             end
+
             update!(sp, pos; svd_alg, node_cache = node_cache)
+
+            # Break all references to trigger GC
             delete!(node_cache, pos)
+            println("Deleted node $pos")
         end
+        
         t_f = time()
         measure!(
             obs;

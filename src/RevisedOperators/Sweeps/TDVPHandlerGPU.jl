@@ -39,8 +39,17 @@ function _tdvpforward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
     Δ = nextpos .- pos
 
     T = node_cache[pos]
-    Tnext = haskey(node_cache, nextpos) ? node_cache[nextpos] : gpu(ttn[nextpos])
-
+    # Tnext = haskey(node_cache, nextpos) ? node_cache[nextpos] : gpu(ttn[nextpos])
+    if haskey(node_cache, nextpos)
+        Tnext = node_cache[nextpos]
+    else
+        Tnext = gpu(ttn[nextpos])
+        # Attach safe finalizer to see when tensor is collected
+        finalizer(Tnext) do x
+            @async println("Finalizer: node_cache[$pos] was collected.")
+        end
+        println("Start from pos $pos: Load tensor at nextpos: $nextpos in forward")
+    end
 
     # if going down, just move ortho center to the next tensor and update environment
     if Δ[1] == -1
@@ -97,8 +106,17 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
     Δ = nextpos .- pos
 
     T = node_cache[pos]
-    Tnext = haskey(node_cache, nextpos) ? node_cache[nextpos] : gpu(ttn[nextpos])
-
+    # Tnext = haskey(node_cache, nextpos) ? node_cache[nextpos] : gpu(ttn[nextpos])
+    if haskey(node_cache, nextpos)
+        Tnext = node_cache[nextpos]
+    else
+        Tnext = gpu(ttn[nextpos])
+        # Attach safe finalizer to see when tensor is collected
+        finalizer(Tnext) do x
+            @async println("Finalizer: node_cache[$pos] was collected.")
+        end
+        println("Start from pos $pos: Load at nextpos: $nextpos in backward")
+    end
 
     # if going up, just move ortho center to the next tensor and update environment
     if Δ[1] == 1
