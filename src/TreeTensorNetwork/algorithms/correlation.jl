@@ -191,3 +191,99 @@ function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{In
 
     return ITensors.scalar(reduce(*, temp_ops, init = T) * dag(prime(T, idx_shr...)))
 end;
+
+function group_by_top_idx(arr)
+    groups = Dict()
+    for x in arr
+        key = x.top_index
+        if haskey(groups, key)
+            push!(groups[key], x)
+        else
+            groups[key] = [x]
+        end
+    end
+    return groups
+end
+
+function all_correlations(ttn::TreeTensorNetwork, op1::String, op2::String)
+    net = network(ttn)
+    physlat = physical_lattice(net)
+    phys_sites = TTN.sites(ttn)
+    nsites = length(physlat)
+
+
+    all_paths = map(eachindex(physlat)) do i
+      res = map(eachindex(physlat)) do j
+        j>=i && return nothing
+
+        pos_parent1 = TTN.parent_node(net, (0,i))
+        pos_parent2 = TTN.parent_node(net, (0,j))
+        path = vcat(pos_parent1, TTN.connecting_path(net, pos_parent1, pos_parent2))
+
+        _, topidx = findmax(first, path)
+        top_pos = path[topidx]
+
+        path_l = path[1:topidx-1]
+        path_r = path[end:-1:topidx+1]
+
+        return (pos1=i, pos2=j, top_index=topidx, top_position=top_pos, left_path=path_l, right_path=path_r)
+      end
+
+      filter!(x-> !isnothing(x), res)
+
+      return group_by_top_idx(res)
+    end[2:end]
+
+    mat = Matrix{ComplexF64}(undef, nsites, nsites)
+
+    for pos_path in all_paths
+      layers = sort(collect(keys(pos_path)))
+
+      pos1 = first(pos_path[first(layers)]).pos1
+
+      for l in layers
+        top_pos = first(pos_path[l]).top_position
+        path_l  = first(pos_path[l]).left_path
+        ttnc = move_ortho!(copy(ttn), top_pos)
+
+        Opl = TTN.convert_cu(op(op1, phys_sites[pos1]), ttn[(1,1)])
+        # now calculate the flow of both operators to the end of the left path
+        for posl in path_l
+            T = ttnc[posl]
+            idx_shr = commonind(T, Opl)
+            idx_prnt = only(inds(T; tags = "nl=$(posl[1])"))
+            Opl = (T * Opl) * dag(prime(T, idx_prnt, idx_shr))
+        end
+        for path in pos_path[l]
+          pos2 = path.pos2
+          path_r = path.right_path
+
+          Opr = TTN.convert_cu(op(op2, phys_sites[pos2]), ttn[(1,1)])
+
+          # now calculate the flow of both operators to the end of the right path
+          for posr in path_r
+              T = ttnc[posr]
+              idx_shr = commonind(T, Opr)
+              idx_prnt = only(inds(T; tags = "nl=$(posr[1])"))
+              Opr = (T * Opr) * dag(prime(T, idx_prnt, idx_shr)) 
+          end
+
+          T = ttnc[top_pos]
+          idx_shrl = commonind(T, Opl)
+          idx_shrr = commonind(T, Opr)
+
+          matEl = ITensors.scalar(((T*Opl) * Opr)*dag(prime(T, idx_shrl, idx_shrr)))
+          mat[pos1, pos2] = matEl
+          mat[pos2, pos1] = matEl
+
+        end
+      end
+    end
+
+    for pos in 1:nsites
+      op_new = "$op1 * $op2"
+      mat[pos,pos] = expect(ttn, op_new, pos)
+    end
+
+    return mat
+end

@@ -1,3 +1,17 @@
+# util function to save data in obs
+function savedata(name::String, obs)
+    name == "" && return
+    h5open(name*".h5", "w") do file    
+        # iterate through the fields of obs and append the data to the dataframe
+        for n in fieldnames(typeof(obs))
+            create_group(file, String(n))
+            for (i,data) in enumerate(getfield(obs,n))
+                file[String(n)][string(i)] = data
+            end
+        end 
+    end
+end
+
 # Krylov Parameters, DMRG
 global const DEFAULT_TOL_DMRG              = 1e-14
 global const DEFAULT_KRYLOVDIM_DMRG        = 5
@@ -15,12 +29,12 @@ global const DEFAULT_ISHERMITIAN_TDVP = true
 global const DEFAULT_EAGER_TDVP       = true
 
 function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
-    
     obs = get(kwargs, :observer, NoObserver())
 
     outputlevel = get(kwargs, :outputlevel, 1)
 
     svd_alg = get(kwargs, :svd_alg, nothing)
+    name_obs = get(kwargs, :name_obs, nothing)
 
     # now start with the sweeping protocol
     initialize!(sp)
@@ -53,6 +67,10 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
             outputlevel=outputlevel,
             dt = t_f-t_p,
         )
+        if !isnothing(name_obs)
+            savedata(name_obs, obs)
+        end
+            
         if outputlevel ≥ 1
             print("Finished sweep $sw. ")
             @printf("Needed Time %.3fs\n", t_f - t_p)
