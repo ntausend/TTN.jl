@@ -57,7 +57,7 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-5)
     betas = betas[1:min(actual_m-1, length(betas))]
 
     # Build tridiagonal matrix
-    T = actual_m == 1 ? [alphas[1]] : SymTridiagonal(alphas, betas)
+    T = actual_m == 1 ? Diagonal([alphas[1]]) : SymTridiagonal(alphas, betas)
 
     # Compute exponential action on first basis vector
     e1 = zeros(complex(eltype(v)), actual_m)
