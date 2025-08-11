@@ -2,11 +2,11 @@ using LinearAlgebra
 using SparseArrays
 
 # exponentiate_twopass(A, t::Number, v; kwargs...) = expintegrator_twopass(A, t, v; kwargs...)
-function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-5)
+function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-8)
     m = krylovdim
     # Pass 1: Build tridiagonal matrix
     beta0 = norm(v)
-    beta0 < tol && return zero(v)
+    beta0 < tol && return zero(v), nothing
 
     # Initialize Lanczos vectors
     q_prev = zero(v)

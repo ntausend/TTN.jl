@@ -95,15 +95,25 @@ end
 Copy the data of the tree tensor network from the GPU to the CPU.
 """
 function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
-    datac = deepcopy(ttn.data)
-    datacpu = map(datac) do layerdata
-        return map(T -> adapt(Array, T), layerdata)
+    for ll in eachindex(ttn.data)
+        for pp in eachindex(ttn.data[ll])
+            ttn.data[ll][pp] = adapt(Array, ttn.data[ll][pp])
+        end
     end
-    ortho_centerc = deepcopy(ttn.ortho_center)
-    netc = deepcopy(ttn.net)
-    ortho_directionc = deepcopy(ttn.ortho_direction)
-    return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
+    return ttn
 end
+
+# function cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
+#     datac = deepcopy(ttn.data)
+#     datacpu = map(datac) do layerdata
+#         return map(T -> adapt(Array, T), layerdata)
+#     end
+# 
+#     ortho_centerc = deepcopy(ttn.ortho_center)
+#     netc = deepcopy(ttn.net)
+#     ortho_directionc = deepcopy(ttn.ortho_direction)
+#     return TreeTensorNetwork(datacpu, ortho_directionc, ortho_centerc, netc)
+# end
 """
 ```julia
     gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
