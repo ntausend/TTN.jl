@@ -13,8 +13,8 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-8)
     q_curr = v / beta0
     alphas = zeros(m)
     betas  = zeros(m-1)
-    norms = zeros(m+1)
-    norms[1] = beta0
+    # norms = zeros(m+1)
+    # norms[1] = beta0
 
     # Lanczos iteration
     actual_m = m
@@ -45,7 +45,7 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-8)
 
         if j < m
             betas[j] = beta
-            norms[j+1] = beta
+            # norms[j+1] = beta
             q_next = w / beta
             q_prev, q_curr = q_curr, q_next
         end
@@ -67,7 +67,7 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-8)
     # Pass 2: Reconstruct solution
     result = zero(v)
     q_prev = zero(v)
-    q_curr = v / norms[1]
+    q_curr = v / beta0
 
     # Accumulate result
     for j in 1:actual_m
@@ -101,6 +101,7 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-8)
 
         # Prepare next iteration
         q_next = w / betas[j]
+        q_prev, q_curr = q_curr, q_next
     end
 
     return beta0 .* result, nothing
