@@ -101,7 +101,7 @@ function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; node_cache = 
     return sp
 end
 
-function tdvp(psi0::TreeTensorNetwork, tpo::TPO_GPU; kwargs...)
+function tdvp(psi0::TreeTensorNetwork, tpo::TPO_GPU; full_krylov=false, kwargs...)
     eigsolve_tol = get(kwargs, :eigsolve_tol, DEFAULT_TOL_TDVP)
     eigsolve_krylovdim = get(kwargs, :eigsolve_krylovdim, DEFAULT_KRYLOVDIM_TDVP)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_TDVP)
@@ -121,16 +121,17 @@ function tdvp(psi0::TreeTensorNetwork, tpo::TPO_GPU; kwargs...)
         node_cache = Dict{Tuple{Int,Int}, ITensor}()
         psic = move_ortho!(psic, (number_of_layers(network(psic)),1), node_cache)
         pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
-
-        # func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
-        #                                     krylovdim = eigsolve_krylovdim,
-        #                                     tol = eigsolve_tol, 
-        #                                     maxiter = eigsolve_maxiter,
-        #                                     ishermitian = ishermitian,
-        #                                     eager = eigsolve_eager);
-        
-        func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
-                                               krylovdim = eigsolve_krylovdim);
+        if full_krylov
+            func = (action, dt, T) -> exponentiate(action, convert(eltype(T), -1im*dt), T,
+                                                krylovdim = eigsolve_krylovdim,
+                                                tol = eigsolve_tol, 
+                                                maxiter = eigsolve_maxiter,
+                                                ishermitian = ishermitian,
+                                                eager = eigsolve_eager);
+        else
+            func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T;
+                                               krylovdim = eigsolve_krylovdim, tol = eigsolve_tol);
+        end
 
         sh = TDVPSweepHandlerGPU(psic, pTPO, timestep, initialtime, finaltime, func)
         return sweep(psic, sh; node_cache = node_cache, kwargs...)
@@ -157,39 +158,20 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache::Dic
     svd_alg = get(kwargs, :svd_alg, nothing)
 
     # now start with the sweeping protocol
+    # CUDA.memory_status()
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
             println("Start sweep number $(sw)")
             flush(stdout)
+            # CUDA.memory_status()
         end
         t_p = time()
-        # for pos in sp
-        #     if !haskey(node_cache, pos)
-        #         node_cache[pos] = gpu(psi0[pos])
-        #         println("Load tensor at pos: $pos in pos sweep")
-        #     end
-        #     update!(sp, pos; svd_alg, node_cache = node_cache)
-        #     delete!(node_cache, pos)
-        # end
-
         for pos in sp
             if !haskey(node_cache, pos)
-                tensor = gpu(psi0[pos])
-                
-                # Attach safe finalizer to see when tensor is collected
-                finalizer(tensor) do x
-                    @async println("Finalizer: node_cache[$pos] was collected.")
-                end
-
-                node_cache[pos] = tensor
-                println("Load tensor at pos: $pos in pos sweep")
+                node_cache[pos] = gpu(psi0[pos])
             end
-
             update!(sp, pos; svd_alg, node_cache = node_cache)
-
-            # Break all references to trigger GC
             delete!(node_cache, pos)
-            println("Deleted node $pos")
         end
         
         t_f = time()
@@ -207,6 +189,7 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache::Dic
             @printf("\n")
             flush(stdout)
         end
+        
         isdone = checkdone!(
 			obs;
 			sweep_handler=sp,
@@ -216,6 +199,7 @@ function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache::Dic
         ## manual gc a good idea?
         # GC.gc()
     end
+    # CUDA.memory_status()
     return sp
 end
 

@@ -190,6 +190,8 @@ function build_tpo_from_opsum(ampo::OpSum, lat::AbstractLattice)
     return TPO_GPU(op_s)
 end
 
+TPO_GPU(ampo::OpSum, lat::AbstractLattice) = build_tpo_from_opsum(ampo, lat)
+
 """
     ops_on_node(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}) -> Vector{Op_GPU}
 

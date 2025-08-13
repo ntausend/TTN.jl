@@ -458,7 +458,9 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
     net      = ptpo.net
     link_ops = ptpo.link_ops
     id_bucket = get_id_terms(net, link_ops, pos)
-    envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+    # envs = [map(g -> g.op, grp) for grp in values(id_bucket)]
+    envs = [gpu.([g.op for g in grp]) for grp in values(id_bucket)]
+
 
     return function (T::ITensor)
         isempty(envs) && return zero(T)
@@ -466,8 +468,7 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
         T_gpu = gpu(T)
 
         acc_gpu = ITensor(inds(T)...)
-        for trm in envs
-            ops_gpu = gpu.(trm)
+        for ops_gpu in envs
             tensor_list = vcat(T_gpu, ops_gpu)
             # seq = ITensors.optimal_contraction_sequence(tensor_list)
             # left to right contraction is optimal
@@ -477,6 +478,7 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
         return acc_gpu
     end
 end
+
 
 #=
 # original with manual contraction sequence - parallelized (memory issues)
@@ -525,10 +527,11 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
     # Preload operators to GPU
     envs = [gpu.([g.op for g in grp]) for grp in values(id_bucket)]
 
-    return function (T::ITensor)
-        isempty(envs) && return zero(T)
+    return function (T_gpu::ITensor)
+        # isempty(envs) && return zero(T)
+        @assert is_cu(T_gpu) "Tensor should already be on GPU"
 
-        T_gpu = gpu(T)
+        # T_gpu = gpu(T)
 
         contributions = map(envs) do ops_gpu
             tensors = (T_gpu, ops_gpu...)
@@ -537,7 +540,8 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
             noprime(contract(tensors))
         end
 
-        return isempty(contributions) ? zero(T_gpu) : reduce(+, contributions)
+        # return isempty(contributions) ? zero(T_gpu) : reduce(+, contributions)
+        return reduce(+, contributions)
     end
 end
 =#
@@ -571,14 +575,15 @@ function ∂A2_GPU(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}; use_gp
     return use_gpu ? _∂A2_impl(ptpo, isom, pos, Val(:gpu)) : _∂A2_impl(ptpo, isom, pos, Val(:cpu))
 end
 
+#=
 # manual contraction sequence version
 function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Val{:gpu})
     id_bucket = get_id_terms(ptpo.net, ptpo.link_ops, pos)
+    isom_gpu = gpu(isom)
 
     function action(link::ITensor)
         acc = ITensor(inds(link)...)  # preallocate accumulator
 
-        isom_gpu = gpu(isom)
         link_gpu = gpu(link)
 
         for (_, ops) in id_bucket
@@ -614,6 +619,69 @@ function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Va
 
     return action
 end
+=#
+
+# preloading operators
+function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Val{:gpu})
+    # Bucket by operator id near `pos`
+    id_bucket = get_id_terms(ptpo.net, ptpo.link_ops, pos)  # groups terms by id
+    isom_gpu = gpu(isom)  # fixed for this closure
+
+    # Preload + preclassify once per operator-id:
+    #  - iso_ops: ops that share an index with `isom`
+    #  - link_ops: the rest
+    #  - prime_counts: how many extra primes each isom index needs
+    pre_envs = Vector{Tuple{Vector{ITensor}, Vector{ITensor}, Dict{TagSet,Int}}}()
+    for (_, ops) in id_bucket
+        iso_ops  = ITensor[]
+        lnk_ops  = ITensor[]
+        pcounts  = Dict{TagSet,Int}()
+
+        for op in ops
+            og = gpu(op.op)  # preload op tensor to GPU
+            # classify wrt the *base* isometry (independent of the link argument)
+            if (sh = commonind(og, isom_gpu)) !== nothing
+                push!(iso_ops, og)
+                tg = tags(sh)
+                pcounts[tg] = get(pcounts, tg, 0) + 1  # prime this index once per touching op
+            else
+                push!(lnk_ops, og)
+            end
+        end
+        push!(pre_envs, (iso_ops, lnk_ops, pcounts))
+    end
+
+    # The closure used by the Krylov routine
+    return function (link_gpu::ITensor)
+        # link_gpu = gpu(link)
+        @assert is_cu(link_gpu) "Link should already be on GPU"
+
+        acc = nothing
+        for (iso_ops, lnk_ops, pcounts) in pre_envs
+            # prime the isometry by the open-link index (depends on `link`)
+            isom_p = prime(isom_gpu, commonind(isom_gpu, link_gpu))
+            # then apply the additional primes required by the ops on isom-legs
+            for (tg, n) in pcounts
+                @inbounds for _ = 1:n
+                    isom_p = prime(isom_p, tg)
+                end
+            end
+
+            # contract isometry side: (isom ・ ops_on_isom ・ dag(isom_p))
+            iso_list  = ITensor[isom_gpu; iso_ops...; dag(isom_p)]
+            iso_con   = contract(iso_list)
+
+            # contract link side: (link ・ ops_on_link)
+            link_list = ITensor[link_gpu; lnk_ops...]
+            link_con  = contract(link_list)
+
+            contrib = noprime(iso_con * link_con)
+            acc === nothing ? (acc = contrib) : (acc += contrib)
+        end
+        return acc === nothing ? zero(link_gpu) : acc
+    end
+end
+
 
 function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Val{:cpu})
     

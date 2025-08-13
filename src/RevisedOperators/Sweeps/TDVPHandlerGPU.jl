@@ -45,10 +45,10 @@ function _tdvpforward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
     else
         Tnext = gpu(ttn[nextpos])
         # Attach safe finalizer to see when tensor is collected
-        finalizer(Tnext) do x
-            @async println("Finalizer: node_cache[$pos] was collected.")
-        end
-        println("Start from pos $pos: Load tensor at nextpos: $nextpos in forward")
+        # finalizer(Tnext) do x
+        #     @async println("Finalizer: node_cache[$pos] was collected.")
+        # end
+        # println("Start from pos $pos: Load tensor at nextpos: $nextpos in forward")
     end
 
     # if going down, just move ortho center to the next tensor and update environment
@@ -66,7 +66,8 @@ function _tdvpforward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
     elseif Δ[1] == 1
         # effective Hamiltonian for tensor at pos
         action = ∂A_GPU(pTPO, pos; use_gpu = true)
-        (Tn,_) = sp.func(action, sp.timestep/2, T) 
+        (Tn,info) = sp.func(action, sp.timestep/2, T) 
+        @show info
 
         # QR-decompose time evolved tensor at pos
         idx_r = commonind(T, Tnext)
@@ -75,7 +76,8 @@ function _tdvpforward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
         
         # reverse time evolution for link tensor between pos and next_pos
         action2 = ∂A2_GPU(pTPO, Qn, pos; use_gpu = true)
-        (Rn,_) = sp.func(action2, -sp.timestep/2, R)
+        (Rn,info) = sp.func(action2, -sp.timestep/2, R)
+        @show info
 
         # multiply new R tensor onto tensor at nextpos
         nextTn = Rn * Tnext  
@@ -112,10 +114,10 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
     else
         Tnext = gpu(ttn[nextpos])
         # Attach safe finalizer to see when tensor is collected
-        finalizer(Tnext) do x
-            @async println("Finalizer: node_cache[$pos] was collected.")
-        end
-        println("Start from pos $pos: Load at nextpos: $nextpos in backward")
+        # finalizer(Tnext) do x
+        #     @async println("Finalizer: node_cache[$pos] was collected.")
+        # end
+        # println("Start from pos $pos: Load at nextpos: $nextpos in backward")
     end
 
     # if going up, just move ortho center to the next tensor and update environment
@@ -142,7 +144,8 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
         # reverse time evolution for R tensor between pos and nextpos
 
         action = ∂A2_GPU(pTPO, Qn, pos; use_gpu = true)
-        (Ln,_) = sp.func(action, -sp.timestep/2, L) 
+        (Ln,info) = sp.func(action, -sp.timestep/2, L)
+        @show info
 
         # multiply new L tensor on tensor at nextpos
         nextQ = Tnext* Ln
@@ -150,7 +153,8 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
         pTPO = recalc_path_flows!(pTPO, ttn, pos, nextpos; use_gpu = true)
         action2 = ∂A_GPU(pTPO, nextpos; use_gpu = true)
         # println("Next comes func")
-        (nextTn, _) = sp.func(action2, sp.timestep / 2, nextQ)
+        (nextTn, info) = sp.func(action2, sp.timestep / 2, nextQ)
+        @show info
 
         # set new tensor and move orthocenter (just for consistency)
         ttn[nextpos] = cpu(nextTn)
@@ -172,7 +176,8 @@ function _tdvptopnode!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
     T = node_cache[pos]
 
     action = ∂A_GPU(pTPO, pos; use_gpu = true)
-    (Tn, _) = sp.func(action, sp.timestep, T)
+    (Tn, info) = sp.func(action, sp.timestep, T)
+    @show info
     
     ttn[pos] = cpu(Tn)
     node_cache[pos] = Tn

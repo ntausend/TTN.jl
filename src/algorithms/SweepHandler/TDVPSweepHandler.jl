@@ -47,7 +47,8 @@ function Base.iterate(sp::AbstractTDVPSweepHandler, state)
 end
 
 # return time sweeps
-sweeps(sp::AbstractTDVPSweepHandler) = (sp.initialtime):(sp.timestep):(sp.finaltime)
+# sweeps(sp::AbstractTDVPSweepHandler) = (sp.initialtime):(sp.timestep):(sp.finaltime) # counts 0.0 as first step
+sweeps(sp::AbstractTDVPSweepHandler) = (sp.initialtime + sp.timestep):sp.timestep:sp.finaltime 
 # initial position of the sweep
 start_position(sp::AbstractTDVPSweepHandler) = (sp.path[1])
 initialize!(::AbstractTDVPSweepHandler) = nothing
