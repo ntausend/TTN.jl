@@ -5,10 +5,11 @@ module TTN
     using ITensorMPS
     using CUDA
     using Distributions: Multinomial
-    using KrylovKit: exponentiate, eigsolve, svdsolve
+    using KrylovKit: exponentiate, eigsolve, svdsolve, ConvergenceInfo
     using LinearAlgebra
     using Printf
     using HDF5
+    using Base.Threads
 
     ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
     #include("factorize_workaround.jl")
@@ -54,6 +55,7 @@ module TTN
     using ITensors: terms, which_op, site, params
     #ITensorMPS.sortmergeterms, , ITensorMPS.determineValType
 	using ITensors: argument, optimal_contraction_sequence
+    using TensorOperations
 
 
     # contract_tensor ncon wrapper
@@ -126,4 +128,20 @@ module TTN
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
 
+
+    # Revised Operator structures including LCA
+    export Op_GPU, TPO_GPU, ProjTPO_GPU
+    export build_tpo_from_opsum
+    include("./RevisedOperators/OpStructs.jl")
+    include("./RevisedOperators/LCA.jl")
+    include("./RevisedOperators/LinkOps.jl")
+    export TDVPSweepHandlerGPU, tdvp
+    include("./RevisedOperators/Sweeps/custom_krylov_earlystop.jl")
+    include("./RevisedOperators/Sweeps/TDVPHandlerGPU.jl")
+    include("./RevisedOperators/Sweeps/TDVPHandlerCPU.jl")
+    export SimpleSweepHandlerGPU, dmrg
+    include("./RevisedOperators/Sweeps/SweepHandler.jl")
+    include("./RevisedOperators/Sweeps/GPU_sweeps.jl")
+
+    include("./RevisedOperators/move_ortho.jl")
 end # module
