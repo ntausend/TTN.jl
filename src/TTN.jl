@@ -5,10 +5,11 @@ module TTN
     using ITensorMPS
     using CUDA
     using Distributions: Multinomial
-    using KrylovKit: exponentiate, eigsolve, svdsolve
+    using KrylovKit: exponentiate, eigsolve, svdsolve, ConvergenceInfo
     using LinearAlgebra
     using Printf
     using HDF5
+    using Base.Threads#: @spawn
 
     ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
     #include("factorize_workaround.jl")
@@ -129,12 +130,18 @@ module TTN
 
 
     # Revised Operator structures including LCA
-    export OpGroup, TPO_group, ProjTPO_group
-    export Link, LCA, build_tpo_from_opsum, filter_site_terms
+    export Op_GPU, TPO_GPU, ProjTPO_GPU
+    export build_tpo_from_opsum
     include("./RevisedOperators/OpStructs.jl")
-    export rerooted_parent_map, lowest_common_ancestor_node_links, find_ops_by_id
-    export build_lca_sites_map, build_lca_id_map
     include("./RevisedOperators/LCA.jl")
+    include("./RevisedOperators/LinkOps.jl")
+    export TDVPSweepHandlerGPU, tdvp
+    include("./RevisedOperators/Sweeps/custom_krylov.jl")
+    include("./RevisedOperators/Sweeps/TDVPHandlerGPU.jl")
+    include("./RevisedOperators/Sweeps/TDVPHandlerCPU.jl")
+    export SimpleSweepHandlerGPU, dmrg
+    include("./RevisedOperators/Sweeps/SweepHandler.jl")
+    include("./RevisedOperators/Sweeps/GPU_sweeps.jl")
 
-
+    include("./RevisedOperators/move_ortho.jl")
 end # module
