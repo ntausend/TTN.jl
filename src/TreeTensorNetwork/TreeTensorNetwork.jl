@@ -139,7 +139,7 @@ end
 
 #=
 function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::Int = 1,
-                orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64)
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, elT = ComplexF64, save_to_cpu=false)
 
     net = network(ttn)
     
@@ -171,15 +171,14 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
     ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
 
     if orthogonalize
-        ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+        ttnc = _reorthogonalize!(ttnc; normalize = normalize, save_to_cpu=save_to_cpu)
     end
 
     return ttnc
 end
 
 function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::Int = 1,
-                orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, elT = ComplexF64)
-
+                orthogonalize::Bool = true, normalize::Bool = orthogonalize, factor::Float64 = 10e-12, elT = ComplexF64, save_to_cpu=false)
     net = network(ttn)
     
     ttn_vec = _initialize_empty_ttn(net)
@@ -210,7 +209,7 @@ function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::
     ttnc = TreeTensorNetwork(ttn_vec, ortho_direction, [-1,-1], net)
 
     if orthogonalize
-        ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+        ttnc = _reorthogonalize!(ttnc; normalize = normalize, save_to_cpu=save_to_cpu)
     end
 
     return ttnc
@@ -346,9 +345,9 @@ function _orthogonalize_to_child!(ttn::TreeTensorNetwork, net::AbstractNetwork, 
 end
 
 
-function _reorthogonalize!(ttn::TreeTensorNetwork; normalize::Bool = true)
+function _reorthogonalize!(ttn::TreeTensorNetwork; normalize::Bool = true, save_to_cpu::Bool = false)
     for pos in NodeIterator(network(ttn))
-        ttn = _orthogonalize_to_parent!(ttn, pos; regularize = normalize)
+        ttn = _orthogonalize_to_parent!(ttn, pos; regularize = normalize, save_to_cpu=save_to_cpu)
     end
     ttn.ortho_center .= [number_of_layers(ttn), 1]
     if(normalize)

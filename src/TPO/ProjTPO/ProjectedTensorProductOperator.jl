@@ -145,7 +145,7 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
     # collapse the onsite operators
     rg_flw = _collapse_onsite(rg_flw)
 
-    # now rebuild the environments for the new mode
+    # now rbuild the environments for the new mode
     # first split rg_flw terms according to identity, onsite and interaction term
     rg_flw_id     = only(filter(T -> getindex(params(T), :is_identity), rg_flw))
     rg_flw_nonid  = filter(T -> !getindex(params(T), :is_identity), rg_flw)

@@ -1,5 +1,5 @@
 # calculate the up rg flow for all operator terms
-function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
+function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu=false)
 	net = network(ttn)
 
 	# now we want to calculate the upflow up to the ortho position
@@ -10,7 +10,9 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 	# cast it to a flat array, we need to reconstruct every sum structure
 	# later on using the id saved in the tpo operators itself
 	trms = vcat(terms.(tpo.data)...)
-	trms = convert_cu(trms,ttn)
+	if !save_to_cpu
+        trms = convert_cu(trms,ttn)
+    end
 
 	# initialize the rg terms similiar to the bottom envs. i.e.
 	# for every layer we have a array for every node denoting the upflow of the link
@@ -70,7 +72,6 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 						rpre1 = res[childs_idx[1]]
 						rpre2 = res[childs_idx[2]]
 						res_new[pp] = _dot_inner(tn1, tn2, rpre1, rpre2)
-						#println("At layer $ll and position $pp with result ", res_new[pp])
 					end
 					res = res_new
 				end
@@ -84,8 +85,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 			idx = inds(ttn[(1,pp)], "Site,n=$(pos)")
 
             res = delta(dag.(idx), prime.((idx)))
-
-            return convert_cu(res, ttn)
+            return save_to_cpu ? res : convert_cu(res, ttn)
 		end
 	end
 	
@@ -101,7 +101,7 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 			id_rg[ll][pp]    = Vector{ITensor}(undef, n_chds)
 
 			for chd in child_nodes(net, (ll, pp))
-				Tn = ttn[chd]
+				Tn = convert_cu(ttn[chd])
 
 				rg_trms_chld = vcat(map(child_nodes(net, chd)) do cc
 					rg_terms[chd[1]][chd[2]][index_of_child(net,cc)]
@@ -124,13 +124,13 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 					ids = map(open_links) do ol
 						id_rg[chd[1]][chd[2]][index_of_child(net, ol)]
 					end
-					_ops = vcat(_ops, ids)
+					_ops = convert_cu.(vcat(_ops, ids))
 					
 					# getting the up pointing index -> remove this by
 					# including the id rg flow?
 					tensor_list = [Tn, _ops..., dag(prime(Tn))]
-          opt_seq = optimal_contraction_sequence(tensor_list)
-          _rg_op = contract(tensor_list; sequence = opt_seq)
+                    opt_seq = optimal_contraction_sequence(tensor_list)
+                    _rg_op = contract(tensor_list; sequence = opt_seq)
 					# now build the new params list
 					prm   = params.(trms)
 					# summand index, should be the same for all
@@ -143,15 +143,15 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO)
 					return Op(_rg_op, chd; sm = smt, op_length = op_length, is_identity = is_identity)
 				end
 				# now collapse all pure onsite operators only on this node
-				rg_terms[ll][pp][index_of_child(net, chd)] = _collapse_onsite(rg_trms_new)
+				rg_terms[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu.(_collapse_onsite(rg_trms_new)) : _collapse_onsite(rg_trms_new)
 
 				# now we need to calculate the new rg_ids
 				#idx_up = commonind(ttn[(ll,pp)],Tn)
-				idchlds = id_rg[chd[1]][chd[2]]
+				idchlds = convert_cu.(id_rg[chd[1]][chd[2]])
 				tensor_list = vcat(Tn, idchlds..., dag(prime(Tn)))
 				opt_seq = optimal_contraction_sequence(tensor_list)
 				idn = contract(tensor_list; sequence = opt_seq)
-				id_rg[ll][pp][index_of_child(net, chd)] = idn
+				id_rg[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu(idn) : idn
 			end
 		end
 	end
@@ -192,12 +192,12 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 		reduce(*, _ops, init = Prod{Op}())
 	end
 
-	# now got backwards through the network and calculate the downflow
+	# now got backwards tPUhrough the network and calculate the downflow
 	for ll in Iterators.drop(Iterators.reverse(eachlayer(net)), 1)
 		environments[ll] = Vector{Vector{Prod{Op}}}(undef, number_of_tensors(net,ll))
-		for pp in eachindex(net, ll)
+        for pp in eachindex(net, ll)
 			prnt_nd = parent_node(net, (ll,pp))
-			Tn = ttn[prnt_nd]
+			Tn = convert_cu(ttn[prnt_nd])
 			# From the enviroments, extract all terms except the
 			# current node of interest
 			trms = vcat(terms.(environments[prnt_nd[1]][prnt_nd[2]])...)
@@ -212,7 +212,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 					# if op_reduction == 0 we only have a flow of identities
 					op_reduction -= 1
 				end
-				_ops = which_op.(trm)
+				_ops = convert_cu.(which_op.(trm))
 				
 				tensor_list = [Tn, _ops..., dag(prime(Tn))]
             	opt_seq = optimal_contraction_sequence(tensor_list)
@@ -268,10 +268,10 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 				
 				reduce(*, _ops, init = Prod{Op}())
 			end
-			environments[ll][pp] = _collapse_onsite(env_n)
+			environments[ll][pp] = save_to_cpu ? convert_cpu.(_collapse_onsite(env_n)) : _collapse_onsite(env_n)
 		end		
 	end
-	save_to_cpu && return convert_cpu(environments)
+	# save_to_cpu && return convert_cpu(environments)
     return environments
 end
 

@@ -1,6 +1,7 @@
 #NDTensors.similar(D::NDTensors.Dense) = NDTensors.Dense(Base.similar(NDTensors.data(D)))
 
 is_cu(::Type{<:Array}) = false
+is_cu(::Type{<:Number}) = false
 is_cu(::Type{<:CuArray}) = true
 is_cu(X::Type{<:NDTensors.TensorStorage}) = is_cu(NDTensors.datatype(X))
 is_cu(X::Type{<:NDTensors.Tensor}) = is_cu(NDTensors.storagetype(X))
@@ -23,6 +24,7 @@ end
 
 
 function convert_cu(T::ITensor)
+    is_cu(T) && return T
     return adapt(CuArray, T)
 end
 
@@ -48,25 +50,8 @@ function convert_cpu(T::Op)
     return Op(adapt(Array, which_op(T)), T.sites...; T.params...)
 end
 
-function convert_cpu(T::Prod{Op})
-    new_args = tuple(convert_cpu.(collect(T.args))...)
-
-    return Prod{Op}(T.f, new_args, T.kwargs)
-end
-
-function convert_cpu(env::Vector{Prod{Op}})
-    return convert_cpu.(env)
-end
-
-function convert_cpu(env::Vector{Vector{Vector{Prod{Op}}}})
-    return map(x->map(y->convert_cpu.(y), x), env)
-end
-
-function convert_cpu(T::Vector{Op})
-    return convert_cpu.(T)
-end
-
 function convert_cu(T::Op)
+    is_cu(which_op(T)) && return T
     return Op(adapt(CuArray, which_op(T)), T.sites...; T.params...)
 end
 
@@ -86,6 +71,24 @@ end
 function convert_cu(T::Vector{Op})
     return convert_cu.(T)
 end
+
+function convert_cpu(T::Prod{Op})
+    new_args = tuple(convert_cpu.(collect(T.args))...)
+    return Prod{Op}(T.f, new_args, T.kwargs)
+end
+
+function convert_cpu(env::Vector{Prod{Op}})
+    return convert_cpu.(env)
+end
+
+function convert_cpu(env::Vector{Vector{Vector{Prod{Op}}}})
+    return map(x->map(y->convert_cpu.(y), x), env)
+end
+
+function convert_cpu(T::Vector{Op})
+    return convert_cpu.(T)
+end
+
 
 """
 ```julia

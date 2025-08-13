@@ -198,7 +198,7 @@ end
 
 
 function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::Int = 1,
-    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn))
+    orthogonalize::Bool = true, normalize::Bool = orthogonalize, _elT = eltype(ttn), save_to_cpu=false)
 
     net = network(ttn)
     elT = promote_type(_elT, eltype(ttn))
@@ -229,7 +229,7 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
     ttnc = TreeTensorNetwork(ttn_new, ortho_direction, [-1,-1], net)
 
     if orthogonalize
-        ttnc = _reorthogonalize!(ttnc, normalize = normalize)
+        ttnc = _reorthogonalize!(ttnc, normalize = normalize, save_to_cpu=save_to_cpu)
     end
 
     return ttnc
