@@ -45,11 +45,12 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
 
         # --- Early stopping test (Krylov residual–based error estimate) ---
         # Build tiny T_j from {α₁..αⱼ, β₁..βⱼ₋₁}
-        if j == 1
-            Tj = Diagonal(@view alphas[1:1])
-        else
-            Tj = SymTridiagonal(@view(alphas[1:j]), @view(betas[1:j-1]))
-        end
+        Tj = (j == 1) ? Diagonal(@view alphas[1:1]) : SymTridiagonal(@view(alphas[1:j]), @view(betas[1:j-1]))
+        # if j == 1
+        #     Tj = Diagonal(@view alphas[1:1])
+        # else
+        #     Tj = SymTridiagonal(@view(alphas[1:j]), @view(betas[1:j-1]))
+        # end
         # Build augmented (j+2)×(j+2) matrix:
         # H_aug = [ t*Tj  e₁  0;  0  0  1;  0  0  0 ]
         Tj_mat = Matrix(t .* Tj)

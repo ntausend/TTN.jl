@@ -9,7 +9,7 @@ module TTN
     using LinearAlgebra
     using Printf
     using HDF5
-    using Base.Threads#: @spawn
+    using Base.Threads
 
     ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
     #include("factorize_workaround.jl")
@@ -136,7 +136,7 @@ module TTN
     include("./RevisedOperators/LCA.jl")
     include("./RevisedOperators/LinkOps.jl")
     export TDVPSweepHandlerGPU, tdvp
-    include("./RevisedOperators/Sweeps/custom_krylov.jl")
+    include("./RevisedOperators/Sweeps/custom_krylov_earlystop.jl")
     include("./RevisedOperators/Sweeps/TDVPHandlerGPU.jl")
     include("./RevisedOperators/Sweeps/TDVPHandlerCPU.jl")
     export SimpleSweepHandlerGPU, dmrg
