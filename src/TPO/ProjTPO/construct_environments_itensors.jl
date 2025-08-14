@@ -131,6 +131,9 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu=false)
 					tensor_list = [Tn, _ops..., dag(prime(Tn))]
                     opt_seq = optimal_contraction_sequence(tensor_list)
                     _rg_op = contract(tensor_list; sequence = opt_seq)
+                    # if save_to_cpu
+                    #     _rg_op = convert_cpu(_rg_op)
+                    # end
 					# now build the new params list
 					prm   = params.(trms)
 					# summand index, should be the same for all
@@ -143,7 +146,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu=false)
 					return Op(_rg_op, chd; sm = smt, op_length = op_length, is_identity = is_identity)
 				end
 				# now collapse all pure onsite operators only on this node
-				rg_terms[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu.(_collapse_onsite(rg_trms_new)) : _collapse_onsite(rg_trms_new)
+				# rg_terms[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu.(_collapse_onsite(rg_trms_new)) : _collapse_onsite(rg_trms_new)
+                rg_terms[ll][pp][index_of_child(net, chd)] = convert_cpu.(_collapse_onsite(rg_trms_new))
 
 				# now we need to calculate the new rg_ids
 				#idx_up = commonind(ttn[(ll,pp)],Tn)
@@ -151,7 +155,10 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu=false)
 				tensor_list = vcat(Tn, idchlds..., dag(prime(Tn)))
 				opt_seq = optimal_contraction_sequence(tensor_list)
 				idn = contract(tensor_list; sequence = opt_seq)
-				id_rg[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu(idn) : idn
+                if save_to_cpu
+                    idn = convert_cpu(idn)
+                end
+				id_rg[ll][pp][index_of_child(net, chd)] = idn
 			end
 		end
 	end
@@ -178,7 +185,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 	
 	# last layer is simple since it only has the components comming from below
 	environments[end] = Vector{Vector{Prod{Op}}}(undef, 1)
-	trms = _collect_sum_terms(vcat(rg_flow_trms[end][1]...))
+	trms = _collect_sum_terms(convert_cu.(vcat(rg_flow_trms[end][1]...)))
 	environments[end][1] = map(trms) do smt
 		# get all rg_identites on the missing legs
 		open_legs = filter(s -> s ∉ site.(smt), child_nodes(net, (nlayers,1)))
@@ -189,8 +196,9 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 				Op(ii, ol; sm = smid, is_identity = true, op_length = op_length)
 		end
 		_ops = vcat(smt, ids)
-		reduce(*, _ops, init = Prod{Op}())
-	end
+        res = reduce(*, _ops, init = Prod{Op}())
+		return save_to_cpu ? convert_cpu(res) : res
+    end
 
 	# now got backwards tPUhrough the network and calculate the downflow
 	for ll in Iterators.drop(Iterators.reverse(eachlayer(net)), 1)
@@ -202,8 +210,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 			# current node of interest
 			trms = vcat(terms.(environments[prnt_nd[1]][prnt_nd[2]])...)
 			
-			# collect all terms appearing in one sum
-			trms_filtered = _collect_sum_terms(filter(T -> site(T) != (ll,pp), trms))
+            trms_filtered = _collect_sum_terms(filter(T -> site(T) != (ll,pp), trms))
 
 			# calculate the rg flow of all terms
 			rg_trms = map(trms_filtered) do trm
@@ -217,6 +224,10 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 				tensor_list = [Tn, _ops..., dag(prime(Tn))]
             	opt_seq = optimal_contraction_sequence(tensor_list)
 				_rg_op = contract(tensor_list; sequence = opt_seq)
+                tensor_list=nothing
+                if save_to_cpu
+                    _rg_op = convert_cpu(_rg_op)
+                end
 				
 				prm   = params.(trm)
 				# summand index, should be the same for all
@@ -225,7 +236,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 				is_identity = all(getindex.(prm, :is_identity))
 				#pdtid = Tuple(vcat(map(p -> vcat(p...), getindex.(prm, :pd))...))
 				Op(_rg_op, (prnt_nd); sm = smt, is_identity = is_identity, op_length = op_length)
-			end
+            end
 			
 			# some onsite potential collapsing possible here?
 			residual = filter(T -> !getindex(params(T), :is_identity), rg_trms)
@@ -238,7 +249,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 			
 			
 			# fetch all together and collect terms corresponding to the same sumid
-			trms = _collect_sum_terms(vcat(trms_below..., residual...))
+            trms = _collect_sum_terms(vcat(trms_below..., residual...))
 			env_n = map(trms) do trm
 				# find all ids from above for each terms
 				smidtrm = only(unique(getindex.(params.(trm), :sm)))
@@ -263,6 +274,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 				else
 					_ops  = vcat(trm_cr, id_bl...)
 				end
+                _ops = convert_cu.(_ops)
 
 				#_ops = vcat(trm, id_up..., id_bl...)
 				
@@ -271,7 +283,6 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 			environments[ll][pp] = save_to_cpu ? convert_cpu.(_collapse_onsite(env_n)) : _collapse_onsite(env_n)
 		end		
 	end
-	# save_to_cpu && return convert_cpu(environments)
     return environments
 end
 

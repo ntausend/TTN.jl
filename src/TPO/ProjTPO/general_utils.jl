@@ -96,8 +96,16 @@ end
 
 extract_sm_id(trms::Vector{Op}) = getindex.(params.(trms), :sm)
 
+function unique_tuples(vec_tuples::Vector{T}) where T<:Tuple
+    # Convert each tuple to a vector (enables iterative hashing)
+    tuple_to_vec(t::Tuple) = collect(t)
+    # Use unique-by-vector to avoid recursive hashing
+    unique_tuples = unique(tuple_to_vec, vec_tuples)
+    return map(t->(t...,), unique_tuples)
+end
+
 function _collect_sum_terms(trms::Vector{Op})
-	map(unique(extract_sm_id(trms))) do id
-		filter(T -> isequal(id, getindex(params(T),:sm)), trms)
+	map(unique_tuples(extract_sm_id(trms))) do id
+		return filter(T -> isequal(collect(id), collect(getindex(params(T),:sm))), trms)
 	end
 end

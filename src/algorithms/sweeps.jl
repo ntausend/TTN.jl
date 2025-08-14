@@ -213,7 +213,6 @@ function tdvp(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; kwarg
     pTPO = ProjectedTensorProductOperator(psic, tpo; save_to_cpu)
 
     if save_to_cpu
-        # psic = TTN.cpu(psic)
         func = (action, dt, T) -> exponentiate_twopass(action, convert(eltype(T), -1im*dt), T,
                                                krylovdim = eigsolve_krylovdim);  
     else

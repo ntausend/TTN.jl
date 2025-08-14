@@ -72,6 +72,10 @@ function convert_cu(T::Vector{Op})
     return convert_cu.(T)
 end
 
+function convert_cu(T::Vector{Vector{Op}})
+    return convert_cu.(T)
+end
+
 function convert_cpu(T::Prod{Op})
     new_args = tuple(convert_cpu.(collect(T.args))...)
     return Prod{Op}(T.f, new_args, T.kwargs)
