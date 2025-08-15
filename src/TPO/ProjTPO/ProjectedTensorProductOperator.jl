@@ -23,13 +23,10 @@ function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO; save_to_cpu::Bool = fal
     # first construct the tpo, invovles some conversion and returns
     # a vector (representing the sum) of the product operators.
     # calcualte the uprg flows of the operators and identities
-    @time rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo; save_to_cpu)
+    rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo; save_to_cpu)
     # build the environments
-    @time envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
+    envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
     
-    CUDA.reclaim()
-    CUDA.pool_status()
-
     return ProjTPO{N, T}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs, save_to_cpu)
 end
 
@@ -110,15 +107,18 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
 
     # pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projTPO), pos), parent_node(network(projTPO), pos))
-    isom = TTN.convert_cu(isom)
+    isom = convert_cu(isom)
     
     
     # get the envrionments of the current position
     # envs_cur = projTPO[pos]
     # envs_target = projTPO[pos_final]
 
-    envs_cur    = save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
-    envs_target = save_to_cpu ? convert_cu(projTPO[pos_final]) : projTPO[pos_final]
+    # envs_cur    = save_to_cpu ? convert_cu(projTPO[pos]) : projTPO[pos]
+    # envs_target = save_to_cpu ? convert_cu(projTPO[pos_final]) : projTPO[pos_final]
+
+    envs_cur    = projTPO[pos]
+    envs_target = projTPO[pos_final]
 
     # extract all components comming from below
     terms_filtered = map(envs_cur) do smt
@@ -127,7 +127,7 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
 
     # do the rg flow of the terms w.r.t the isometry
     rg_flw = map(terms_filtered) do smt
-      _ops = which_op.(smt)
+      _ops = convert_cu.(which_op.(smt))
         op_reduction = length(filter(p -> !p, getindex.(params.(smt), :is_identity)))
         if op_reduction > 0
             # if op_reduction == 0 we only have a flow of identities
@@ -137,6 +137,9 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
         opt_seq = optimal_contraction_sequence(tensor_list)
 				
         _rg_op = contract(tensor_list; sequence = opt_seq)
+        if save_to_cpu
+            _rg_op = convert_cpu(_rg_op)
+        end
         prm   = params.(smt)
 		# summand index, should be the same for all
 		sid  = only(unique(getindex.(prm, :sm)))
@@ -167,15 +170,20 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
         trm_smid  = only(unique(getindex.(params.(terms(trm)),:sm)))
         op_length = only(unique(getindex.(params.(terms(trm)),:op_length)))
         id_n  = Op(which_op(rg_flw_id), site(rg_flw_id); sm = trm_smid, is_identity = true, op_length = op_length)
-        reduce(*, vcat(filter(T -> site(T) != site(rg_flw_id), trm_t), id_n), init = Prod{Op}())
+        reduce(*, convert_cu.(vcat(filter(T -> site(T) != site(rg_flw_id), trm_t), id_n)), init = Prod{Op}())
     end
-
+    if save_to_cpu
+        env_n_id = convert_cpu(env_n_id)
+    end
     # the onsite operator needs to be padded with identities from below
     env_onsite_old = only(filter(terms.(envs_target)) do trm
         trm_smid = only(unique(getindex.(params.(trm),:sm)))
         trm_smid == getindex(params(rg_flw_onsite),:sm)
     end)
-    env_n_onsite = reduce(*, vcat(filter(T -> site(T) != site(rg_flw_onsite), env_onsite_old), rg_flw_onsite), init = Prod{Op}())
+    env_n_onsite = reduce(*, convert_cu.(vcat(filter(T -> site(T) != site(rg_flw_onsite), env_onsite_old), rg_flw_onsite)), init = Prod{Op}())
+    if save_to_cpu
+        env_n_onsite = convert_cpu(env_n_onsite)
+    end
     
     # rest of the interaction terms are handled similar
     env_n_int = map(enumerate(rg_flw_int)) do (i,rg_trm)
@@ -183,12 +191,15 @@ function update_environments!(projTPO::ProjTPO, isom::ITensor, pos::Tuple{Int, I
             trm_smid = only(unique(getindex.(params.(trm),:sm)))
             trm_smid == getindex(params(rg_trm), :sm)
         end)
-        reduce(*, vcat(filter(T -> site(T) != site(rg_trm),trms_old), rg_trm), init = Prod{Op}())
+        reduce(*, convert_cu(vcat(filter(T -> site(T) != site(rg_trm),trms_old), rg_trm)), init = Prod{Op}())
+    end
+    if save_to_cpu
+        env_n_int = convert_cpu(env_n_int)
     end
 
     # now rebuild the environments for the new node
     new_envs = vcat(env_n_onsite, env_n_id..., env_n_int)
-    projTPO.environments[pos_final[1]][pos_final[2]] = save_to_cpu ? convert_cpu(new_envs) : new_envs
+    projTPO.environments[pos_final[1]][pos_final[2]] = new_envs# save_to_cpu ? convert_cpu(new_envs) : new_envs
 
     return projTPO
 end

@@ -131,9 +131,9 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu=false)
 					tensor_list = [Tn, _ops..., dag(prime(Tn))]
                     opt_seq = optimal_contraction_sequence(tensor_list)
                     _rg_op = contract(tensor_list; sequence = opt_seq)
-                    # if save_to_cpu
-                    #     _rg_op = convert_cpu(_rg_op)
-                    # end
+                    if save_to_cpu
+                        _rg_op = convert_cpu(_rg_op)
+                    end
 					# now build the new params list
 					prm   = params.(trms)
 					# summand index, should be the same for all
@@ -146,8 +146,8 @@ function _up_rg_flow(ttn::TreeTensorNetwork, tpo::TPO; save_to_cpu=false)
 					return Op(_rg_op, chd; sm = smt, op_length = op_length, is_identity = is_identity)
 				end
 				# now collapse all pure onsite operators only on this node
-				# rg_terms[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu.(_collapse_onsite(rg_trms_new)) : _collapse_onsite(rg_trms_new)
-                rg_terms[ll][pp][index_of_child(net, chd)] = convert_cpu.(_collapse_onsite(rg_trms_new))
+				rg_terms[ll][pp][index_of_child(net, chd)] = save_to_cpu ? convert_cpu.(_collapse_onsite(rg_trms_new)) : _collapse_onsite(rg_trms_new)
+                # rg_terms[ll][pp][index_of_child(net, chd)] = convert_cpu.(_collapse_onsite(rg_trms_new))
 
 				# now we need to calculate the new rg_ids
 				#idx_up = commonind(ttn[(ll,pp)],Tn)
@@ -225,6 +225,7 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
             	opt_seq = optimal_contraction_sequence(tensor_list)
 				_rg_op = contract(tensor_list; sequence = opt_seq)
                 tensor_list=nothing
+                _ops = nothing
                 if save_to_cpu
                     _rg_op = convert_cpu(_rg_op)
                 end
@@ -282,8 +283,8 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
                 _ops = nothing
                 return save_to_cpu ? convert_cpu(res) : res
 			end
-			# environments[ll][pp] = save_to_cpu ? convert_cpu.(_collapse_onsite(env_n)) : _collapse_onsite(env_n)
-			environments[ll][pp] = convert_cpu.(_collapse_onsite(env_n))
+			environments[ll][pp] = save_to_cpu ? convert_cpu.(_collapse_onsite(env_n)) : _collapse_onsite(env_n)
+			# environments[ll][pp] = _collapse_onsite(env_n)
 		end		
 	end
     return environments
