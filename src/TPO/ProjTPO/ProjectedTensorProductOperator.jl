@@ -23,9 +23,12 @@ function ProjTPO(ttn::TreeTensorNetwork{N, T}, tpo::TPO; save_to_cpu::Bool = fal
     # first construct the tpo, invovles some conversion and returns
     # a vector (representing the sum) of the product operators.
     # calcualte the uprg flows of the operators and identities
-    rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo; save_to_cpu)
+    @time rg_flw_up, id_up_rg = _up_rg_flow(ttn, tpo; save_to_cpu)
     # build the environments
-    envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
+    @time envs = _build_environments(ttn, rg_flw_up, id_up_rg; save_to_cpu)
+    
+    CUDA.reclaim()
+    CUDA.pool_status()
 
     return ProjTPO{N, T}(net, tpo, vcat(ortho_center(ttn)...), rg_flw_up, envs, save_to_cpu)
 end

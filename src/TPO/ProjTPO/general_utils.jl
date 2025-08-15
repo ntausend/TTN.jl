@@ -1,4 +1,4 @@
-function _collapse_onsite(tpo::Vector{Prod{Op}})
+function _collapse_onsite(tpo::Vector{Prod{Op}}; save_to_cpu::Bool = false)
 	# get all terms only composed out of padding identities
 
 	tpo_id = filter(_op -> all(getindex.(params.(_op), :is_identity)),tpo)
@@ -35,15 +35,20 @@ function _collapse_onsite(tpo::Vector{Prod{Op}})
 		smid = Tuple(sort(vcat(map(sm -> vcat(sm...), getindex.(params.(op_non_id), :sm))...)))
 		# explicitly casting on product operator for convinient handling later
 		op_n = Prod{Op}() * Op(op_cllps, pos; sm = smid, is_identity = false, op_length = 1)
+        if save_to_cpu
+            op_n = convert_cu(op_n)
+        end
 		mapreduce(*, init = op_n, padding_id) do id
-			Op(which_op(id), site(id); sm = smid, is_identity = true, op_length = 1)
+			op_id = Op(which_op(id), site(id); sm = smid, is_identity = true, op_length = 1)
+            save_to_cpu && return convert_cu(op_id)
+            return op_id
 		end
 	end
 	return reduce(vcat, [otrms_cllps, residual...])
 end
 
 # version with unpacked product operator
-function _collapse_onsite(tpo::Vector{Vector{Op}})
+function _collapse_onsite(tpo::Vector{Vector{Op}}; save_to_cpu::Bool = false)
 	# get all terms only composed out of padding identities
 
 	tpo_id = filter(_op -> all(getindex.(params.(_op), :is_identity)), tpo)

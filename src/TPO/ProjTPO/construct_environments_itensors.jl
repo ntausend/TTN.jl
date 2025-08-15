@@ -278,9 +278,12 @@ function _build_environments(ttn::TreeTensorNetwork, rg_flow_trms::Vector{Vector
 
 				#_ops = vcat(trm, id_up..., id_bl...)
 				
-				reduce(*, _ops, init = Prod{Op}())
+				res = reduce(*, _ops, init = Prod{Op}())
+                _ops = nothing
+                return save_to_cpu ? convert_cpu(res) : res
 			end
-			environments[ll][pp] = save_to_cpu ? convert_cpu.(_collapse_onsite(env_n)) : _collapse_onsite(env_n)
+			# environments[ll][pp] = save_to_cpu ? convert_cpu.(_collapse_onsite(env_n)) : _collapse_onsite(env_n)
+			environments[ll][pp] = convert_cpu.(_collapse_onsite(env_n))
 		end		
 	end
     return environments
