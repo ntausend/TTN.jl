@@ -246,17 +246,13 @@ function contract_ops_threads(net::BinaryNetwork,
                               link_ops::Dict,
                               pos::Tuple{Int,Int};
                               open_link::Tuple{Int,Int} = pos,
-                              use_gpu::Bool = false,
+                              use_gpu::Bool = true,
                               node_cache = Dict())
 
     # 1) Build bucket and load center tensor
     bucket = get_id_terms(net, link_ops, pos)
-    tn0 = ttn0[pos]
-    if use_gpu && haskey(node_cache, pos)
-        tn0 = gpu(node_cache[pos])
-    elseif use_gpu
-        tn0 = gpu(tn0)
-    end
+    ## only valid for use_gpu = true
+    tn0 = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn0[pos])
 
     # 2) Prepare the primed DAG
     open_tag = link_tag(open_link...)
@@ -318,9 +314,7 @@ function contract_ops_threads(net::BinaryNetwork,
     all_coll = vcat(coll_per_th...)
 
     # proper GPU sync
-    if use_gpu
-        CUDA.synchronize()
-    end
+    use_gpu && CUDA.synchronize()
 
     if !isempty(all_coll)
         s = sum(all_coll)
@@ -341,12 +335,8 @@ function contract_ops_spawn(net::BinaryNetwork,
 
     # 1) Build bucket and load center tensor
     bucket = get_id_terms(net, link_ops, pos)
-    tn0 = ttn0[pos]
-    if use_gpu && haskey(node_cache, pos)
-        tn0 = gpu(node_cache[pos])
-    elseif use_gpu
-        tn0 = gpu(tn0)
-    end
+    ## only valid for use_gpu = true
+    tn0 = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn0[pos])
 
     # 2) Prepare the primed DAG
     open_tag = link_tag(open_link...)

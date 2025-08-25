@@ -135,12 +135,14 @@ module TTN
     include("./RevisedOperators/OpStructs.jl")
     include("./RevisedOperators/LCA.jl")
     include("./RevisedOperators/LinkOps.jl")
-    export TDVPSweepHandlerGPU, tdvp
+    export tdvp
     include("./RevisedOperators/Sweeps/custom_krylov_earlystop.jl")
     include("./RevisedOperators/Sweeps/TDVPHandlerGPU.jl")
     include("./RevisedOperators/Sweeps/TDVPHandlerCPU.jl")
-    export SimpleSweepHandlerGPU, dmrg
-    include("./RevisedOperators/Sweeps/SweepHandler.jl")
+    export dmrg
+    include("./RevisedOperators/Sweeps/AbstractSimpleSweepHandler.jl")
+    include("./RevisedOperators/Sweeps/SimpleSweepHandlerGPU.jl")
+    include("./RevisedOperators/Sweeps/SimpleSweepHandlerCPU.jl")
     include("./RevisedOperators/Sweeps/GPU_sweeps.jl")
 
     include("./RevisedOperators/move_ortho.jl")
