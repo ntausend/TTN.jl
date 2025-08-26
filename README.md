@@ -150,7 +150,7 @@ We are happy if you decide to use our framework for your research. When citing o
 
 Tausendpfund, N., Rizzi, M., Krinitsin, W., & Schmitt, M. (2024). TTN.jl -- A tree tensor network library for calculating groundstates and solving time evolution (0.1). Zenodo. [https://doi.org/10.5281/zenodo.14421855](https://doi.org/10.5281/zenodo.14421855)
 
-The BibTeX code for these references are:
+The BibTeX code for this reference is:
 
 ```bibtex
 	@software{tausendpfund_2024_14421855,
