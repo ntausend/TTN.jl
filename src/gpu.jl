@@ -38,7 +38,7 @@ convert_cu(T::Vector{Op}, ttn::TreeTensorNetwork) = map(t -> convert_cu(t, ttn),
 
 """
 ```julia
-    pu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
+    gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
 ```
 
 Copy the data of the tree tensor network from the GPU to the CPU.
@@ -72,15 +72,15 @@ function gpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
     return TreeTensorNetwork(datagpu, ortho_directionc, ortho_centerc, netc)
 end
 
-#=
 function gpu(mpo::MPOWrapper{L, M}; type::Type = ComplexF64) where{L,M}
     datac = deepcopy(mpo.data)
-    datagpu = map(T -> cu(type, T), datac) 
+    datagpu = map(T -> adapt(CuArray, T), datac) 
     mappingc = deepcopy(mpo.mapping)
     latc = deepcopy(mpo.lat)
     return MPOWrapper{L, M}(latc, datagpu, mappingc)
 end
 
+#=
 function gpu(tpo::TPO{L}, ttn::TreeTensorNetwork) where L
     latc = deepcopy(tpo.lat)
     datac = deepcopy(tpo.data)
@@ -93,4 +93,3 @@ function gpu(tpo::TPO{L}, ttn::TreeTensorNetwork) where L
     return TPO{L}(latc, datagpu)
 end
 =#
-

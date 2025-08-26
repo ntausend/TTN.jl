@@ -22,15 +22,12 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
 
     svd_alg = get(kwargs, :svd_alg, nothing)
 
+    name_obs = get(kwargs, :name_obs, nothing)
+    name_ttn = get(kwargs, :name_ttn, nothing)
+
     # now start with the sweeping protocol
     initialize!(sp)
-    # measure!(
-    #     obs;
-    #     sweep_handler=sp,
-    #     outputlevel=outputlevel,
-    #     dt = 0,
-    # )
-    #sp = SimpleSweepProtocol(net, n_sweeps)
+
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
             println("Start sweep number $(sw)")
@@ -39,12 +36,6 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
         t_p = time()
         for pos in sp
             update!(sp, pos; svd_alg)
-            # measure!(
-            #     obs;
-            #     sweep_handler=sp,
-            #     pos=pos,
-            #     outputlevel=outputlevel
-            # )
         end
         t_f = time()
         measure!(
@@ -53,6 +44,17 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
             outputlevel=outputlevel,
             dt = t_f-t_p,
         )
+
+        if !isnothing(name_obs)
+            savedata(name_obs, obs)
+        end
+
+        if !isnothing(name_ttn)
+            h5open(name_ttn*"_t=$(round(sp.current_time, digits=1)).h5", "w") do file
+                write(file, "ttn", cpu(sp.ttn))
+            end
+        end
+
         if outputlevel ≥ 1
             print("Finished sweep $sw. ")
             @printf("Needed Time %.3fs\n", t_f - t_p)
