@@ -173,7 +173,7 @@ The BibTeX code for this reference is:
 
 ## TODO's
 
-If you thing we miss a feature not listed below, feel free to write us/open a issue.
+If you think we miss a feature not listed below, feel free to write us/open a issue.
 
 - Expectation values for global operators (aka $H^2$)
 - Initialization using application to a product state (aka Patron initialization $\rightarrow$ nearly finished)
