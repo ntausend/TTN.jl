@@ -10,6 +10,8 @@ mutable struct TDVPSweepHandlerGPU{N<:AbstractNetwork,T} <: AbstractTDVPSweepHan
     dirloop::Symbol # forward/backward-loop or topnode
     dir::Int #index of child for the next position in the path, 0 for parent node
     current_time::Float64
+    imaginary_time::Bool
+    # energy_shift::Float64
     # use_gpu::Bool true
 
     function TDVPSweepHandlerGPU(
@@ -18,12 +20,14 @@ mutable struct TDVPSweepHandlerGPU{N<:AbstractNetwork,T} <: AbstractTDVPSweepHan
         timestep,
         initialtime,
         finaltime,
-        func) where {N,T}
+        func,
+        imaginary_time
+    ) where {N,T}
         path = _tdvp_path(network(ttn))
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?
             index_of_child(network(ttn), path[2]) : 0
-        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
+        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime, imaginary_time)
     end
 end
 
@@ -80,9 +84,11 @@ function _tdvpforward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
         node_cache[pos] = Qn_gpu
 
         nextTn_gpu = Rn_gpu * gpu(Tnext)
+        # renormalize if imaginary time evolution
+        sp.imaginary_time && (nextTn_gpu = nextTn_gpu/LinearAlgebra.norm(nextTn_gpu))
+
         ttn[nextpos] = cpu(nextTn_gpu)
         node_cache[nextpos] = nextTn_gpu
-        # delete GPU tensors to free memory
 
         # move orthocenter (just for consistency), update ttnc and environments
         ttn.ortho_center[1] = nextpos[1]
@@ -148,6 +154,10 @@ function _tdvpbackward!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache
         delete!(node_cache, pos)
         action2 = ∂A_GPU(pTPO, nextpos; use_gpu = true)
         (nextTn_gpu, _) = sp.func(action2, sp.timestep / 2, nextQ_gpu)
+
+        # renormalize if imaginary time evolution
+        sp.imaginary_time && (nextTn_gpu = nextTn_gpu/LinearAlgebra.norm(nextTn_gpu))
+
         # set new tensor and move orthocenter (just for consistency)
         ttn[nextpos] = cpu(nextTn_gpu)
         node_cache[nextpos] = nextTn_gpu
@@ -171,6 +181,9 @@ function _tdvptopnode!(sp::TDVPSweepHandlerGPU, pos::Tuple{Int,Int}; node_cache:
     action = ∂A_GPU(pTPO, pos; use_gpu = true)
     (Tn_gpu, _) = sp.func(action, sp.timestep, node_cache[pos])
     
+    # renormalize if imaginary time evolution
+    sp.imaginary_time && (Tn_gpu = Tn_gpu/LinearAlgebra.norm(Tn_gpu))
+
     ttn[pos] = cpu(Tn_gpu)
     # node_cache[pos] = Tn_gpu
 end

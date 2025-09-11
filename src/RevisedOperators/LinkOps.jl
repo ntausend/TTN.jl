@@ -720,3 +720,22 @@ function link_tag(nl::Int, np::Int)
         return "Site,SpinHalf,n=$(np)"
     end
 end
+
+
+function full_contraction(ttn::TreeTensorNetwork, tpo::TPO_GPU; use_gpu = false)
+    ptpo = ProjTPO_GPU(tpo, ttn; use_gpu = use_gpu)
+
+    return full_contraction(ttn, ptpo; use_gpu = use_gpu)
+end
+
+function full_contraction(ttn::TreeTensorNetwork, ptpo::ProjTPO_GPU; use_gpu = false)
+    # set the ptpo to the correct position of the ttn
+    ptpo = set_position!(ptpo, ttn; use_gpu = use_gpu)
+    oc = ortho_center(ttn)
+
+    # get the action of the operator on the orthogonlity center
+    action = ∂A_GPU(ptpo, oc; use_gpu = use_gpu)
+    T = use_gpu ? gpu(ttn[oc]) : ttn[oc]
+    # build the contraction
+    return real(ITensors.scalar(dag(T)*action(T)))
+end

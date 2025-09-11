@@ -228,23 +228,6 @@ function _∂A2_impl(ptpo::ProjTPO_GPU, isom::ITensor, pos::Tuple{Int,Int}, ::Va
     return action
 end
 
-function full_contraction(ttn::TreeTensorNetwork, tpo::TPO_GPU)
-    ptpo = ProjTPO_GPU(ttn, tpo)
-    return full_contraction(ttn, ptpo)
-end
-
-function full_contraction(ttn::TreeTensorNetwork, ptpo::ProjTPO_GPU)
-    # set the ptpo to the correct position of the ttn
-    ptpo = set_position!(ptpo, ttn)
-    oc = ortho_center(ttn)
-
-    # get the action of the operator on the orthogonlity center
-    action = ∂A(ptpo, oc)
-    T = ttn[oc]
-    # build the contraction
-    return dot(T, action(T))
-end
-
 function extract_layer_node(index::Index)
 
     taglist = string.(collect(tags(index)))  # Vector{String}

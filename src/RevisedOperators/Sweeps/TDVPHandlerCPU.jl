@@ -10,6 +10,8 @@ mutable struct TDVPSweepHandlerCPU{N<:AbstractNetwork,T} <: AbstractTDVPSweepHan
     dirloop::Symbol # forward/backward-loop or topnode
     dir::Int #index of child for the next position in the path, 0 for parent node
     current_time::Float64
+    imaginary_time::Bool
+    # energy_shift::Float64
     # use_gpu::Bool false
 
     function TDVPSweepHandlerCPU(
@@ -18,12 +20,14 @@ mutable struct TDVPSweepHandlerCPU{N<:AbstractNetwork,T} <: AbstractTDVPSweepHan
         timestep,
         initialtime,
         finaltime,
-        func) where {N,T}
+        func,
+        imaginary_time
+    ) where {N,T}
         path = _tdvp_path(network(ttn))
         dir =
             path[2] ∈ child_nodes(network(ttn), path[1]) ?
             index_of_child(network(ttn), path[2]) : 0
-        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime)
+        return new{N,T}(initialtime, finaltime, timestep, ttn, pTPO, func, path, :forward, dir, initialtime, imaginary_time)
     end
 end
 
@@ -69,6 +73,9 @@ function _tdvpforward!(sp::TDVPSweepHandlerCPU, pos::Tuple{Int,Int})
 
         # multiply new R tensor onto tensor at nextpos
         nextTn = Rn * Tnext
+        # renormalize if imaginary time evolution
+        sp.imaginary_time && (nextTn = nextTn/LinearAlgebra.norm(nextTn))
+
         ttn[pos] = Qn
         ttn[nextpos] = nextTn
 
@@ -128,6 +135,9 @@ function _tdvpbackward!(sp::TDVPSweepHandlerCPU, pos::Tuple{Int,Int})
         # println("Next comes func")
         (nextTn, _) = sp.func(action2, sp.timestep / 2, nextQ)
 
+        # renormalize if imaginary time evolution
+        sp.imaginary_time && (nextTn = nextTn/LinearAlgebra.norm(nextTn))
+
         # set new tensor and move orthocenter (just for consistency)
         ttn[nextpos] = nextTn
 
@@ -148,6 +158,9 @@ function _tdvptopnode!(sp::TDVPSweepHandlerCPU, pos::Tuple{Int,Int})
 
     action = ∂A_GPU(pTPO, pos; use_gpu = false)
     (Tn, _) = sp.func(action, sp.timestep, T)
+
+    # renormalize if imaginary time evolution
+    sp.imaginary_time && (Tn = Tn/LinearAlgebra.norm(Tn))
 
     ttn[pos] = Tn
 end

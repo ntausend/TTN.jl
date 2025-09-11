@@ -46,11 +46,6 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
         # --- Early stopping test (Krylov residual–based error estimate) ---
         # Build tiny T_j from {α₁..αⱼ, β₁..βⱼ₋₁}
         Tj = (j == 1) ? Diagonal(@view alphas[1:1]) : SymTridiagonal(@view(alphas[1:j]), @view(betas[1:j-1]))
-        # if j == 1
-        #     Tj = Diagonal(@view alphas[1:1])
-        # else
-        #     Tj = SymTridiagonal(@view(alphas[1:j]), @view(betas[1:j-1]))
-        # end
         # Build augmented (j+2)×(j+2) matrix:
         # H_aug = [ t*Tj  e₁  0;  0  0  1;  0  0  0 ]
         Tj_mat = Matrix(t .* Tj)
@@ -149,5 +144,163 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
     converged = (totalerr <= abs(t) * tol) ? 1 : 0
     # converged = (!broke_consistency && totalerr <= abs(t) * tol) ? 1 : 0
     return beta0 .* result, ConvergenceInfo(converged, nothing, totalerr, 1, numops)
+end
+
+"""
+    eigsolve_lanczos_twopass(H, x0; howmany=1, which=:SR, krylovdim=30, tol=1e-12,
+                             reorth=:local, beta_check_tol=1e-6)
+
+Memory-efficient Lanczos eigensolver for Hermitian linear map `H(::T)->T`, with two passes:
+  - Pass 1: build SymTridiagonal T (size ≤ krylovdim) via 3-term Lanczos; store only α, β.
+  - Pass 2: reconstruct eigenvectors x ≈ Q_m y using the recorded Ritz vectors y of T.
+
+Returns: vals::Vector, vecs::Vector{typeof(x0)}, info::NamedTuple
+"""
+function eigsolve_twopass(H, x0;
+    howmany::Int=1, which::Symbol=:SR, krylovdim::Int=30, tol::Real=1e-12,
+    reorth::Symbol=:local, beta_check_tol::Real=1e-6)
+
+    # ---- Pass 1: Lanczos to build T = tridiag(betas, alphas, betas) ----
+    m = krylovdim
+    β0 = norm(x0)
+    β0 < tol && return Float64[], typeof(x0)[], (converged=0, residual=[], normres=[], numops=0, numiter=0)
+
+    q_prev = zero(x0)
+    q_curr = x0 / β0
+
+    alphas = zeros(Float64, m)
+    betas  = zeros(Float64, max(m-1,0))
+
+    numops = 0
+    actual_m = 0
+    β_tail = 0.0  # β_m (needed for residuals of Ritz pairs)
+
+    for j in 1:m
+        w = H(q_curr); numops += 1
+
+        α = real(dot(q_curr, w))
+        alphas[j] = α
+        w .-= α .* q_curr
+        if j > 1
+            w .-= betas[j-1] .* q_prev
+        end
+
+        # optional local reorth for stability
+        if reorth == :local
+            if j > 1
+                w .-= dot(q_prev, w) .* q_prev
+            end
+            w .-= dot(q_curr, w) .* q_curr
+        end
+
+        β = norm(w)
+        β_tail = β
+        actual_m = j
+
+        if β < tol || j == m
+            # no q_next formed if we break
+            break
+        else
+            betas[j] = β
+            q_next = w / β
+            q_prev, q_curr = q_curr, q_next
+        end
+    end
+
+    # Trim sizes
+    alphas = alphas[1:actual_m]
+    betas  = betas[1:max(actual_m-1,0)]
+
+    # Build T and get Ritz pairs
+    T = (actual_m == 1) ? SymTridiagonal([alphas[1]], Float64[]) :
+                          SymTridiagonal(alphas, betas)
+    F = eigen(Matrix(T))           # eigenvalues ascending; columns are Ritz vectors y
+    evals_all = F.values
+    Y = F.vectors                  # size actual_m × actual_m
+
+    # Select which eigenvalues to return
+    function sel_order(vals, which::Symbol)
+        if which == :SR      # smallest real part (Hermitian ⇒ smallest)
+            return collect(1:length(vals))
+        elseif which == :LR  # largest real part
+            return collect(length(vals):-1:1)
+        elseif which == :LM  # largest magnitude
+            return sortperm(abs.(vals); rev=true)
+        else
+            error("which = $which not supported in this Hermitian two-pass variant")
+        end
+    end
+    order = sel_order(evals_all, which)
+    pick = order[1:howmany]
+    vals = evals_all[pick]
+    Ysel = Y[:, pick]             # columns = Ritz vectors y^{(i)}, i=1..howmany
+
+    # Residual norms: ||H x_i - λ_i x_i|| = |β_m * e_m^T y^{(i)}|
+    emY = Ysel[end, :]            # last row of selected Ritz vectors
+    normres = abs.(β_tail .* emY)
+
+    # Convergence count
+    converged = count(<=(tol), normres)
+
+    # ---- Pass 2: reconstruct eigenvectors x_i = Q_m y_i without storing Q_m ----
+    vecs = [zero(x0) for _ in 1:howmany]
+
+    q_prev = zero(x0)
+    q_curr = x0 / β0
+    # stream through basis and accumulate x_i += y_i[j] * q_j
+    for j in 1:actual_m
+        # accumulate current basis vector contribution
+        @inbounds for i in 1:howmany
+            vecs[i] .+= (Ysel[j, i]) .* q_curr
+        end
+
+        # last basis vector done
+        j == actual_m && break
+
+        # move recurrence forward (use recorded α_j, β_j)
+        w = H(q_curr); numops += 1
+        w .-= alphas[j] .* q_curr
+        if j > 1
+            w .-= betas[j-1] .* q_prev
+        end
+
+        # optional local reorth
+        if reorth == :local
+            if j > 1
+                w .-= dot(q_prev, w) .* q_prev
+            end
+            w .-= dot(q_curr, w) .* q_curr
+        end
+
+        β_actual = norm(w)
+        β_expected = betas[j]      # j ≤ actual_m-1 here
+
+        # keep recurrence numerically consistent with pass-1
+        if β_expected > 0
+            if abs(β_actual - β_expected) > max(beta_check_tol, 100*sqrt(eps(Float64))*β_expected)
+                w .*= (β_expected / max(β_actual, eps(Float64)))
+            end
+            q_next = w / β_expected
+        else
+            break
+        end
+
+        q_prev, q_curr = q_curr, q_next
+    end
+
+    # Scale back because q1 = x0 / β0
+    for i in 1:howmany
+        vecs[i] .*= β0
+    end
+
+    info = (
+        converged = converged,
+        residual  = nothing,                   # (optionally: H(vecs[i]) - vals[i]*vecs[i])
+        normres   = collect(normres),
+        numops    = numops,
+        numiter   = 1,
+    )
+
+    return vals, vecs, info
 end
 
