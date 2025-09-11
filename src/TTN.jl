@@ -10,6 +10,9 @@ module TTN
     using Printf
     using HDF5
     using Base.Threads
+    # using DataStructures
+    using DataStructures: Queue, enqueue!, dequeue!
+
 
     ################## WORKAROUND FOR CURRENT BROKEN ITENSOR FACTORIZE ######################
     #include("factorize_workaround.jl")
@@ -146,4 +149,6 @@ module TTN
     include("./RevisedOperators/Sweeps/GPU_sweeps.jl")
 
     include("./RevisedOperators/move_ortho.jl")
+    include("./RevisedOperators/expect_gpu.jl")
+    include("./RevisedOperators/tree-traversal.jl")
 end # module
