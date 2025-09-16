@@ -50,7 +50,7 @@ function sweep(psi0::TreeTensorNetwork, sp::AbstractSweepHandler; kwargs...)
         end
 
         if !isnothing(name_ttn)
-            h5open(name_ttn*"_t=$(round(sp.current_time, digits=1)).h5", "w") do file
+            h5open(name_ttn*"_t=$(round(sp.current_time, digits=2)).h5", "w") do file
                 write(file, "ttn", cpu(sp.ttn))
             end
         end
