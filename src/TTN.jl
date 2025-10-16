@@ -80,6 +80,7 @@ module TTN
     include("./Network/BinaryNetwork.jl")
     include("./Network/TernaryNetwork.jl")
     include("./Network/TwelveNetwork.jl")
+    include("./Network/SixNetwork.jl")
 
     
 
