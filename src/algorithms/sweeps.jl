@@ -106,7 +106,8 @@ function dmrg(psi0::TreeTensorNetwork, tpo::AbstractTensorProductOperator; expan
                             ishermitian=ishermitian,
                             tol=eigsolve_tol,
                             krylovdim=eigsolve_krylovdim,
-                            maxiter=eigsolve_maxiter)
+                            maxiter=eigsolve_maxiter,
+			    verbosity=eigsolve_verbosity)
 
     sh = SimpleSweepHandler(psic, pTPO, func, n_sweeps, maxdims, noise, expander, outputlevel)
     return sweep(psic, sh; kwargs...)
@@ -152,7 +153,7 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
     eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_DMRG)
     eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
     eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_DMRG)
-    #eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
+    eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
     ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_DMRG)
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
@@ -165,7 +166,8 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorPro
                             ishermitian=ishermitian,
                             tol=eigsolve_tol,
                             krylovdim=eigsolve_krylovdim,
-                            maxiter=eigsolve_maxiter)
+                            maxiter=eigsolve_maxiter,
+			    verbosity=eigsolve_verbosity)
 
     if if_old_excitedSH
         sh = ExcitedSweepHandler(psic, psi_ortho, pTPO, func, n_sweeps, maxdims, noise, expander, weight)

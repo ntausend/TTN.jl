@@ -296,11 +296,12 @@ function child_nodes(net::BinaryNetwork{L}, pos::Tuple{Int, Int}) where {L<:Simp
     return [(pos[1] - 1, 2*pos[2] - 1), (pos[1] - 1, 2*pos[2])]
 end
 
-function index_of_child(net::BinaryNetwork, pos_child::Tuple{Int,Int})
-    pair_dir = mod(pos_child[1], dimensionality(net)) + 1
-    pos_vec = _coordinate_simple_lattice(pos_child[2], dimensions(net, pos_child[1]))
-    return mod1(pos_vec[pair_dir], 2)
-end
+# does not work for non-tatami lattices
+#function index_of_child(net::BinaryNetwork, pos_child::Tuple{Int,Int})
+#    pair_dir = mod(pos_child[1], dimensionality(net)) + 1
+#    pos_vec = _coordinate_simple_lattice(pos_child[2], dimensions(net, pos_child[1]))
+#    return mod1(pos_vec[pair_dir], 2)
+#end
 
 index_of_child(::BinaryNetwork{L}, pos_child::Tuple{Int,Int}) where{L<:SimpleLattice{1}} = mod1(pos_child[2], 2)
 

@@ -6,7 +6,7 @@
 
 This is a package for working with tree tensor networks based on [ITensors.jl](https://github.com/ITensor/ITensors.jl) library. It provides basic tools for defining quantum states in arbitrary dimensions using a hierarchic structure without loops, called a tree. This includes the calculation of local observables, correlation functions, and entanglement entropy of bipartitions, as well as providing a toolbox for finding the ground state of local Hamiltonians and calculating the time evolution of quantum states with respect to local Hamiltonians.
 
-Our code is compatible with all features provided by `ITensors.jl`. This includes abelian symmetries (CPU only) and GPU computations (non-symmetric tensors only).
+Our code is compatible with all features provided by `ITensors.jl`. This includes abelian symmetries (CPU only) and GPU computations.
 
 
 ## Installation
@@ -150,7 +150,7 @@ We are happy if you decide to use our framework for your research. When citing o
 
 Tausendpfund, N., Rizzi, M., Krinitsin, W., & Schmitt, M. (2024). TTN.jl -- A tree tensor network library for calculating groundstates and solving time evolution (0.1). Zenodo. [https://doi.org/10.5281/zenodo.14421855](https://doi.org/10.5281/zenodo.14421855)
 
-The BibTeX code for these references are:
+The BibTeX code for this reference is:
 
 ```bibtex
 	@software{tausendpfund_2024_14421855,
@@ -173,7 +173,7 @@ The BibTeX code for these references are:
 
 ## TODO's
 
-If you thing we miss a feature not listed below, feel free to write us/open a issue.
+If you think we miss a feature not listed below, feel free to write us/open a issue.
 
 - Expectation values for global operators (aka $H^2$)
 - Initialization using application to a product state (aka Patron initialization $\rightarrow$ nearly finished)

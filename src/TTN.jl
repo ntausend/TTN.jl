@@ -57,7 +57,7 @@ module TTN
 
 
     # contract_tensor ncon wrapper
-    export contract_tensos
+    export contract_tensors
     include("./contract_tensors.jl")
 
     # nodes

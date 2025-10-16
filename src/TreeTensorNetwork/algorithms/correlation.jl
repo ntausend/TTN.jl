@@ -192,6 +192,9 @@ function correlation(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{In
     return ITensors.scalar(reduce(*, temp_ops, init = T) * dag(prime(T, idx_shr...)))
 end;
 
+"""
+Helper function for calculating the correlation_matrix.
+"""
 function group_by_top_idx(arr)
     groups = Dict()
     for x in arr
@@ -205,12 +208,18 @@ function group_by_top_idx(arr)
     return groups
 end
 
+"""
+```julia
+    correlation_matrix(ttn::TreeTensorNetwork, ops::Vector{String}, pos::Vector{Int})
+```
+Calculates the correlation the correlation matrix between `op1`  and `op2` for all sites.
+The positions within the matrix iare given as the linearized position in the system.
+"""
 function all_correlations(ttn::TreeTensorNetwork, op1::String, op2::String)
     net = network(ttn)
     physlat = physical_lattice(net)
     phys_sites = TTN.sites(ttn)
     nsites = length(physlat)
-
 
     all_paths = map(eachindex(physlat)) do i
       res = map(eachindex(physlat)) do j

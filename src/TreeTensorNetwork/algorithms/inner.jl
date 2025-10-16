@@ -158,7 +158,7 @@ function _inner(ttn1::TreeTensorNetwork{N, T}, ttn2::TreeTensorNetwork{N, T}) wh
     #elseif T isa ITensor && !(sectortype(net) == Int64)
     if !(sectortype(net) == Int64)
         fl1 = flux(ttn1[number_of_layers(net), 1])
-        fl2 = flux(ttn2[number_of_layers(net), 2])
+        fl2 = flux(ttn2[number_of_layers(net), 1])
         fl1 == fl2 || return zero(elT)
     end
 
@@ -172,7 +172,7 @@ function _inner(ttn1::TreeTensorNetwork{N, T}, ttn2::TreeTensorNetwork{N, T}) wh
     #    end
     #else
     res = map(phys_lat) do nd
-        delta(hilbertspace(nd), prime(hilbertspace(nd)))
+	    delta(dag(hilbertspace(nd)), prime(hilbertspace(nd)))
     end
     #end
 
