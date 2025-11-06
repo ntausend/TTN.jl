@@ -457,15 +457,18 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
 
         T_gpu = gpu(T)
 
-        acc_gpu = ITensor(inds(T)...)
+        # acc = ITensor(inds(T)...)
+        acc = nothing
         for ops_gpu in envs
-            tensor_list = vcat(T_gpu, ops_gpu)
+            # tensor_list = vcat(T_gpu, ops_gpu)
             # seq = ITensors.optimal_contraction_sequence(tensor_list)
             # left to right contraction is optimal
-            contrib_gpu = noprime(contract(tensor_list))
-            acc_gpu += contrib_gpu
+            # contrib_gpu = noprime(contract(tensor_list))
+            # acc += contrib_gpu
+            contrib = noprime(contract((T_gpu, ops_gpu...)))
+            acc === nothing ? (acc = contrib) : (acc += contrib)
         end
-        return acc_gpu
+        return acc === nothing ? zero(T_gpu) : acc
     end
 end
 

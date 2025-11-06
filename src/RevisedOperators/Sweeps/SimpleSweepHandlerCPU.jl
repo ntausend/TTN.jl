@@ -7,6 +7,7 @@ mutable struct SimpleSweepHandlerCPU <: AbstractSimpleSweepHandler
     maxdims::Vector{Int64}
 
     dir::Symbol
+    path::Vector{Tuple{Int,Int}}
     current_sweep::Int
     current_energy::Float64
     ## only for subspace expansion and noise
@@ -14,28 +15,31 @@ mutable struct SimpleSweepHandlerCPU <: AbstractSimpleSweepHandler
     # current_max_truncerr::Float64
     outputlevel::Int
     # use_gpu::Bool
-    SimpleSweepHandlerCPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0) = 
-        new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., outputlevel)
-        # new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., Spectrum(nothing, 0.0), 0.0, outputlevel, use_gpu)
+    function SimpleSweepHandlerCPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0)
+        path = ttn_traversal_least_steps(network(ttn); include_layer0=false, exclude_topnode=false)
+        return new(n_sweeps, ttn, pTPO, func, maxdims, :up, path.visit_order, 1, 0., outputlevel)
+    end
 end
 
+function next_position(sp::SimpleSweepHandlerCPU, cur_pos::Tuple{Int,Int})
+    path = sp.path
+    idx = findfirst(==(cur_pos), path)
 
-## probably not needed after reset
-function initialize!(sp::SimpleSweepHandlerCPU)
-    ttn = sp.ttn
-    pTPO = sp.pTPO
-
-    #adjust the tree dimension to the first bond dimension
-
-    # move to starting point of the sweep
-    ttn = move_ortho!(ttn, (1,1))
-    # update the environments accordingly
-    pTPO = set_position!(pTPO, ttn)
-
-    sp.ttn = ttn
-    sp.pTPO = pTPO
-    # get starting energy
-    return sp
+    if sp.dir == :up
+        if idx == length(path)
+            sp.dir = :down
+            return path[idx - 1]
+        else
+            return path[idx + 1]
+        end
+    elseif sp.dir == :down
+        if idx == 1
+            return nothing
+        else
+            return path[idx - 1]
+        end
+    end
+    error("Invalid direction of the iterator: $(sp.dir)")
 end
 
 

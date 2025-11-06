@@ -6,6 +6,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
 
     outputlevel = get(kwargs, :outputlevel, 1)
     use_gpu = get(kwargs, :use_gpu, false)
+    full_krylov = get(kwargs, :full_krylov, true)
 
     if maxdims isa Int64
         maxdims = [maxdims]
@@ -20,24 +21,33 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
     eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
 
     psic = copy(psi0)
-    ## later: move_ortho to first tensor of sweep order
-    ## sweep_order = collect(TTN.NodeIterator(net))
-    ## sweep_order[1]
-    ## move_ortho! and inner functions have to be adapted for GPU
 
     if use_gpu
         node_cache = Dict{Tuple{Int,Int}, ITensor}()
         psic = move_ortho!(psic, (1,1), node_cache)
-
         pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
-        func = (action, T) -> begin
-            T_ = gpu(T)
-            eigsolve(action, T_, 1, eigsolve_which_eigenvalue;
-                ishermitian=ishermitian,
-                tol=eigsolve_tol,
-                krylovdim=eigsolve_krylovdim,
-                maxiter=eigsolve_maxiter,
-                verbosity=eigsolve_verbosity)
+        
+        if full_krylov
+            # println("Using full eigensolver on GPU")
+            func = (action, T) -> begin
+                T_ = gpu(T)
+                eigsolve(action, T_, 1, eigsolve_which_eigenvalue;
+                    ishermitian=ishermitian,
+                    tol=eigsolve_tol,
+                    krylovdim=eigsolve_krylovdim,
+                    maxiter=eigsolve_maxiter,
+                    verbosity=eigsolve_verbosity)
+            end
+        else
+            # println("Using two-pass eigensolver on GPU")
+            func = (action, T) -> begin
+                T_ = gpu(T)
+                eigsolve_twopass(action, T_;
+                    howmany=1,
+                    which=eigsolve_which_eigenvalue,
+                    krylovdim=eigsolve_krylovdim,
+                    tol=eigsolve_tol)
+            end
         end
         sh = SimpleSweepHandlerGPU(psic, pTPO, func, n_sweeps, maxdims, outputlevel)
         return sweep(psic, sh; node_cache = node_cache, kwargs...)
@@ -84,6 +94,7 @@ function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; node_cache = 
         end
         t_p = time()
         for pos in sp
+            # println("Updating position: $pos")
             if !haskey(node_cache, pos)
                 node_cache[pos] = gpu(psi0[pos])
             end

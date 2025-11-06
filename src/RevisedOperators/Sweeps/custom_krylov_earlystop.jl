@@ -9,7 +9,7 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
     beta0 < tol && return zero(v), ConvergenceInfo(1, nothing, beta0, 0, 0)
 
     # Initialize Lanczos vectors
-    q_prev = zero(v)
+    q_prev = v
     q_curr = v / beta0
     alphas = zeros(m)
     betas  = zeros(m-1)
@@ -74,8 +74,8 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
 
         if j < m
             betas[j] = beta
-            q_next = w / beta
-            q_prev, q_curr = q_curr, q_next
+            # q_next = w / beta
+            q_prev, q_curr = q_curr, w / beta
         end
         actual_m = j
     end
@@ -99,7 +99,7 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
 
     # Pass 2: Reconstruct solution
     result = zero(v)
-    q_prev = zero(v)
+    q_prev = v
     q_curr = v / beta0
     # broke_consistency = false
 
@@ -137,8 +137,8 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
         # end
 
         # Prepare next iteration
-        q_next = w / betas[j]
-        q_prev, q_curr = q_curr, q_next
+        # q_next = w / betas[j]
+        q_prev, q_curr = q_curr, w / betas[j]
     end
 
     converged = (totalerr <= abs(t) * tol) ? 1 : 0
@@ -147,23 +147,30 @@ function exponentiate_twopass(H, t::Number, v; krylovdim=30, tol=1e-12)
 end
 
 """
-    eigsolve_lanczos_twopass(H, x0; howmany=1, which=:SR, krylovdim=30, tol=1e-12,
-                             reorth=:local, beta_check_tol=1e-6)
+    eigsolve_twopass(H, x0;
+        howmany=1, which=:SR, krylovdim=30, tol=1e-12,
+        reorth=:local, beta_check_tol=1e-6)
 
 Memory-efficient Lanczos eigensolver for Hermitian linear map `H(::T)->T`, with two passes:
   - Pass 1: build SymTridiagonal T (size ≤ krylovdim) via 3-term Lanczos; store only α, β.
   - Pass 2: reconstruct eigenvectors x ≈ Q_m y using the recorded Ritz vectors y of T.
 
 Returns: vals::Vector, vecs::Vector{typeof(x0)}, info::NamedTuple
+
+Stable only for howmany = 1
+For more eigenpairs might give multiple copies of the same eigenpair due to loss of orthogonality
+Implement stronger reorthogonalization and restarts for more stable version
 """
 function eigsolve_twopass(H, x0;
     howmany::Int=1, which::Symbol=:SR, krylovdim::Int=30, tol::Real=1e-12,
-    reorth::Symbol=:local, beta_check_tol::Real=1e-6)
+    reorth::Symbol=:local, beta_check_tol::Real=1e-10)
+
+    apply_H(v) = isa(H, AbstractMatrix) ? H * v : H(v)
 
     # ---- Pass 1: Lanczos to build T = tridiag(betas, alphas, betas) ----
     m = krylovdim
     β0 = norm(x0)
-    β0 < tol && return Float64[], typeof(x0)[], (converged=0, residual=[], normres=[], numops=0, numiter=0)
+    β0 < tol && return Float64[], typeof(x0)[], ConvergenceInfo(1, nothing, 0.0, 0, 0)
 
     q_prev = zero(x0)
     q_curr = x0 / β0
@@ -176,7 +183,7 @@ function eigsolve_twopass(H, x0;
     β_tail = 0.0  # β_m (needed for residuals of Ritz pairs)
 
     for j in 1:m
-        w = H(q_curr); numops += 1
+        w = apply_H(q_curr); numops += 1
 
         α = real(dot(q_curr, w))
         alphas[j] = α
@@ -197,8 +204,40 @@ function eigsolve_twopass(H, x0;
         β_tail = β
         actual_m = j
 
-        if β < tol || j == m
-            # no q_next formed if we break
+        early_stop = false
+        if β <= tol
+            early_stop = true
+        elseif j >= howmany
+            # Build the current T_j and test residuals r_i = |β * e_j' * y_i|
+            Tj = (j == 1) ? SymTridiagonal([alphas[1]], Float64[]) :
+                            SymTridiagonal(view(alphas, 1:j), view(betas, 1:j-1))
+            Fj = eigen(Matrix(Tj))             # small j×j eigenproblem
+            # choose ordering
+            order = if which == :SR
+                collect(1:length(Fj.values))
+            elseif which == :LR
+                collect(length(Fj.values):-1:1)
+            elseif which == :LM
+                sortperm(abs.(Fj.values); rev=true)
+            else
+                error("which = $which not supported in this Hermitian two-pass variant")
+            end
+            pickj = order[1:howmany]
+            Yj    = Fj.vectors[:, pickj]       # j × howmany
+            rj    = abs.(β .* view(Yj, j, :))  # residual proxies
+            convj = count(<=(tol), rj)
+            if convj >= howmany
+                early_stop = true
+            end
+        end
+
+        if early_stop
+            # we intentionally do NOT form q_next; actual_m=j and β_tail=β are set
+            break
+        end
+        # -------------------------------
+
+        if j == m
             break
         else
             betas[j] = β
@@ -258,7 +297,7 @@ function eigsolve_twopass(H, x0;
         j == actual_m && break
 
         # move recurrence forward (use recorded α_j, β_j)
-        w = H(q_curr); numops += 1
+        w = apply_H(q_curr); numops += 1
         w .-= alphas[j] .* q_curr
         if j > 1
             w .-= betas[j-1] .* q_prev
@@ -293,14 +332,23 @@ function eigsolve_twopass(H, x0;
         vecs[i] .*= β0
     end
 
-    info = (
-        converged = converged,
-        residual  = nothing,                   # (optionally: H(vecs[i]) - vals[i]*vecs[i])
-        normres   = collect(normres),
-        numops    = numops,
-        numiter   = 1,
-    )
+    # build residual vectors and norms, update convergence
+    # residuals = Vector{typeof(x0)}(undef, howmany)
+    # normres   = zeros(Float64, howmany)
+    # for i in 1:howmany
+    #     r = apply_H(vecs[i]);  numops += 1
+    #     @. r = r - vals[i] * vecs[i]
+    #     residuals[i] = r
+    #     normres[i]   = norm(r)
+    # end
+    # converged = count(<=(tol), normres)
+
+    # # replace your previous `info = ConvergenceInfo(converged, nothing, collect(normres), 1, numops)`
+    # info = ConvergenceInfo(converged, residuals, normres, 1, numops)
+
+    # return vals, vecs, info
+
+    info = ConvergenceInfo(converged, nothing, collect(normres), 1, numops)
 
     return vals, vecs, info
 end
-

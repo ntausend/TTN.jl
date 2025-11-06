@@ -7,6 +7,7 @@ mutable struct SimpleSweepHandlerGPU <: AbstractSimpleSweepHandler
     maxdims::Vector{Int64}
 
     dir::Symbol
+    path::Vector{Tuple{Int,Int}}
     current_sweep::Int
     current_energy::Float64
     ## only for subspace expansion and noise
@@ -14,9 +15,31 @@ mutable struct SimpleSweepHandlerGPU <: AbstractSimpleSweepHandler
     # current_max_truncerr::Float64
     outputlevel::Int
     # use_gpu::Bool
-    SimpleSweepHandlerGPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0) = 
-        new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., outputlevel)
-        # new(n_sweeps, ttn, pTPO, func, maxdims, :up, 1, 0., Spectrum(nothing, 0.0), 0.0, outputlevel, use_gpu)
+    function SimpleSweepHandlerGPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0)
+        path = ttn_traversal_least_steps(network(ttn); include_layer0=false, exclude_topnode=false)
+        return new(n_sweeps, ttn, pTPO, func, maxdims, :up, path.visit_order, 1, 0., outputlevel)
+    end
+end
+
+function next_position(sp::SimpleSweepHandlerGPU, cur_pos::Tuple{Int,Int})
+    path = sp.path
+    idx = findfirst(==(cur_pos), path)
+
+    if sp.dir == :up
+        if idx == length(path)
+            sp.dir = :down
+            return path[idx - 1]
+        else
+            return path[idx + 1]
+        end
+    elseif sp.dir == :down
+        if idx == 1
+            return nothing
+        else
+            return path[idx - 1]
+        end
+    end
+    error("Invalid direction of the iterator: $(sp.dir)")
 end
 
 function update!(sp::SimpleSweepHandlerGPU,
@@ -68,9 +91,6 @@ function update!(sp::SimpleSweepHandlerGPU,
     sp.ttn = ttn
     return sp
 end
-
-
-
 
 function update_node_and_move_gpu!(ttn::TreeTensorNetwork, A::ITensor, position_next::Union{Tuple{Int,Int}, Nothing};
                                normalize = nothing,

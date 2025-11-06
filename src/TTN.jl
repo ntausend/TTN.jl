@@ -149,6 +149,10 @@ module TTN
     include("./RevisedOperators/Sweeps/GPU_sweeps.jl")
 
     include("./RevisedOperators/move_ortho.jl")
+    export expect_gpu, correlation_gpu, correlations_gpu
     include("./RevisedOperators/expect_gpu.jl")
+    include("./RevisedOperators/correlation_gpu.jl")
+    # include("./RevisedOperators/entanglement_measures_gpu.jl")
+    include("./RevisedOperators/nearest_neighbours.jl")
     include("./RevisedOperators/tree-traversal.jl")
 end # module
