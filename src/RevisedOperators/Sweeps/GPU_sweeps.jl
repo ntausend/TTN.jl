@@ -68,6 +68,100 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
     end    
 end
 
+"""
+```julia
+   dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::AbstractTensorProductOperator; expander = NoExpander(), kwargs...)
+```
+
+Performs a dmrg minimization of the initial guess `psi0` with respect to the local Hamiltonian defined by `tpo`, which can either be a MPOWrapper or a TPO object.
+`psi_ortho` are additional tensor to orthogonalize against.
+
+It returns a sweep object `sp` where one can extract the final tree with `sp.ttn` and the energy by `sp.current_energy`.
+
+# Keywords:
+
+- `expander`: A optional subspace expansion algorithm can be choosen by this keyword. Be careful as the subspace expansion might be expensive. Default: NoExpander. Possible other choice: DefaultExpander(p) with `p` being a Integer (number of included sectors) or a Float (percentage of the full two tensor update).
+- `maxdims`: Maximal bond dimension
+- `n_sweeps`: Number of full sweeps through the network. A full sweep contains a forward and backward sweep such that every tensor is optimized twice.
+- `weight`: weights for the orthogonalization against `psi_ortho`.
+- `eigsolve_tol`: Tolerance of the eigsolve procedure
+- `eigsolve_krylovdim`: dimensionality of the krylov space
+- `eigsolve_maxiter`: maximal iterations for the krylov algorithm
+"""
+function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander = NoExpander(), kwargs...)
+    outputlevel = get(kwargs, :outputlevel, 1)
+
+    n_sweeps::Int64 = get(kwargs, :number_of_sweeps, 1)
+    maxdims::Union{Int64, Vector{Int64}}   = get(kwargs, :maxdims, 1)
+    weight::Float64 = get(kwargs, :weight, 10.0)
+
+    use_gpu = get(kwargs, :use_gpu, false)
+    full_krylov = get(kwargs, :full_krylov, true)
+
+    if maxdims isa Int64
+        maxdims = [maxdims]
+    end
+    #maxdims = vcat(maxdims, repeat(maxdims[end:end], n_sweeps - length(maxdims)+1))
+
+    eigsolve_tol = get(kwargs, :eigsovle_tol, DEFAULT_TOL_DMRG)
+    eigsolve_krylovdim = get(kwargs, :eigsovle_krylovdim, DEFAULT_KRYLOVDIM_DMRG)
+    eigsolve_maxiter = get(kwargs, :eigsolve_maxiter, DEFAULT_MAXITER_DMRG)
+    eigsolve_verbosity = get(kwargs, :eigsolve_verbosity, DEFAULT_VERBOSITY_DMRG)
+    ishermitian = get(kwargs, :ishermitian, DEFAULT_ISHERMITIAN_DMRG)
+    eigsolve_which_eigenvalue = get(kwargs, :which_eigenvalue, DEFAULT_WHICH_EIGENVALUE_DMRG)
+
+    psic = copy(psi0)
+
+    if use_gpu
+
+        node_cache = Dict{Tuple{Int,Int}, ITensor}()
+        psic = move_ortho!(psic, (1,1), node_cache)
+
+        pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
+        if full_krylov
+            # println("Using full eigensolver on GPU")
+            func = (action, T) -> begin
+                T_ = gpu(T)
+                eigsolve(action, T_, 1, eigsolve_which_eigenvalue;
+                    ishermitian=ishermitian,
+                    tol=eigsolve_tol,
+                    krylovdim=eigsolve_krylovdim,
+                    maxiter=eigsolve_maxiter,
+                    verbosity=eigsolve_verbosity)
+            end
+        else
+            # println("Using two-pass eigensolver on GPU")
+            func = (action, T) -> begin
+                T_ = gpu(T)
+                eigsolve_twopass(action, T_;
+                    howmany=1,
+                    which=eigsolve_which_eigenvalue,
+                    krylovdim=eigsolve_krylovdim,
+                    tol=eigsolve_tol)
+            end
+        end
+        sh = ExcitedSweepHandlerGPU(psic, psi_ortho, pTPO, func, n_sweeps, maxdims, expander, weight, outputlevel)
+        
+        return sweep(psic, sh; kwargs...)
+    else
+        psic = move_ortho!(psic, (1,1))
+
+        pTPO = ProjTPO_GPU(tpo, psic; use_gpu = false)
+        func = (action, T) -> begin
+            eigsolve(action, T, 1, eigsolve_which_eigenvalue;
+                ishermitian=ishermitian,
+                tol=eigsolve_tol,
+                krylovdim=eigsolve_krylovdim,
+                maxiter=eigsolve_maxiter,
+                verbosity=eigsolve_verbosity)
+        end
+
+        sh = ExcitedSweepHandlerCPU(psic, psi_ortho, pTPO, func, n_sweeps, maxdims, expander, weight, outputlevel)
+
+        return sweep(psic, sh; kwargs...)
+    end
+end
+
 function sweep(psi0::TreeTensorNetwork, sp::SimpleSweepHandlerGPU; node_cache = Dict(), kwargs...)
     
     obs = get(kwargs, :observer, NoObserver())
