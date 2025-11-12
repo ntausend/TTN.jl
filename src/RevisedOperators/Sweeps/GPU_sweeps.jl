@@ -49,7 +49,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
                     tol=eigsolve_tol)
             end
         end
-        sh = SimpleSweepHandlerGPU(psic, pTPO, func, n_sweeps, maxdims, outputlevel)
+        sh = SimpleSweepHandlerGPU(psic, pTPO, func, n_sweeps, maxdims, expander, outputlevel)
         return sweep(psic, sh; node_cache = node_cache, kwargs...)
     else
         psic = move_ortho!(psic, (1,1))
