@@ -3,6 +3,7 @@ mutable struct SimpleSweepHandlerGPU <: AbstractSimpleSweepHandler
     ttn::TreeTensorNetwork
     pTPO::ProjTPO_GPU
     func
+    expander::AbstractSubspaceExpander
         
     maxdims::Vector{Int64}
 
