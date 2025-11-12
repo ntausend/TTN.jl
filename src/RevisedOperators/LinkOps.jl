@@ -175,16 +175,16 @@ function recalc_expander_path_flows!(ptpo::ProjTPO_GPU, ttn::TreeTensorNetwork, 
     @assert oldroot == Tuple(ttn.ortho_center)
     
     # move ortho center to next position
-    move_ortho!(ttn, newroot, node_cache; normalize = true)
+    isempty(node_cache) ? move_ortho!(ttn, newroot; normalize = true) : move_ortho!(ttn, newroot, node_cache; normalize = true)
 
     # rebuild environments to next position
-    recalc_path_flows!(ptpo, ttn, newroot; use_gpu = true, node_cache = node_cache)
+    recalc_path_flows!(ptpo, ttn, newroot; use_gpu = use_gpu, node_cache = node_cache)
 
     # move back to original position
-    move_ortho!(ttn, oldroot, node_cache; normalize = true)
+    isempty(node_cache) ? move_ortho!(ttn, oldroot; normalize = true) : move_ortho!(ttn, oldroot, node_cache; normalize = true)
 
     # rebuild environments to original position
-    recalc_path_flows!(ptpo, ttn, oldroot; use_gpu = true, node_cache = node_cache)
+    recalc_path_flows!(ptpo, ttn, oldroot; use_gpu = use_gpu, node_cache = node_cache)
 end
 
 # Original version of contract_ops

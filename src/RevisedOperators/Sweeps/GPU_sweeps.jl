@@ -63,7 +63,7 @@ function dmrg(psi0::TreeTensorNetwork, tpo::TPO_GPU; expander = NoExpander(), kw
                 maxiter=eigsolve_maxiter,
                 verbosity=eigsolve_verbosity)
         end
-        sh = SimpleSweepHandlerCPU(psic, pTPO, func, n_sweeps, maxdims, outputlevel)
+        sh = SimpleSweepHandlerCPU(psic, pTPO, func, n_sweeps, maxdims, expander, outputlevel)
         return sweep(psic, sh; kwargs...)
     end    
 end

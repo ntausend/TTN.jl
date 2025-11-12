@@ -105,7 +105,7 @@ function update!(sp::SimpleSweepHandlerGPU,
             (ttn[pos], node_cache[pos], ttn[posnext], node_cache[posnext]) =(cpu(T), T, cpu(T_next), T_next)
 
             # Update environments for expansion
-	    recalc_expander_path_flows!(pTPO, ttn, pos, posnext; use_gpu = true, node_cache = node_cache)
+	        recalc_expander_path_flows!(pTPO, ttn, pos, posnext; use_gpu = true, node_cache = node_cache)
 
             # IDs changed -> reload both & refresh cache (single shot)
             T      = (node_cache[pos]     = gpu(ttn[pos]))
