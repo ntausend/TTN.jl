@@ -1,7 +1,7 @@
 mutable struct SimpleSweepHandlerCPU <: AbstractSimpleSweepHandler
     const number_of_sweeps::Int
     ttn::TreeTensorNetwork
-    pTPO::ProjTPO_GPU
+    pTPO::AbstractProjTPO
     func
     expander::AbstractSubspaceExpander
         

@@ -140,7 +140,10 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander
                     tol=eigsolve_tol)
             end
         end
-        sh = ExcitedSweepHandlerGPU(psic, psi_ortho, pTPO, func, n_sweeps, maxdims, expander, weight, outputlevel)
+        
+        pTTNs = ProjTTN(psi0, psi_ortho, weight.*ones(length(psi_ortho)))
+        full_ptpo = VecProj_GPU(tuple(pTPO,pTTNs...))
+        sh = SimpleSweepHandlerGPU(psic, full_ptpo, func, n_sweeps, maxdims, expander, outputlevel)
         
         return sweep(psic, sh; kwargs...)
     else
@@ -156,7 +159,9 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander
                 verbosity=eigsolve_verbosity)
         end
 
-        sh = ExcitedSweepHandlerCPU(psic, psi_ortho, pTPO, func, n_sweeps, maxdims, expander, weight, outputlevel)
+        pTTNs = ProjTTN(psi0, psi_ortho, weight.*ones(length(psi_ortho)))
+        full_ptpo = VecProj_GPU(tuple(pTPO,pTTNs...))
+        sh = SimpleSweepHandlerCPU(psic, full_ptpo, func, n_sweeps, maxdims, expander, outputlevel)
 
         return sweep(psic, sh; kwargs...)
     end

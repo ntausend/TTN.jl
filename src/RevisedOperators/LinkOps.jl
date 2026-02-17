@@ -761,3 +761,9 @@ function full_contraction(ttn::TreeTensorNetwork, ptpo::ProjTPO_GPU; use_gpu = f
     # build the contraction
     return real(ITensors.scalar(dag(T)*action(T)))
 end
+
+
+
+
+
+

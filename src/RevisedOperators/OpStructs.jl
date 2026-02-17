@@ -332,3 +332,57 @@ end
 # which_child(net, parent, child) = findfirst(==(child), child_nodes(net, parent))
 which_child(net::BinaryNetwork, child::Tuple{Int,Int}) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
 
+
+
+
+
+
+
+################### Temporary Location for VecProj_GPU definition and related functions ###################
+struct VecProj_GPU{N<:AbstractNetwork, T, P<:Tuple{Vararg{AbstractProjTPO{N, T}}}} <: AbstractProjTPO{N,T}
+    net::N
+    data::P
+    ortho_center::Tuple{Int64,Int64}
+end
+
+function VecProj_GPU(all_projs::Tuple)
+    ortho_center = all_projs[1].ortho_center
+    return VecProj_GPU(network(all_projs[1]), all_projs, ortho_center)
+end
+
+function ∂A_GPU(proj_operator::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool = false)
+
+    # havent implemented special case for use_gpu=true
+   
+    action_vec = map(ptpo -> ∂A_GPU(ptpo, pos), proj_operator.data)
+
+    function action(T::ITensor)
+        return mapreduce(+, action_vec) do act
+            return act(T)
+        end
+    end
+end
+
+function ∂A_GPU(proj_ttn::ProjTTN, pos::Tuple{Int,Int}; use_gpu::Bool = false)
+
+    # havent implemented special case for use_gpu=true
+
+    function action(T::ITensor)
+        #println("using projttn action")
+        tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
+        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
+        return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
+    end
+
+end
+
+function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+
+    recalc_expander_path_flows!(vecproj.data[1], ttn, oldroot, newroot; use_gpu = use_gpu, node_cache = node_cache)
+
+    # havent implemented special case for use_gpu=true
+    for i in 2:length(vecproj.data)
+        update_environments!(vecproj.data[i], ttn[newroot], oldroot, newroot)
+    end
+
+end
