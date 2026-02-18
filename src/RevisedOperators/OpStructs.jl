@@ -414,9 +414,13 @@ function set_position!(vecproj::VecProj_GPU{N,T}, ttn::TreeTensorNetwork{N,T}; u
     return vecproj
 end
 
-function ∂A_GPU(proj_operator::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool = false)
+# highest-level dispatch for partial A on VecProj_GPU, dispatches to CPU or GPU implementation
+function ∂A_GPU(ptpo::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool=false)
+    return use_gpu ? _∂A_impl(ptpo, pos, Val(:gpu)) : _∂A_impl(ptpo, pos, Val(:cpu))
+end
 
-    # havent implemented special case for use_gpu=true
+# lowest-level CPU implementation of partial A for VecProj_GPU
+function _∂A_GPU(proj_operator::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool = false)
    
     action_vec = map(ptpo -> ∂A_GPU(ptpo, pos), proj_operator.data)
 
@@ -427,26 +431,75 @@ function ∂A_GPU(proj_operator::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool
     end
 end
 
-function ∂A_GPU(proj_ttn::ProjTTN, pos::Tuple{Int,Int}; use_gpu::Bool = false)
+# maintains Noah's shape of partial A and dispatches to my CPU partial A implementation
+function _∂A_impl(ptpo::VecProj_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
+    return _∂A_GPU(ptpo, pos; use_gpu = false)
+end
 
-    # havent implemented special case for use_gpu=true
+# maintains Noah's shape of partial A and executes GPU implementation
+function _∂A_impl(ptpo::VecProj_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
+    # Placeholder for GPU-optimized implementation
+    # For now, we can just call the CPU version, but in practice this would be where you implement the GPU-specific logic.
+    error("GPU implementation of ∂A for VecProj_GPU is not yet implemented")
+end
+
+# highest level catch for partial A, dispatches to CPU or GPU
+function ∂A_GPU(proj_ttn::ProjTTN, pos::Tuple{Int,Int}; use_gpu::Bool=false)
+    return use_gpu ? _∂A_impl(proj_ttn, pos, Val(:gpu)) : _∂A_impl(proj_ttn, pos, Val(:cpu))
+end
+
+# lowest-level CPU implementation of ∂A for ProjTTN
+function _∂A_GPU(proj_ttn::ProjTTN, pos::Tuple{Int,Int}; use_gpu::Bool = false)
 
     function action(T::ITensor)
         projector = contract(proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
         return proj_ttn.weight * noprime(contract(T,projector))
     end
-
 end
 
-function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+# maintains Noah's shape of partial A and dispatches to my CPU partial A implementation
+function _∂A_impl(proj_ttn::ProjTTN, pos::Tuple{Int,Int}, ::Val{:cpu})
+    return _∂A_GPU(proj_ttn, pos; use_gpu = false)
+end
 
-    println("I am being used: recalc_expander_path_flows! vecproj_GPU")
+# maintains Noah's shape of partial A and executes GPU implementation
+function _∂A_impl(proj_ttn::ProjTTN, pos::Tuple{Int,Int}, ::Val{:gpu})
+    # Placeholder for GPU-optimized implementation
+    # For now, we can just call the CPU version, but in practice this would be where you implement the GPU-specific logic.
+    o1 = gpu(proj_ttn.local_env)
+    projector = contract(o1, dag(prime(o1)))
+
+    function action(T::ITensor)
+        T_gpu = gpu(T)
+        return proj_ttn.weight * noprime(contract(T_gpu, projector))        
+    end
+end
+
+# still not working
+function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+    error("recalc_expander_path_flows! is not yet implemented for VecProj_GPU")
+    
+    oc_projtpo = ortho_center(vecproj)
+    oc_ttn     = ortho_center(ttn)
+    @assert !any(oc_ttn     .== -1)
+    @assert !any(oc_projtpo .== -1)
 
     recalc_expander_path_flows!(vecproj.data[1], ttn, oldroot, newroot; use_gpu = use_gpu, node_cache = node_cache)
 
     # havent implemented special case for use_gpu=true
-    for i in 2:length(vecproj.data)
-        update_environments!(vecproj.data[i], ttn[newroot], oldroot, newroot)
+
+    pth = connecting_path(network(ttn), oc_projtpo, oc_ttn)
+
+    if !isnothing(pth)
+        pth = vcat(oc_projtpo, pth)
+        for i in 2:length(vecproj.data)
+            for (jj, pk) in enumerate(pth[1:end-1])
+                ism = ttn[pk]
+                update_environments!(vecproj.data[i], ism, pk, pth[jj+1])
+            end
+        end
     end
 
+    vecproj.ortho_center = oc_ttn
+    return vecproj
 end
