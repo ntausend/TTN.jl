@@ -560,7 +560,7 @@ function update_environments_up!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int
 end
 
 function update_environments!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
-	
+
 	# pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projttn), pos), parent_node(network(projttn), pos))
 

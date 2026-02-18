@@ -339,15 +339,79 @@ which_child(net::BinaryNetwork, child::Tuple{Int,Int}) = findfirst(==(child), ch
 
 
 ################### Temporary Location for VecProj_GPU definition and related functions ###################
-struct VecProj_GPU{N<:AbstractNetwork, T, P<:Tuple{Vararg{AbstractProjTPO{N, T}}}} <: AbstractProjTPO{N,T}
+mutable struct VecProj_GPU{N<:AbstractNetwork, T, P<:Tuple{Vararg{AbstractProjTPO{N, T}}}} <: AbstractProjTPO{N,T}
     net::N
     data::P
     ortho_center::Tuple{Int64,Int64}
 end
 
 function VecProj_GPU(all_projs::Tuple)
-    ortho_center = all_projs[1].ortho_center
+    ortho_center = all_projs[end].ortho_center
+
+    for proj in all_projs
+        @assert proj.ortho_center == ortho_center "All ProjTPOs in VecProj_GPU must have the same orthogonality center: found $(proj.ortho_center) and $ortho_center for $(typeof(proj))"
+    end
+
     return VecProj_GPU(network(all_projs[1]), all_projs, ortho_center)
+end
+
+function VecProj_GPU(all_projs::Tuple, ttn::TreeTensorNetwork, target_oc::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+    # Move all projectors to the target orthogonality center
+    updated_projs = map(all_projs) do proj
+        if proj isa ProjTPO_GPU
+            # For ProjTPO_GPU, use recalc_path_flows!
+            current_oc = proj.ortho_center
+            if current_oc != target_oc
+                recalc_path_flows!(proj, ttn, current_oc, target_oc; use_gpu = use_gpu, node_cache = node_cache)
+            end
+            return proj
+        elseif proj isa ProjTTN
+            # For ProjTTN, use set_position! from AbstractProjectedTensorProductOperator
+            current_oc = Tuple(proj.ortho_center)
+            if current_oc != target_oc
+                pth = connecting_path(network(ttn), current_oc, target_oc)
+                if !isnothing(pth)
+                    pth = vcat(current_oc, pth)
+                    for (jj, pk) in enumerate(pth[1:end-1])
+                        ism = ttn[pk]
+                        update_environments!(proj, ism, pk, pth[jj+1])
+                    end
+                    proj.ortho_center .= target_oc
+                end
+            end
+            return proj
+        else
+            error("Unsupported projector type: $(typeof(proj))")
+        end
+    end
+
+    return VecProj_GPU(network(all_projs[1]), updated_projs, target_oc)
+end
+
+function set_position!(vecproj::VecProj_GPU{N,T}, ttn::TreeTensorNetwork{N,T}; use_gpu::Bool = false, node_cache = Dict()) where {N,T}
+    oc_projtpo = ortho_center(vecproj)
+    oc_ttn     = ortho_center(ttn)
+    @assert !any(oc_ttn     .== -1)
+    @assert !any(oc_projtpo .== -1)
+
+    all(oc_projtpo .== oc_ttn) && return vecproj
+
+    recalc_path_flows!(vecproj.data[1], ttn, oc_projtpo, oc_ttn; use_gpu = use_gpu, node_cache = node_cache)
+
+    pth = connecting_path(network(ttn), oc_projtpo, oc_ttn)
+
+    if !isnothing(pth)
+        pth = vcat(oc_projtpo, pth)
+        for i in 2:length(vecproj.data)
+            for (jj, pk) in enumerate(pth[1:end-1])
+                ism = ttn[pk]
+                update_environments!(vecproj.data[i], ism, pk, pth[jj+1])
+            end
+        end
+    end
+
+    vecproj.ortho_center = oc_ttn
+    return vecproj
 end
 
 function ∂A_GPU(proj_operator::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool = false)
@@ -368,15 +432,15 @@ function ∂A_GPU(proj_ttn::ProjTTN, pos::Tuple{Int,Int}; use_gpu::Bool = false)
     # havent implemented special case for use_gpu=true
 
     function action(T::ITensor)
-        #println("using projttn action")
-        tensor_list = vcat(T, proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
-        opt_seq = ITensors.optimal_contraction_sequence(tensor_list)
-        return proj_ttn.weight * (noprime(contract(tensor_list; sequence = opt_seq)))
+        projector = contract(proj_ttn.local_env, dag(prime(proj_ttn.local_env)))
+        return proj_ttn.weight * noprime(contract(T,projector))
     end
 
 end
 
 function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+
+    println("I am being used: recalc_expander_path_flows! vecproj_GPU")
 
     recalc_expander_path_flows!(vecproj.data[1], ttn, oldroot, newroot; use_gpu = use_gpu, node_cache = node_cache)
 

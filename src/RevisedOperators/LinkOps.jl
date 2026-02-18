@@ -578,6 +578,7 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
             # acc += contrib
             acc === nothing ? (acc = contrib) : (acc += contrib)
         end
+
         return acc
     end
 end

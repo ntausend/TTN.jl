@@ -51,7 +51,7 @@ function update!(sp::SimpleSweepHandlerCPU,
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
     pTPO = sp.pTPO
-    # pTPO = set_position!(pTPO, ttn; use_gpu = use_gpu, node_cache = node_cache)
+    pTPO = set_position!(pTPO, ttn)
     T = ttn[pos]
 
 

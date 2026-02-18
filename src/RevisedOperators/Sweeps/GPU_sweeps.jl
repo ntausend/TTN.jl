@@ -116,6 +116,7 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander
 
         node_cache = Dict{Tuple{Int,Int}, ITensor}()
         psic = move_ortho!(psic, (1,1), node_cache)
+        psi_ortho = [move_ortho!(phi, (1,1), node_cache) for phi in psi_ortho]
 
         pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
         if full_krylov
@@ -141,13 +142,15 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander
             end
         end
         
-        pTTNs = ProjTTN(psi0, psi_ortho, weight.*ones(length(psi_ortho)))
-        full_ptpo = VecProj_GPU(tuple(pTPO,pTTNs...))
+        pTTNs = ProjTTN(psic, psi_ortho, weight.*ones(length(psi_ortho)))
+        target_oc = ortho_center(psic)
+        full_ptpo = VecProj_GPU(tuple(pTPO,pTTNs...), psic, target_oc; use_gpu = true, node_cache = node_cache)
         sh = SimpleSweepHandlerGPU(psic, full_ptpo, func, n_sweeps, maxdims, expander, outputlevel)
         
         return sweep(psic, sh; kwargs...)
     else
         psic = move_ortho!(psic, (1,1))
+        psi_ortho = [move_ortho!(phi, (1,1)) for phi in psi_ortho]
 
         pTPO = ProjTPO_GPU(tpo, psic; use_gpu = false)
         func = (action, T) -> begin
@@ -159,8 +162,9 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander
                 verbosity=eigsolve_verbosity)
         end
 
-        pTTNs = ProjTTN(psi0, psi_ortho, weight.*ones(length(psi_ortho)))
-        full_ptpo = VecProj_GPU(tuple(pTPO,pTTNs...))
+        pTTNs = ProjTTN(psic, psi_ortho, weight.*ones(length(psi_ortho)))
+        target_oc = ortho_center(psic)
+        full_ptpo = VecProj_GPU(tuple(pTPO,pTTNs...), psic, target_oc; use_gpu = false)
         sh = SimpleSweepHandlerCPU(psic, full_ptpo, func, n_sweeps, maxdims, expander, outputlevel)
 
         return sweep(psic, sh; kwargs...)
