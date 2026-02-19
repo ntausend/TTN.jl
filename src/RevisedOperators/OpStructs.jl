@@ -396,10 +396,11 @@ function set_position!(vecproj::VecProj_GPU{N,T}, ttn::TreeTensorNetwork{N,T}; u
 
     all(oc_projtpo .== oc_ttn) && return vecproj
 
+    # set position for ProjTPO_GPU
     recalc_path_flows!(vecproj.data[1], ttn, oc_projtpo, oc_ttn; use_gpu = use_gpu, node_cache = node_cache)
 
+    # set position for ProjTTNs
     pth = connecting_path(network(ttn), oc_projtpo, oc_ttn)
-
     if !isnothing(pth)
         pth = vcat(oc_projtpo, pth)
         for i in 2:length(vecproj.data)
@@ -411,6 +412,35 @@ function set_position!(vecproj::VecProj_GPU{N,T}, ttn::TreeTensorNetwork{N,T}; u
     end
 
     vecproj.ortho_center = oc_ttn
+    return vecproj
+end
+
+function recalc_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+    
+    oc_projtpo = ortho_center(vecproj)
+    oc_ttn     = ortho_center(ttn)
+    @assert !any(oc_ttn     .== -1)
+    @assert !any(oc_projtpo .== -1)
+
+    # first, recalc path flows for the ProjTPO_GPU
+    recalc_path_flows!(vecproj.data[1], ttn, oldroot, newroot; use_gpu = use_gpu, node_cache = node_cache)
+
+    @assert oc_projtpo == oldroot "Expected ProjTPO ortho_center $(oc_projtpo) to match oldroot $(oldroot)"
+
+    # then, recalc path flows for the ProjTTNs moving oldroot to newroot
+    pth_forward = connecting_path(network(ttn), oldroot, newroot)
+    if !isnothing(pth_forward)
+        pth = vcat(oldroot, pth_forward)
+        for i in 2:length(vecproj.data)
+            for (jj, pk) in enumerate(pth[1:end-1])
+                ism = ttn[pk]
+                update_environments!(vecproj.data[i], ism, pk, pth[jj+1])
+            end
+        end
+    end
+
+    vecproj.ortho_center = newroot
+
     return vecproj
 end
 
@@ -477,21 +507,33 @@ end
 
 # still not working
 function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
-    error("recalc_expander_path_flows! is not yet implemented for VecProj_GPU")
+    #error("recalc_expander_path_flows! is not yet implemented for VecProj_GPU")
     
     oc_projtpo = ortho_center(vecproj)
     oc_ttn     = ortho_center(ttn)
     @assert !any(oc_ttn     .== -1)
     @assert !any(oc_projtpo .== -1)
 
+    # first, recalc path flows for the ProjTPO_GPU
     recalc_expander_path_flows!(vecproj.data[1], ttn, oldroot, newroot; use_gpu = use_gpu, node_cache = node_cache)
 
-    # havent implemented special case for use_gpu=true
+    @assert oc_projtpo == oldroot "Expected ProjTPO ortho_center $(oc_projtpo) to match oldroot $(oldroot)"
 
-    pth = connecting_path(network(ttn), oc_projtpo, oc_ttn)
-
-    if !isnothing(pth)
-        pth = vcat(oc_projtpo, pth)
+    # then, recalc path flows for the ProjTTNs moving oldroot to newroot
+    pth_forward = connecting_path(network(ttn), oldroot, newroot)
+    if !isnothing(pth_forward)
+        pth = vcat(oldroot, pth_forward)
+        for i in 2:length(vecproj.data)
+            for (jj, pk) in enumerate(pth[1:end-1])
+                ism = ttn[pk]
+                update_environments!(vecproj.data[i], ism, pk, pth[jj+1])
+            end
+        end
+    end
+    # then, recalc path flows for the ProjTTNs moving newroot back to oldroot
+    pth_back = connecting_path(network(ttn), newroot, oldroot)
+    if !isnothing(pth_back)
+        pth = vcat(newroot, pth_back)
         for i in 2:length(vecproj.data)
             for (jj, pk) in enumerate(pth[1:end-1])
                 ism = ttn[pk]
@@ -500,6 +542,5 @@ function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwor
         end
     end
 
-    vecproj.ortho_center = oc_ttn
     return vecproj
 end
