@@ -114,7 +114,6 @@ function update!(sp::SimpleSweepHandlerCPU,
     end
 
     action = ∂A_GPU(pTPO, pos; use_gpu = false)
-
     val, tn = sp.func(action, T)
     sp.current_energy = real(val[1])
     tn = tn[1]

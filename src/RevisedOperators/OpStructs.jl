@@ -452,7 +452,7 @@ end
 # lowest-level CPU implementation of partial A for VecProj_GPU
 function _∂A_GPU(proj_operator::VecProj_GPU, pos::Tuple{Int,Int}; use_gpu::Bool = false)
    
-    action_vec = map(ptpo -> ∂A_GPU(ptpo, pos), proj_operator.data)
+    action_vec = map(ptpo -> ∂A_GPU(ptpo, pos; use_gpu = false), proj_operator.data)
 
     function action(T::ITensor)
         return mapreduce(+, action_vec) do act
@@ -468,9 +468,17 @@ end
 
 # maintains Noah's shape of partial A and executes GPU implementation
 function _∂A_impl(ptpo::VecProj_GPU, pos::Tuple{Int,Int}, ::Val{:gpu})
-    # Placeholder for GPU-optimized implementation
-    # For now, we can just call the CPU version, but in practice this would be where you implement the GPU-specific logic.
-    error("GPU implementation of ∂A for VecProj_GPU is not yet implemented")
+
+    action_vec = map(ptpo -> ∂A_GPU(ptpo, pos; use_gpu = true), ptpo.data)
+
+    function action(T::ITensor)
+        
+        T_gpu = gpu(T)
+
+        return mapreduce(+, action_vec) do act
+            return act(T_gpu)
+        end
+    end
 end
 
 # highest level catch for partial A, dispatches to CPU or GPU
@@ -494,8 +502,10 @@ end
 
 # maintains Noah's shape of partial A and executes GPU implementation
 function _∂A_impl(proj_ttn::ProjTTN, pos::Tuple{Int,Int}, ::Val{:gpu})
-    # Placeholder for GPU-optimized implementation
-    # For now, we can just call the CPU version, but in practice this would be where you implement the GPU-specific logic.
+    
+    # o1 here has the same link in and out but with
+    # different ids, must be getting rewritten or not updated
+
     o1 = gpu(proj_ttn.local_env)
     projector = contract(o1, dag(prime(o1)))
 

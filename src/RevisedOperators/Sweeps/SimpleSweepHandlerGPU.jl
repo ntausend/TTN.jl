@@ -51,6 +51,7 @@ function update!(sp::SimpleSweepHandlerGPU,
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
     pTPO = sp.pTPO
+    pTPO = set_position!(pTPO, ttn)
 
     # pTPO = set_position!(pTPO, ttn; use_gpu = use_gpu, node_cache = node_cache)
     T = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn[pos])
