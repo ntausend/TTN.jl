@@ -116,7 +116,7 @@ function dmrg(psi0::TreeTensorNetwork, psi_ortho::Vector, tpo::TPO_GPU; expander
 
         node_cache = Dict{Tuple{Int,Int}, ITensor}()
         psic = move_ortho!(psic, (1,1), node_cache)
-        psi_ortho = [move_ortho!(phi, (1,1), node_cache) for phi in psi_ortho]
+        psi_ortho = [move_ortho!(phi, (1,1)) for phi in psi_ortho]
 
         pTPO = ProjTPO_GPU(tpo, psic; use_gpu = true, node_cache = node_cache)
         if full_krylov

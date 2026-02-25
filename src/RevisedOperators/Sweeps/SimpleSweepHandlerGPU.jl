@@ -51,9 +51,8 @@ function update!(sp::SimpleSweepHandlerGPU,
     @assert pos == ortho_center(sp.ttn)
     ttn = sp.ttn
     pTPO = sp.pTPO
-    pTPO = set_position!(pTPO, ttn)
+    pTPO = set_position!(pTPO, ttn; use_gpu = true, node_cache = node_cache)
 
-    # pTPO = set_position!(pTPO, ttn; use_gpu = use_gpu, node_cache = node_cache)
     T = haskey(node_cache, pos) ? node_cache[pos] : gpu(ttn[pos])
 
     # Expansion target
@@ -113,7 +112,6 @@ function update!(sp::SimpleSweepHandlerGPU,
             T_next = (node_cache[posnext] = gpu(ttn[posnext]))
         end
     end
-
 
     # Optimize current site
     action = ∂A_GPU(pTPO, pos; use_gpu = true)
