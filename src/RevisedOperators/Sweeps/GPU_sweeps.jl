@@ -282,17 +282,14 @@ end
 function sweep(psi0::TreeTensorNetwork, sp::TDVPSweepHandlerGPU; node_cache::Dict, kwargs...)
     
     obs = get(kwargs, :observer, NoObserver())
+    initial_measurement = get(kwargs, :initial_measurement, true)
 
     outputlevel = get(kwargs, :outputlevel, 1)
 
     svd_alg = get(kwargs, :svd_alg, nothing)
 
     # now start with the sweeping protocol
-    measure!(
-        obs;
-        sweep_handler=sp,
-        outputlevel=outputlevel,
-        dt = 0.0)
+    initial_measurement && measure!(obs; sweep_handler=sp, outputlevel=outputlevel, dt = 0.0)
     for sw in sweeps(sp)
         if outputlevel ≥ 2 
             println("Start sweep number $(sw)")

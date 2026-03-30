@@ -17,7 +17,7 @@ mutable struct SimpleSweepHandlerGPU <: AbstractSimpleSweepHandler
     # use_gpu::Bool
     function SimpleSweepHandlerGPU(ttn, pTPO, func, n_sweeps, maxdims, outputlevel = 0)
         path = ttn_traversal_least_steps(network(ttn); include_layer0=false, exclude_topnode=false)
-        return new(n_sweeps, ttn, pTPO, func, maxdims, :up, path.visit_order, 1, 0., outputlevel)
+        return new(n_sweeps, ttn, pTPO, func, maxdims, :up, path.visit_order, 0, 0., outputlevel)
     end
 end
 
