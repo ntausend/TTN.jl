@@ -332,3 +332,4 @@ end
 # which_child(net, parent, child) = findfirst(==(child), child_nodes(net, parent))
 which_child(net::BinaryNetwork, child::Tuple{Int,Int}) = findfirst(==(child), child_nodes(net, parent_node(net, child)))
 
+

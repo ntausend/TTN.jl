@@ -133,11 +133,12 @@ module TTN
 
 
     # Revised Operator structures including LCA
-    export Op_GPU, TPO_GPU, ProjTPO_GPU
+    export Op_GPU, TPO_GPU, ProjTPO_GPU, VecProj_GPU
     export build_tpo_from_opsum
     include("./RevisedOperators/OpStructs.jl")
     include("./RevisedOperators/LCA.jl")
     include("./RevisedOperators/LinkOps.jl")
+    include("./RevisedOperators/VecProj_GPU.jl")
     export tdvp
     include("./RevisedOperators/Sweeps/custom_krylov_earlystop.jl")
     include("./RevisedOperators/Sweeps/TDVPHandlerGPU.jl")

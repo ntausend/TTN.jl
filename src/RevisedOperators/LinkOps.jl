@@ -168,6 +168,25 @@ function recalc_path_flows!(ptpo::ProjTPO_GPU, ttn::TreeTensorNetwork,
     return ptpo
 end
 
+function recalc_expander_path_flows!(ptpo::ProjTPO_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
+
+    # add assertions for ortho_center
+    @assert oldroot == Tuple(ptpo.ortho_center)
+    @assert oldroot == Tuple(ttn.ortho_center)
+    
+    # move ortho center to next position
+    isempty(node_cache) ? move_ortho!(ttn, newroot; normalize = true) : move_ortho!(ttn, newroot, node_cache; normalize = true)
+
+    # rebuild environments to next position
+    recalc_path_flows!(ptpo, ttn, newroot; use_gpu = use_gpu, node_cache = node_cache)
+
+    # move back to original position
+    isempty(node_cache) ? move_ortho!(ttn, oldroot; normalize = true) : move_ortho!(ttn, oldroot, node_cache; normalize = true)
+
+    # rebuild environments to original position
+    recalc_path_flows!(ptpo, ttn, oldroot; use_gpu = use_gpu, node_cache = node_cache)
+end
+
 # Original version of contract_ops
 
 function contract_ops(net::BinaryNetwork,
@@ -559,6 +578,7 @@ function _∂A_impl(ptpo::ProjTPO_GPU, pos::Tuple{Int,Int}, ::Val{:cpu})
             # acc += contrib
             acc === nothing ? (acc = contrib) : (acc += contrib)
         end
+
         return acc
     end
 end
@@ -742,3 +762,9 @@ function full_contraction(ttn::TreeTensorNetwork, ptpo::ProjTPO_GPU; use_gpu = f
     # build the contraction
     return real(ITensors.scalar(dag(T)*action(T)))
 end
+
+
+
+
+
+
