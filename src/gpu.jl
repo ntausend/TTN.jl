@@ -38,7 +38,7 @@ convert_cu(T::Vector{Op}, ttn::TreeTensorNetwork) = map(t -> convert_cu(t, ttn),
 
 """
 ```julia
-    pu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
+    cpu(ttn::TreeTensorNetwork; type::Type = ComplexF64)
 ```
 
 Copy the data of the tree tensor network from the GPU to the CPU.
@@ -105,6 +105,7 @@ end
 
 cpu(T::ITensor) = is_cu(T) ? adapt(Array, T) : T
 gpu(T::ITensor) = is_cu(T) ? T : adapt(CuArray, T)
+is_cu(::Type)=false
 
 function gpu(T::Vector{ITensor})
     return map(t -> gpu(t), T)

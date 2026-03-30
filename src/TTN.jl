@@ -155,4 +155,8 @@ module TTN
     # include("./RevisedOperators/entanglement_measures_gpu.jl")
     include("./RevisedOperators/nearest_neighbours.jl")
     include("./RevisedOperators/tree-traversal.jl")
+    export apply!, apply
+    include("./RevisedOperators/apply.jl")
+    export inner_gpu
+    include("./RevisedOperators/inner_gpu.jl")
 end # module
