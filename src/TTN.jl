@@ -130,6 +130,7 @@ module TTN
     include("./algorithms/SweepHandler/SimpleSweepHandler.jl")
     include("./algorithms/SweepHandler/TDVPSweepHandler.jl")
     include("./algorithms/sweeps.jl")
+    include("./algorithms/parton-initialize.jl")
 
 
     # Revised Operator structures including LCA
