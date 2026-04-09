@@ -222,9 +222,12 @@ function initialize_ttn(ttn,maxdim,particle_count; kwargs...)
         error("Unknown particle type: $particle_type. Supported types are 'Fermion' and 'Boson'.")
 	end
 	
-	phys_edge_length,virt_edge_length = get_lattice_dims(ttn)
-	site_count = TTN.number_of_sites(TTN.network(ttn))
-	wf_coefs = create_wavefunction(Float64,size(TTN.physical_lattice(TTN.network(ttn))))
+    ttn0_net = TTN.network(ttn)
+    ttn0_lat = TTN.physical_lattice(ttn0_net)
+
+	phys_edge_length,virt_edge_length = size(ttn0_lat)
+	site_count = TTN.number_of_sites(ttn0_net)
+	wf_coefs = create_wavefunction(Float64,size(ttn0_lat))
 	for i in 1:particle_count
 		ttn = parton_application!(ttn,wf_coefs,creation;maxdim=maxdim)
 	end
