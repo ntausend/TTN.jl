@@ -168,11 +168,17 @@ function _∂A_impl(proj_ttn::ProjTTN, pos::Tuple{Int,Int}, ::Val{:gpu})
 
     function action(T::ITensor)
 
+        #=println("In GPU implementation of ∂A for ProjTTN")
+        all_inds = inds(proj_ttn.local_env)
+        all_dims = dim.(all_inds)
+        println("Length of all_inds: $(length(all_inds))")
+        println("Dimensions of all_inds: $(all_dims)")
+        println("Final Bond Dim: $(prod(all_dims))")=#
         o1 = gpu(proj_ttn.local_env)
-        projector = contract(o1, dag(prime(o1)))
-
+        #projector = contract(o1, dag(prime(o1)))
         T_gpu = gpu(T)
-        return proj_ttn.weight * noprime(contract(T_gpu, projector))        
+        #return proj_ttn.weight * noprime(contract(T_gpu, projector))        
+        return proj_ttn.weight * noprime(contract(contract(T_gpu, o1),dag(prime(o1))))
     end
 end
 

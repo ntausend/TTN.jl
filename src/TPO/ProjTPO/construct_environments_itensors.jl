@@ -285,7 +285,7 @@ end
 
 ####### ProjTTN ########
 
-function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
+function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork; use_gpu::Bool=false)
 	net = network(ttn1)
 
 	# now we want to calculate the upflow up to the ortho position
@@ -331,8 +331,7 @@ function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNe
 
 				idchlds = id_rg[chd[1]][chd[2]]
 				tensor_list = vcat(Tn1,idchlds..., prime(dag(Tn2)))
-				opt_seq = optimal_contraction_sequence(tensor_list)
-				id_rg[ll][pp][index_of_child(net, chd)] = contract(tensor_list; sequence = opt_seq)
+				id_rg[ll][pp][index_of_child(net, chd)] = use_gpu ? cpu(contract(gpu.(tensor_list))) : contract(tensor_list)
 			end
 		end
 	end
@@ -340,7 +339,7 @@ function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNe
 	return id_rg
 end
 
-function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, id_up_overlap::Vector{Vector{Vector{ITensor}}})
+function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, id_up_overlap::Vector{Vector{Vector{ITensor}}}; use_gpu::Bool=false)
 	net = network(ttn1)
 	nlayers = number_of_layers(net)
 
@@ -360,8 +359,8 @@ function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwo
 
 		bottom_env_element = id_up_overlap[nlayers][1][pp]
 		tensor_list = vcat(Tn1, bottom_env_element, prime(dag(Tn2)))
-		#opt_seq = optimal_contraction_sequence(tensor_list)
-		top_environments[end][isodd(pp)+1] = contract(tensor_list)#contract(tensor_list; sequence = opt_seq)
+
+		top_environments[end][isodd(pp)+1] = use_gpu ? contract(gpu.(tensor_list)) : contract(tensor_list)
 	end
 	
 	# now go backwards through the network and calculate the downflow
@@ -381,40 +380,40 @@ function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwo
 
 				# order of tensor list is previous_top_env, ket tensor, bottom_env_element, bra tensor
 				tensor_list = vcat(previous_top_env, Tn1, bottom_env_element, prime(dag(Tn2)))
-				opt_seq = optimal_contraction_sequence(tensor_list)
-				top_environments[ll-1][chd[2]] = contract(tensor_list; sequence = opt_seq)
+				
+				top_environments[ll-1][chd[2]] = use_gpu ? cpu(contract(gpu.(tensor_list))) : contract(tensor_list)
 			end
 		end		
 	end
 	return top_environments
 end
 
-function top_overlap_environments(ttn1::TreeTensorNetwork,ttn2::TreeTensorNetwork)
-	bottom_envs = bottom_overlap_environments(ttn1, ttn2)
-	return top_overlap_environments(ttn1, ttn2, bottom_envs)
+function top_overlap_environments(ttn1::TreeTensorNetwork,ttn2::TreeTensorNetwork; use_gpu::Bool=false)
+	bottom_envs = bottom_overlap_environments(ttn1, ttn2; use_gpu=use_gpu)
+	return top_overlap_environments(ttn1, ttn2, bottom_envs; use_gpu=use_gpu)
 end
 
-function build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,net::AbstractNetwork,which_site::Tuple{Int,Int})
+function build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,net::AbstractNetwork,which_site::Tuple{Int,Int}; use_gpu::Bool=false)
 	
 	# different for top layer
 	nlayers = number_of_layers(net)
 	if which_site[1] == nlayers
-		return contract(bottom_envs[nlayers][1]..., dag(prime(ttn2[which_site])))
+		return use_gpu ? cpu(contract(gpu.(bottom_envs[nlayers][1]...), dag(prime(gpu(ttn2[which_site]))))) : contract(bottom_envs[nlayers][1]..., dag(prime(ttn2[which_site])))
 	end
 
 	# likely more efficient way to do this
 	local_envs = Vector{ITensor}(undef, number_of_child_nodes(net,which_site)+1)
-	local_envs[1] = top_envs[which_site[1]][which_site[2]] * dag(prime(ttn2[which_site]))
+	local_envs[1] = use_gpu ? cpu(gpu(top_envs[which_site[1]][which_site[2]]) * dag(prime(gpu(ttn2[which_site])))) : top_envs[which_site[1]][which_site[2]] * dag(prime(ttn2[which_site]))
 	for chd in child_nodes(net,which_site)
 		local_envs[index_of_child(net,chd)+1] = bottom_envs[which_site[1]][which_site[2]][index_of_child(net,chd)]
 	end
-	return contract(local_envs...)
+	return use_gpu ? cpu(contract(gpu.(local_envs...))) : contract(local_envs...)
 end
 
-build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,which_site::Tuple{Int,Int}) = build_single_overlap_environment(top_envs,bottom_envs,ttn2,network(ttn2),which_site)
-build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,which_site::Vector{Int}) = build_single_overlap_environment(top_envs,bottom_envs,ttn2,network(ttn2),(which_site[1],which_site[2]))
+build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,which_site::Tuple{Int,Int}; use_gpu::Bool=false) = build_single_overlap_environment(top_envs,bottom_envs,ttn2,network(ttn2),which_site; use_gpu=use_gpu)
+build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,which_site::Vector{Int}; use_gpu::Bool=false) = build_single_overlap_environment(top_envs,bottom_envs,ttn2,network(ttn2),(which_site[1],which_site[2]); use_gpu=use_gpu)
 
-function build_overlap_environments(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork)
+function build_overlap_environments(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork; use_gpu::Bool=false)
 	
 	net = network(ttn2)
 	nlayers = length(bottom_envs)
@@ -425,24 +424,24 @@ function build_overlap_environments(top_envs::Vector,bottom_envs::Vector,ttn2::T
 
 	# top layer has no top environment, only bottom top_environments
 	envs[end] = Vector{Vector{ITensor}}(undef, 1)
-	envs[end][1] = contract(bottom_envs[nlayers][1]...)
+	envs[end][1] = use_gpu ? contract(gpu.(bottom_envs[nlayers][1]...)) : contract(bottom_envs[nlayers][1]...)
 
 	# child nodes at layer 2 are weird
 	for ll in Iterators.drop(Iterators.reverse(eachlayer(net)),1)
 		envs[ll] = Vector{ITensor}(undef, number_of_tensors(net,ll))
 		for pp in eachindex(net,ll)
-			envs[ll][pp] = build_single_overlap_environment(top_envs,bottom_envs,ttn2,(ll,pp))
+			envs[ll][pp] = build_single_overlap_environment(top_envs,bottom_envs,ttn2,(ll,pp); use_gpu=use_gpu)
 		end
 	end
 
 	return envs
 end
 
-function build_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork)
-	bottom_envs = bottom_overlap_environments(ttn1, ttn2)
-	top_envs = top_overlap_environments(ttn1, ttn2, bottom_envs)
+function build_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork; use_gpu::Bool=false)
+	bottom_envs = bottom_overlap_environments(ttn1, ttn2; use_gpu=use_gpu)
+	top_envs = top_overlap_environments(ttn1, ttn2, bottom_envs; use_gpu=use_gpu)
 
-	return build_overlap_environments(top_envs, bottom_envs,ttn2)
+	return build_overlap_environments(top_envs, bottom_envs,ttn2; use_gpu=use_gpu)
 end
 
 # need a function to efficiently recalculate environments for new ortho_center
@@ -470,42 +469,41 @@ end
 
 # calculates all top and bottom overlap environments from scratch for a given TTN and the state it is being overlapped with
 # the default weight for this overlap is 100.0
-function initialize_projttn(psi::TreeTensorNetwork{N,T},ttn_orthogonal::TreeTensorNetwork,weight::Float64=100.0) where{N,T}
+function initialize_projttn(psi::TreeTensorNetwork{N,T},ttn_orthogonal::TreeTensorNetwork,weight::Float64=100.0; use_gpu::Bool=false) where{N,T}
 	
 	# need to have some checks here at the beginning
 	precheck_projttn(psi,ttn_orthogonal)
 	#println("Prechecks completed")
 
 	oc = ttn_orthogonal.ortho_center
-	bottom_envs = bottom_overlap_environments(psi, ttn_orthogonal)
+	bottom_envs = bottom_overlap_environments(psi, ttn_orthogonal; use_gpu=use_gpu)
 	#println("Bottom environments calculated")
-	top_envs = top_overlap_environments(psi, ttn_orthogonal, bottom_envs)
+	top_envs = top_overlap_environments(psi, ttn_orthogonal, bottom_envs; use_gpu=use_gpu)
 	#println("Top environments calculated")
-	local_env = build_single_overlap_environment(top_envs, bottom_envs, ttn_orthogonal, oc)
+	local_env = build_single_overlap_environment(top_envs, bottom_envs, ttn_orthogonal, oc; use_gpu=use_gpu)
 	#println("Local environment calculated")
 	return ProjTTN{N,T}(oc, weight, psi, ttn_orthogonal, bottom_envs, top_envs, local_env)
 end
 
 # iteratively generates overlap environments for all states in ortho_states from scratch
-function initialize_projttn(psi::TreeTensorNetwork,ortho_states::Vector,weights::Vector{Float64}=fill(100.0,length(ortho_states)))
+function initialize_projttn(psi::TreeTensorNetwork,ortho_states::Vector,weights::Vector{Float64}=fill(100.0,length(ortho_states)); use_gpu::Bool=false)
 	all_projttns = Vector{ProjTTN}(undef, length(ortho_states))
 	for (idx,ttn2) in enumerate(ortho_states)
-		all_projttns[idx] = initialize_projttn(psi,ttn2,weights[idx])
+		all_projttns[idx] = initialize_projttn(psi,ttn2,weights[idx]; use_gpu=use_gpu)
 	end
 	return all_projttns
 end
 
-ProjTTN(psi::TreeTensorNetwork,ortho_states::Vector,weights::Vector{Float64}) = initialize_projttn(psi,ortho_states,weights)
-ProjTTN(psi::TreeTensorNetwork,ttn_orthogonal::TreeTensorNetwork,weight::Float64) = initialize_projttn(psi,ttn_orthogonal,weight)
-ProjTTN(psi::TreeTensorNetwork,ortho_states::Vector) = initialize_projttn(psi,ortho_states)
-ProjTTN(psi::TreeTensorNetwork,ttn_orthogonal::TreeTensorNetwork) = initialize_projttn(psi,ttn_orthogonal)
-
+ProjTTN(psi::TreeTensorNetwork,ortho_states::Vector,weights::Vector{Float64}; use_gpu::Bool=false) = initialize_projttn(psi,ortho_states,weights; use_gpu=use_gpu)
+ProjTTN(psi::TreeTensorNetwork,ttn_orthogonal::TreeTensorNetwork,weight::Float64; use_gpu::Bool=false) = initialize_projttn(psi,ttn_orthogonal,weight; use_gpu=use_gpu)
+ProjTTN(psi::TreeTensorNetwork,ortho_states::Vector; use_gpu::Bool=false) = initialize_projttn(psi,ortho_states; use_gpu=use_gpu)
+ProjTTN(psi::TreeTensorNetwork,ttn_orthogonal::TreeTensorNetwork; use_gpu::Bool=false) = initialize_projttn(psi,ttn_orthogonal; use_gpu=use_gpu)
 
 function build_single_overlap_environment(projttn::ProjTTN,which_site::Tuple{Int,Int})
 	return build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,network(projttn),which_site)
 end
 
-function update_environments_down!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
+function update_environments_down!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int}; use_gpu::Bool=false)
 
 	#println("Moving from ",pos," to ",pos_final)
 
@@ -522,17 +520,17 @@ function update_environments_down!(projttn::ProjTTN, isom::ITensor, pos::Tuple{I
 
 	tensor_list[1] = isom
 
-	opt_seq = optimal_contraction_sequence(tensor_list)
+	use_gpu && gpu.(tensor_list)
 
-	top_env_final = contract(tensor_list; sequence = opt_seq)
+	top_env_final = cpu(contract(tensor_list))
 
 	projttn.top_envs[pos_final[1]][pos_final[2]] = top_env_final
-	projttn.local_env = build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,pos_final)
+	projttn.local_env = build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,pos_final; use_gpu=use_gpu)
 
 	return projttn
 end
 
-function update_environments_up!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
+function update_environments_up!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int}; use_gpu::Bool=false)
 
 	#println("Moving from ",pos," to ",pos_final)
 
@@ -547,19 +545,20 @@ function update_environments_up!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int
 	tensor_list[4] = dag(prime(projttn.psi_overlap[pos]))
 	tensor_list[1] = isom
 
-	opt_seq = optimal_contraction_sequence(tensor_list)
-	bottom_env_final = contract(tensor_list; sequence = opt_seq)
+	use_gpu && gpu.(tensor_list)
+
+	bottom_env_final = cpu(contract(tensor_list))
 
 	chlds = child_nodes(network(projttn), pos_final)
 	projttn.bottom_envs[pos_final[1]][pos_final[2]][findfirst(x -> x == pos, chlds)] = bottom_env_final
 
-	projttn.local_env = build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,pos_final)
+	projttn.local_env = build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,pos_final; use_gpu=use_gpu)
 
 	return projttn
 
 end
 
-function update_environments!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int})
+function update_environments!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, Int}, pos_final::Tuple{Int, Int}; use_gpu::Bool=false)
 
 	# pos_final has to be either a child node or the parent node of pos
     @assert pos_final ∈ vcat(child_nodes(network(projttn), pos), parent_node(network(projttn), pos))
@@ -569,12 +568,16 @@ function update_environments!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int, I
 
 	if pos_final in child_nodes(network(projttn), pos)
 		# in this case we are moving down the tree
-		update_environments_down!(projttn, isom, pos, pos_final)
+		update_environments_down!(projttn, isom, pos, pos_final; use_gpu=use_gpu)
 	elseif pos_final == parent_node(network(projttn), pos)
 		# in this case we are moving up the tree
-		update_environments_up!(projttn, isom, pos, pos_final)
+		update_environments_up!(projttn, isom, pos, pos_final; use_gpu=use_gpu)
 	else
 		error("Invalid final position")
 	end
 
+end
+
+function size_of_local_env(projttn::ProjTTN,pos::Tuple{Int,Int},pos_final::Tuple{Int,Int})
+	println("Moving from ",pos," to ",pos_final,", Number of Elements in local env: ",prod(dims(projttn.local_env)))
 end

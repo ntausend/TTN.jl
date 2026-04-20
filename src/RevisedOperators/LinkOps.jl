@@ -216,6 +216,7 @@ function contract_ops(net::BinaryNetwork,
 
     tn_dag = dag(prime(tn_, ind(tn_, open_index)))
 
+    i = 0
     for (idd, ops) in bucket
         tn_p = tn_dag
         tensor_list = [tn_]
@@ -227,6 +228,7 @@ function contract_ops(net::BinaryNetwork,
         for op in ops
             op_tensor = use_gpu ? gpu(op.op) : op.op
             common_index = commonind(tn_, op_tensor)
+            isnothing(common_index) && continue
             tn_p = prime(tn_p, common_index)
             push!(tensor_list, op_tensor)
             op_red += op_reduction(op)

@@ -77,17 +77,22 @@ function update!(sp::SimpleSweepHandlerGPU,
             # Expand combined tensor with child2
             T_temp, T_child2 = expand(T_temp, T_child2, sp.expander; reorthogonalize = true)
 
+
             # Split back to original tensor and child1
             ids_shared = commonind(T_child1, T)
             ids_linked = uniqueinds(T_child1, ids_shared)
             T_child1, T = factorize(T_temp, ids_linked; tags = tags(ids_shared))
 
+
             # Commit expanded tensors: write CPU to TTN, keep GPU in cache
             (ttn[pos], node_cache[pos], ttn[child_nds[2]], node_cache[child_nds[2]], ttn[child_nds[1]], node_cache[child_nds[1]]) = (cpu(T), T, cpu(T_child2), T_child2, cpu(T_child1), T_child1)
 
+            # the tensor has been expanded and now the link of the TTN tensor has a different ID and different QN subspace and cannot contract with operator tensor
+            # never see this issue inside the tree because doesn't have operator on expanded link
+
             # Update environments for expansion
-            recalc_expander_path_flows!(pTPO, ttn, pos, child_nds[2]; use_gpu = true, node_cache = node_cache)
             recalc_expander_path_flows!(pTPO, ttn, pos, child_nds[1]; use_gpu = true, node_cache = node_cache)
+            recalc_expander_path_flows!(pTPO, ttn, pos, child_nds[2]; use_gpu = true, node_cache = node_cache)
 
             # IDs changed -> reload both & refresh cache
             T      = (node_cache[pos]         = gpu(ttn[pos]))
@@ -103,6 +108,7 @@ function update!(sp::SimpleSweepHandlerGPU,
 
             # Commit expanded tensors: write CPU to TTN, keep GPU in cache
             (ttn[pos], node_cache[pos], ttn[posnext], node_cache[posnext]) =(cpu(T), T, cpu(T_next), T_next)
+
 
             # Update environments for expansion
 	        recalc_expander_path_flows!(pTPO, ttn, pos, posnext; use_gpu = true, node_cache = node_cache)
