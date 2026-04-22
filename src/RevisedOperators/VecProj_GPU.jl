@@ -182,9 +182,7 @@ function _∂A_impl(proj_ttn::ProjTTN, pos::Tuple{Int,Int}, ::Val{:gpu})
     end
 end
 
-# still not working
 function recalc_expander_path_flows!(vecproj::VecProj_GPU, ttn::TreeTensorNetwork, oldroot::Tuple{Int,Int}, newroot::Tuple{Int,Int}; use_gpu::Bool = false, node_cache = Dict())
-    #error("recalc_expander_path_flows! is not yet implemented for VecProj_GPU")
     
     oc_projtpo = ortho_center(vecproj)
     oc_ttn     = ortho_center(ttn)

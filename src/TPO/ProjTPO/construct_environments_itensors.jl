@@ -285,7 +285,7 @@ end
 
 ####### ProjTTN ########
 
-function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork; use_gpu::Bool=false)
+function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, ::Val{:gpu})
 	net = network(ttn1)
 
 	# now we want to calculate the upflow up to the ortho position
@@ -331,7 +331,7 @@ function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNe
 
 				idchlds = id_rg[chd[1]][chd[2]]
 				tensor_list = vcat(Tn1,idchlds..., prime(dag(Tn2)))
-				id_rg[ll][pp][index_of_child(net, chd)] = use_gpu ? cpu(contract(gpu.(tensor_list))) : contract(tensor_list)
+				id_rg[ll][pp][index_of_child(net, chd)] = contract(gpu.(tensor_list))
 			end
 		end
 	end
@@ -339,7 +339,65 @@ function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNe
 	return id_rg
 end
 
-function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, id_up_overlap::Vector{Vector{Vector{ITensor}}}; use_gpu::Bool=false)
+function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, ::Val{:cpu})
+	net = network(ttn1)
+
+	# now we want to calculate the upflow up to the ortho position
+	oc = ortho_center(ttn1)
+	# should be orthogonalized
+	@assert oc != (-1,-1)
+	@assert oc == ortho_center(ttn2)
+
+	# initialize the rg terms similiar to the bottom envs. i.e.
+	# for every layer we have a array for every node denoting the upflow of the link
+	# operators up to this point
+	# structure:
+	# first index  -> layer
+	# second index -> node
+	# third index  -> leg
+	# fourth index -> ovelap flow
+
+	# flow of the identity operator
+	id_rg = Vector{Vector{Vector{ITensor}}}(undef, number_of_layers(net))
+	
+	# the first layer terms, ttn2 is the daggered state
+	id_rg[1] = map(eachindex(net,1)) do pp
+		chdnds = child_nodes(net, (1,pp))
+		Tn2 = ttn2[(1,pp)]
+		map(1:number_of_child_nodes(net, (1,pp))) do nn
+			pos = chdnds[nn][2]
+			idx1 = inds(ttn1[(1,pp)], "Site,n=$(pos)")
+			idx2 = inds(ttn2[(1,pp)], "Site,n=$(pos)")
+			delta(dag.(idx1), prime.(idx2))
+		end
+	end
+
+	# now we calculate the upflow of the overlaps
+	for ll in Iterators.drop(eachlayer(net), 1)
+		id_rg[ll]    = Vector{Vector{ITensor}}(undef, number_of_tensors(net, ll))
+		for pp in eachindex(net, ll)
+			n_chds = number_of_child_nodes(net, (ll, pp))
+			id_rg[ll][pp]    = Vector{ITensor}(undef, n_chds)
+
+			for chd in child_nodes(net, (ll, pp))
+				Tn1 = ttn1[chd]
+				Tn2 = ttn2[chd]
+
+				idchlds = id_rg[chd[1]][chd[2]]
+				tensor_list = vcat(Tn1,idchlds..., prime(dag(Tn2)))
+				id_rg[ll][pp][index_of_child(net, chd)] = contract(tensor_list)
+			end
+		end
+	end
+
+	return id_rg
+end
+
+function bottom_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork; use_gpu::Bool=false)
+	use_gpu ? bottom_overlap_environments(ttn1, ttn2, Val(:gpu)) : bottom_overlap_environments(ttn1, ttn2, Val(:cpu))
+end
+
+function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, id_up_overlap::Vector{Vector{Vector{ITensor}}},::Val{:gpu})
 	net = network(ttn1)
 	nlayers = number_of_layers(net)
 
@@ -360,10 +418,11 @@ function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwo
 		bottom_env_element = id_up_overlap[nlayers][1][pp]
 		tensor_list = vcat(Tn1, bottom_env_element, prime(dag(Tn2)))
 
-		top_environments[end][isodd(pp)+1] = use_gpu ? contract(gpu.(tensor_list)) : contract(tensor_list)
+		top_environments[end][isodd(pp)+1] = cpu(contract(gpu.(tensor_list)))
 	end
 	
 	# now go backwards through the network and calculate the downflow
+	idxmap = Dict(1 => 2, 2 => 1)
 	for ll in Iterators.drop(Iterators.reverse(collect(Iterators.drop(eachlayer(net),1))), 1)
 		top_environments[ll-1] = Vector{ITensor}(undef, number_of_tensors(net,ll-1))
 		for pp in eachindex(net, ll)
@@ -376,16 +435,71 @@ function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwo
 			
 			for (idx,chd) in enumerate(child_nodes(net, prnt_node))
 				# boolean here is slow, find some faster implementation, not general for arbitrary number of legs
-				bottom_env_element = id_up_overlap[ll][pp][isodd(idx)+1]
+				bottom_env_element = id_up_overlap[ll][pp][idxmap[idx]]
 
 				# order of tensor list is previous_top_env, ket tensor, bottom_env_element, bra tensor
 				tensor_list = vcat(previous_top_env, Tn1, bottom_env_element, prime(dag(Tn2)))
 				
-				top_environments[ll-1][chd[2]] = use_gpu ? cpu(contract(gpu.(tensor_list))) : contract(tensor_list)
+				top_environments[ll-1][chd[2]] = cpu(contract(gpu.(tensor_list)))
 			end
 		end		
 	end
 	return top_environments
+end
+
+function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, id_up_overlap::Vector{Vector{Vector{ITensor}}},::Val{:cpu})
+	net = network(ttn1)
+	nlayers = number_of_layers(net)
+
+	# these are the environments for each node of the lattice
+	# as such the indices are ordered as follows:
+	# first index  -> layer
+	# second index -> node
+	# third index  -> overlap flow downwards
+	# top layer has no top environment and next-to-top layer top environment has no previous top environment
+	top_environments = Vector{Vector{ITensor}}(undef, nlayers-1)
+	
+	# not sure how to do this for arbitrary number of legs, assume for arb legs only single bottom env is needed
+	top_environments[end] = Vector{ITensor}(undef, number_of_tensors(net,nlayers-1))
+	for pp in eachindex(net, nlayers-1)
+		Tn1 = ttn1[(nlayers,1)]
+		Tn2 = ttn2[(nlayers,1)]
+
+		bottom_env_element = id_up_overlap[nlayers][1][pp]
+		tensor_list = vcat(Tn1, bottom_env_element, prime(dag(Tn2)))
+
+		top_environments[end][isodd(pp)+1] = contract(tensor_list)
+	end
+	
+	# now go backwards through the network and calculate the downflow
+	idxmap = Dict(1 => 2, 2 => 1)
+	for ll in Iterators.drop(Iterators.reverse(collect(Iterators.drop(eachlayer(net),1))), 1)
+		top_environments[ll-1] = Vector{ITensor}(undef, number_of_tensors(net,ll-1))
+		for pp in eachindex(net, ll)
+			
+			prnt_node = (ll,pp)
+			Tn1 = ttn1[prnt_node]
+			Tn2 = ttn2[prnt_node]
+			previous_top_env = top_environments[ll][pp]
+			# maybe speed-up by contracting these first
+			
+			for (idx,chd) in enumerate(child_nodes(net, prnt_node))
+				# boolean here is slow, find some faster implementation, not general for arbitrary number of legs
+				bottom_env_element = id_up_overlap[ll][pp][idxmap[idx]]
+
+				# order of tensor list is previous_top_env, ket tensor, bottom_env_element, bra tensor
+				tensor_list = vcat(previous_top_env, Tn1, bottom_env_element, prime(dag(Tn2)))
+
+				top_environments[ll-1][chd[2]] = contract(tensor_list)
+			end
+		end		
+	end
+
+	return top_environments
+end
+
+function top_overlap_environments(ttn1::TreeTensorNetwork, ttn2::TreeTensorNetwork, id_up_overlap::Vector{Vector{Vector{ITensor}}}; use_gpu::Bool=false)
+	use_gpu ? top_overlap_environments(ttn1, ttn2, id_up_overlap, Val(:gpu)) : top_overlap_environments(ttn1, ttn2, id_up_overlap, Val(:cpu))
 end
 
 function top_overlap_environments(ttn1::TreeTensorNetwork,ttn2::TreeTensorNetwork; use_gpu::Bool=false)
@@ -393,21 +507,32 @@ function top_overlap_environments(ttn1::TreeTensorNetwork,ttn2::TreeTensorNetwor
 	return top_overlap_environments(ttn1, ttn2, bottom_envs; use_gpu=use_gpu)
 end
 
-function build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,net::AbstractNetwork,which_site::Tuple{Int,Int}; use_gpu::Bool=false)
-	
+function build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,net::AbstractNetwork,which_site::Tuple{Int,Int},::Val{:gpu})
 	# different for top layer
 	nlayers = number_of_layers(net)
-	if which_site[1] == nlayers
-		return use_gpu ? cpu(contract(gpu.(bottom_envs[nlayers][1]...), dag(prime(gpu(ttn2[which_site]))))) : contract(bottom_envs[nlayers][1]..., dag(prime(ttn2[which_site])))
-	end
+	which_site[1] == nlayers && return cpu(contract(gpu.(bottom_envs[nlayers][1]...), dag(prime(gpu(ttn2[which_site])))))
 
-	# likely more efficient way to do this
-	local_envs = Vector{ITensor}(undef, number_of_child_nodes(net,which_site)+1)
-	local_envs[1] = use_gpu ? cpu(gpu(top_envs[which_site[1]][which_site[2]]) * dag(prime(gpu(ttn2[which_site])))) : top_envs[which_site[1]][which_site[2]] * dag(prime(ttn2[which_site]))
-	for chd in child_nodes(net,which_site)
-		local_envs[index_of_child(net,chd)+1] = bottom_envs[which_site[1]][which_site[2]][index_of_child(net,chd)]
+	result = gpu(top_envs[which_site[1]][which_site[2]]) * dag(prime(gpu(ttn2[which_site])))
+	for chd in child_nodes(net, which_site)
+		result *= gpu(bottom_envs[which_site[1]][which_site[2]][index_of_child(net, chd)])
 	end
-	return use_gpu ? cpu(contract(gpu.(local_envs...))) : contract(local_envs...)
+	return cpu(result)
+end
+
+function build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,net::AbstractNetwork,which_site::Tuple{Int,Int},::Val{:cpu})
+	# different for top layer
+	nlayers = number_of_layers(net)
+	which_site[1] == nlayers && return contract(bottom_envs[nlayers][1]..., dag(prime(ttn2[which_site])))
+
+	result = top_envs[which_site[1]][which_site[2]] * dag(prime(ttn2[which_site]))
+	for chd in child_nodes(net, which_site)
+		result = result * bottom_envs[which_site[1]][which_site[2]][index_of_child(net, chd)]
+	end
+	return result
+end
+
+function build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,net::AbstractNetwork,which_site::Tuple{Int,Int}; use_gpu::Bool=false)
+	use_gpu ? build_single_overlap_environment(top_envs,bottom_envs,ttn2,net,which_site,Val(:gpu)) : build_single_overlap_environment(top_envs,bottom_envs,ttn2,net,which_site,Val(:cpu))
 end
 
 build_single_overlap_environment(top_envs::Vector,bottom_envs::Vector,ttn2::TreeTensorNetwork,which_site::Tuple{Int,Int}; use_gpu::Bool=false) = build_single_overlap_environment(top_envs,bottom_envs,ttn2,network(ttn2),which_site; use_gpu=use_gpu)
@@ -520,9 +645,7 @@ function update_environments_down!(projttn::ProjTTN, isom::ITensor, pos::Tuple{I
 
 	tensor_list[1] = isom
 
-	use_gpu && gpu.(tensor_list)
-
-	top_env_final = cpu(contract(tensor_list))
+	top_env_final = use_gpu ? cpu(contract(gpu.(tensor_list))) : contract(tensor_list)
 
 	projttn.top_envs[pos_final[1]][pos_final[2]] = top_env_final
 	projttn.local_env = build_single_overlap_environment(projttn.top_envs,projttn.bottom_envs,projttn.psi_overlap,pos_final; use_gpu=use_gpu)
@@ -545,9 +668,7 @@ function update_environments_up!(projttn::ProjTTN, isom::ITensor, pos::Tuple{Int
 	tensor_list[4] = dag(prime(projttn.psi_overlap[pos]))
 	tensor_list[1] = isom
 
-	use_gpu && gpu.(tensor_list)
-
-	bottom_env_final = cpu(contract(tensor_list))
+	bottom_env_final = use_gpu ? cpu(contract(gpu.(tensor_list))) : contract(tensor_list)
 
 	chlds = child_nodes(network(projttn), pos_final)
 	projttn.bottom_envs[pos_final[1]][pos_final[2]][findfirst(x -> x == pos, chlds)] = bottom_env_final
