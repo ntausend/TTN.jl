@@ -124,6 +124,146 @@ function _correlation_pos1_le_pos2(ttn::TreeTensorNetwork, op1::String, op2::Str
     return ITensors.scalar(((T*Opl) * Opr)*dag(prime(T, idx_shrl, idx_shrr)))
 end
 
+function correlation(all_ttns::Vector{TreeTensorNetwork{N,T}}, op1::AbstractString, op2::AbstractString, pos1::Int, pos2::Int) where {N,T}
+    if pos1 == pos2
+        # fast exit using the expectation value
+        op_new = "$op1 * $op2"
+        return expect(all_ttns, op_new, pos1)
+    end
+    if pos1 < pos2
+        return _correlation_pos1_le_pos2(all_ttns, op1, op2, pos1, pos2)
+    else
+        return _correlation_pos2_le_pos1(all_ttns, op2, op1, pos1, pos2)
+    end
+end
+
+# manifold correlation function
+function _correlation_pos1_le_pos2(all_ttns::Vector{TreeTensorNetwork{N,T}},op1::String, op2::String,pos1::Int, pos2::Int) where {N<:BinaryNetwork, T}
+
+    @assert pos1 < pos2
+
+    net      = network(all_ttns[1])
+    phys_lat = physical_lattice(net)
+
+    # Build physical-level operator tensors (leaf level, not parent)
+    idx1 = siteinds(net)[pos1]
+    idx2 = siteinds(net)[pos2]
+    O1   = convert_cu(op(op1, idx1), all_ttns[1][(1,1)])
+    O2   = convert_cu(op(op2, idx2), all_ttns[1][(1,1)])
+
+    res_mat = zeros(ComplexF64, length(all_ttns), length(all_ttns))
+
+    for i in eachindex(all_ttns), j in eachindex(all_ttns)
+
+        elT = promote_type(eltype(all_ttns[i]), eltype(all_ttns[j]))
+
+        # Quantum number guard — skip pair, don't return
+        if !(sectortype(net) == Int64)
+            fl1 = flux(all_ttns[i][number_of_layers(net), 1])
+            fl2 = flux(all_ttns[j][number_of_layers(net), 1])
+            if fl1 != fl2
+                res_mat[i,j] = zero(elT)
+                continue
+            end
+        end
+
+        # Initialise leaf environments:
+        # insert O1 at pos1, O2 at pos2, delta (identity) everywhere else
+        res = map(enumerate(phys_lat)) do (k, nd)
+            s = hilbertspace(nd)
+            if k == pos1
+                O1
+            elseif k == pos2
+                O2
+            else
+                delta(dag(s), prime(s))
+            end
+        end
+
+        # Layer sweep — uniform contraction, no special-casing of parent nodes
+        for ll in eachlayer(net)
+            nt      = number_of_tensors(net, ll)
+            res_new = Vector{T}(undef, nt)
+            for pp in eachindex(net, ll)
+                childs_idx = getindex.(child_nodes(net, (ll,pp)), 2)
+                tn1   = all_ttns[i][ll,pp]
+                tn2   = all_ttns[j][ll,pp]
+                braT  = dag(prime(tn1))
+                res_new[pp] = braT * ((tn2 * res[childs_idx[1]]) * res[childs_idx[2]])
+            end
+            res = res_new
+        end
+
+        length(res) == 1 || error("Tree contraction did not reduce to a single tensor.")
+        res_mat[i,j] = order(res[1]) == 0 ? scalar(res[1]) : tr(res[1])
+    end
+
+    return eigen(res_mat)
+end
+
+function _correlation_pos2_le_pos1(all_ttns::Vector{TreeTensorNetwork{N,T}},op1::String, op2::String,pos1::Int, pos2::Int) where {N<:BinaryNetwork, T}
+
+    @assert pos1 > pos2
+
+    net      = network(all_ttns[1])
+    phys_lat = physical_lattice(net)
+
+    # Build physical-level operator tensors (leaf level, not parent)
+    idx1 = siteinds(net)[pos1]
+    idx2 = siteinds(net)[pos2]
+    O1   = convert_cu(op(op1, idx1), all_ttns[1][(1,1)])
+    O2   = convert_cu(op(op2, idx2), all_ttns[1][(1,1)])
+
+    res_mat = zeros(ComplexF64, length(all_ttns), length(all_ttns))
+
+    for i in eachindex(all_ttns), j in eachindex(all_ttns)
+
+        elT = promote_type(eltype(all_ttns[i]), eltype(all_ttns[j]))
+
+        # Quantum number guard — skip pair, don't return
+        if !(sectortype(net) == Int64)
+            fl1 = flux(all_ttns[i][number_of_layers(net), 1])
+            fl2 = flux(all_ttns[j][number_of_layers(net), 1])
+            if fl1 != fl2
+                res_mat[i,j] = zero(elT)
+                continue
+            end
+        end
+
+        # Initialise leaf environments:
+        # insert O1 at pos1, O2 at pos2, delta (identity) everywhere else
+        res = map(enumerate(phys_lat)) do (k, nd)
+            s = hilbertspace(nd)
+            if k == pos1
+                O1
+            elseif k == pos2
+                O2
+            else
+                delta(dag(s), prime(s))
+            end
+        end
+
+        # Layer sweep — uniform contraction, no special-casing of parent nodes
+        for ll in eachlayer(net)
+            nt      = number_of_tensors(net, ll)
+            res_new = Vector{T}(undef, nt)
+            for pp in eachindex(net, ll)
+                childs_idx = getindex.(child_nodes(net, (ll,pp)), 2)
+                tn1   = all_ttns[i][ll,pp]
+                tn2   = all_ttns[j][ll,pp]
+                braT  = dag(prime(tn1))
+                res_new[pp] = braT * ((tn2 * res[childs_idx[1]]) * res[childs_idx[2]])
+            end
+            res = res_new
+        end
+
+        length(res) == 1 || error("Tree contraction did not reduce to a single tensor.")
+        res_mat[i,j] = order(res[1]) == 0 ? conj(scalar(res[1])) : conj(tr(res[1]))
+    end
+
+    return eigen(res_mat)
+end
+
 
 ### general n point correlations ###
 """
