@@ -133,7 +133,7 @@ function correlation(all_ttns::Vector{TreeTensorNetwork{N,T}}, op1::AbstractStri
     if pos1 < pos2
         return _correlation_pos1_le_pos2(all_ttns, op1, op2, pos1, pos2)
     else
-        return _correlation_pos2_le_pos1(all_ttns, op2, op1, pos1, pos2)
+        return _correlation_pos2_le_pos1(all_ttns, op2, op1, pos2, pos1)
     end
 end
 
