@@ -58,7 +58,7 @@ function correlation(ttn::TreeTensorNetwork, op1::AbstractString, op2::AbstractS
     if pos1 < pos2
         return _correlation_pos1_le_pos2(ttn, op1, op2, pos1, pos2)
     else
-        return conj(_correlation_pos1_le_pos2(ttn, op2, op1, pos2, pos1))
+        return _correlation_pos1_le_pos2(ttn, op2, op1, pos2, pos1)
     end
 end
 

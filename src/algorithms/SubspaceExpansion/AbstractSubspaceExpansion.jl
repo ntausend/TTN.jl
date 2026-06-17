@@ -133,6 +133,8 @@ function expand(_A::ITensor, _Chlds::Tuple{ITensor, ITensor}, expander::DefaultE
     # treat the flux as if Ac is contracted to Al
     if hasqns(A)
         qn_link_ac = Index([flux(A) => 1], "QNAC"; dir = ITensors.In)
+    
+        iszero(dim(id_max)) && return _A, _B
         qn_link_al = Index([flux(Al) => 1], "QNAL"; dir = ITensors.In)
         qn_link_ar = Index([flux(Ar) => 1], "QNAR"; dir = ITensors.In)
         #flux_al = flux_ac * dir(id_shl) + flux_al
@@ -151,12 +153,15 @@ function expand(_A::ITensor, _Chlds::Tuple{ITensor, ITensor}, expander::DefaultE
     # left link has to be corrected again, by fusing with the inverse link
     id_maxl = dag(combinedind(combiner(id_maxr, qn_link_ac; dir = dir(dag(id_shl)))))
 
+    (iszero(dim(id_maxl)) || iszero(dim(id_maxr))) && return _A, _Chlds...
+
     id_pdl  = _padding(id_shl, id_maxl, expander.p, expander.min)
     id_pdr  = _padding(id_shr, id_maxr, expander.p, expander.min)
-    
 
     id_nl   = intersect(id_pdl, id_maxl; tags = tags(id_shl))
     id_nr   = intersect(id_pdr, id_maxr; tags = tags(id_shr))
+    id_nl   = _lower_bound_index(id_nl, id_shl)
+    id_nr   = _lower_bound_index(id_nr, id_shr)
     Aln = _enlarge_tensor(Al, id_ual, id_shl, dag(id_nl), true)
     Arn = _enlarge_tensor(Ar, id_uar, id_shr, dag(id_nr), false)
     An = _enlarge_two_leg_tensor(A, (id_nl, id_nr), false)
@@ -182,7 +187,6 @@ function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogona
     A = ITensors.permute(_A, id_au..., id_sh)
     B = ITensors.permute(_B, id_bu..., id_sh)
 
-    # build qn link for haveing the qns correctly handled
     if hasqns(A)
         qn_link_a = Index([flux(A) => 1], "QNA"; dir = ITensors.In)
         qn_link_b = Index([flux(B) => 1], "QNB"; dir = ITensors.In)
@@ -190,7 +194,6 @@ function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogona
         qn_link_a = Index(1, "QNA")
         qn_link_b = Index(1, "QNB")
     end
-    
 
     # again build the combined index along the direction of the shared index
     idfa = combinedind(combiner(id_au..., qn_link_a; dir = dir(dag(id_sh))))
@@ -201,7 +204,11 @@ function expand(_A::ITensor, _B::ITensor, expander::DefaultExpander; reorthogona
     id_pd  = _padding(id_sh, id_max, expander.p, expander.min)
 
     id_n   = intersect(id_pd, id_max; tags = tags(id_sh))
-    
+    # Prevent shrinkage: when id_max < id_sh for a saturated sector, the
+    # intersect can produce id_n smaller than id_sh, causing a BoundsError
+    # in _enlarge_two_leg_tensor. Clamp each sector to at least id_sh's size.
+    id_n   = _lower_bound_index(id_n, id_sh)
+
     # id_n should have the correct direction for the A tensor
     An = _enlarge_tensor(A, id_au, id_sh, id_n, false)
     # but the B tensor needs to be inverted
