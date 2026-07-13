@@ -214,7 +214,19 @@ function increase_dim_tree_tensor_network_zeros(ttn::TreeTensorNetwork; maxdim::
     for (ll,pp) in NodeIterator(net)
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
-        data_temp = (ll == number_of_layers(net)) ? zeros(elT, ITensors.dim.((codom...,))) : zeros(elT, ITensors.dim.((codom..., dom))) 
+        data_temp = (ll == number_of_layers(net)) ? zeros(elT, ITensors.dim.((codom...,))) : zeros(elT, ITensors.dim.((codom..., dom)))
+
+        # verify shape of data_temp and ttn[ll,pp]; ttn[ll,pp]'s indices may be permuted
+        # relative to (codom..., dom), so bring data_temp's axes into ttn[ll,pp]'s index
+        # order (matched by tags) before comparing/copying
+        target_order = (ll == number_of_layers(net)) ? codom : (codom..., dom)
+        old_inds = inds(ttn[ll,pp])
+        perm = map(oi -> findfirst(ti -> hastags(ti, tags(oi)), target_order), collect(old_inds))
+        any(isnothing, perm) && error("Could not match indices of ttn[$ll,$pp] to domains/codomains by tags")
+        if perm != 1:length(perm)
+            data_temp = permutedims(data_temp, perm)
+        end
+        any(size(data_temp) .< size(ttn[ll,pp])) && error("data_temp is smaller than ttn[$ll,$pp] along some dimension after aligning index order")
 
         pos_it = Iterators.product(UnitRange.(1, ITensors.dim.(inds(ttn[ll,pp])))...)
         for pos in pos_it
@@ -250,7 +262,19 @@ function increase_dim_tree_tensor_network_randn(ttn::TreeTensorNetwork; maxdim::
     for (ll,pp) in NodeIterator(net)
         dom  = domains[ll][pp]
         codom = codomains[ll][pp]
-        data_temp = (ll == number_of_layers(net)) ? factor.*randn(elT, ITensors.dim.((codom...,))) : factor.*randn(elT, ITensors.dim.((codom..., dom))) 
+        data_temp = (ll == number_of_layers(net)) ? factor.*randn(elT, ITensors.dim.((codom...,))) : factor.*randn(elT, ITensors.dim.((codom..., dom)))
+
+        # verify shape of data_temp and ttn[ll,pp]; ttn[ll,pp]'s indices may be permuted
+        # relative to (codom..., dom), so bring data_temp's axes into ttn[ll,pp]'s index
+        # order (matched by tags) before comparing/copying
+        target_order = (ll == number_of_layers(net)) ? codom : (codom..., dom)
+        old_inds = inds(ttn[ll,pp])
+        perm = map(oi -> findfirst(ti -> hastags(ti, tags(oi)), target_order), collect(old_inds))
+        any(isnothing, perm) && error("Could not match indices of ttn[$ll,$pp] to domains/codomains by tags")
+        if perm != 1:length(perm)
+            data_temp = permutedims(data_temp, perm)
+        end
+        any(size(data_temp) .< size(ttn[ll,pp])) && error("data_temp is smaller than ttn[$ll,$pp] along some dimension after aligning index order")
 
         pos_it = Iterators.product(UnitRange.(1, ITensors.dim.(inds(ttn[ll,pp])))...)
         for pos in pos_it
